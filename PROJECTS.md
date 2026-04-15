@@ -5,7 +5,7 @@
 - [x] 02. Fibonacci Sequence
 - [x] 03. Prime Factorization
 - [x] 04. Next Prime Number
-- [ ] 05. Tile Cost Calculator
+- [x] 05. Tile Cost Calculator
 - [ ] 06. Mortgage Calculator
 - [ ] 07. Change Return Program
 - [ ] 08. Binary to Decimal and Back
