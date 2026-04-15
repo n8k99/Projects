@@ -6,7 +6,7 @@
 - [x] 03. Prime Factorization
 - [x] 04. Next Prime Number
 - [x] 05. Tile Cost Calculator
-- [ ] 06. Mortgage Calculator
+- [x] 06. Mortgage Calculator
 - [ ] 07. Change Return Program
 - [ ] 08. Binary to Decimal and Back
 - [ ] 09. Calculator

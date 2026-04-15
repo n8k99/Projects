@@ -5,3 +5,4 @@ pub mod fibonacci;
 pub mod prime_factors;
 pub mod next_prime;
 pub mod tile_cost;
+pub mod mortgage;
