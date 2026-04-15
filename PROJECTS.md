@@ -4,7 +4,7 @@
 - [x] 01. Find PI to the Nth Digit
 - [x] 02. Fibonacci Sequence
 - [x] 03. Prime Factorization
-- [ ] 04. Next Prime Number
+- [x] 04. Next Prime Number
 - [ ] 05. Tile Cost Calculator
 - [ ] 06. Mortgage Calculator
 - [ ] 07. Change Return Program
