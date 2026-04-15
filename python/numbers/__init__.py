@@ -6,3 +6,4 @@ from .prime_factors import prime_factors, prime_factorization
 from .next_prime import is_prime, next_prime, nth_prime, primes
 from .tile_cost import tile_cost
 from .mortgage import monthly_payment, amortization_schedule, total_cost, pace_check
+from .change import make_change, cover_obligations

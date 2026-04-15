@@ -7,7 +7,7 @@
 - [x] 04. Next Prime Number
 - [x] 05. Tile Cost Calculator
 - [x] 06. Mortgage Calculator
-- [ ] 07. Change Return Program
+- [x] 07. Change Return Program
 - [ ] 08. Binary to Decimal and Back
 - [ ] 09. Calculator
 - [ ] 10. Unit Converter
