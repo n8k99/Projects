@@ -93,3 +93,25 @@ G005 (tile cost) → what does it cost? G006 (mortgage) → are we on pace? G007
 The `cover_obligations` function is the first thing in this repo that takes a schedule of uneven deadlines and reports what's covered and what isn't. That's the stepped `where` — not linear pace against month-end, but coverage against specific due dates. The daily `where` becomes: are we tracking toward the *next* bill, not just the monthly total?
 
 ---
+
+## Meta-observation: G001–G007 as shared infrastructure
+
+**The same seven functions serve every executive ghost.**
+
+The Numbers category isn't Kathryn's toolkit. It's *everyone's* toolkit. Same `pace_check`, same `cover_obligations`, different denominations, different `where`:
+
+- **Kathryn**: trading covers bills by due dates
+- **Eliana**: infrastructure capacity covers workload before deadlines
+- **JMax**: compliance obligations met before filing dates
+- **Sylvia**: publication rubrics met before deadlines
+- **Vincent**: image specifications *exceeded* by due date
+
+All five run concurrently inside a monthly operations choreography. The `join` waits for all five. The `where` at the top: is EM operational?
+
+But each executive's `<-` gate is a *named choreography* — not a simple check but a full interior dance. Sylvia's publication has drafting, copy editing, fact checking, final polish, each with its own `<-` verification gates and its own `where` (rubric scores above threshold). Vincent's deliverable has creation, resolution verification, brand alignment checks, with a `where` that says *exceeds* spec, not just meets it.
+
+The monthly operations choreography doesn't see any of this interior complexity. It calls `@sylvia_publication` and gets back a score. The three-bracket limit forces the extraction. The result: a library of named choreographies that compose into the top-level `where`, all built on the same seven functions from the Rosetta Stone's Numbers category.
+
+Seven projects into a 130-project exercise, and the computation layer for an entire multi-department autonomous organization has started to emerge from basic programming challenges. The functions are the foundation. The choreographies are the architecture. The `where` is the judgment.
+
+---
