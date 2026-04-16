@@ -41,6 +41,7 @@ mod tests {
         assert_eq!(prime_factors(12), vec![2, 2, 3]);
         assert_eq!(prime_factors(100), vec![2, 2, 5, 5]);
         assert_eq!(prime_factors(17), vec![17]);
-        assert_eq!(prime_factors(1), vec![]);
+        let empty: Vec<u64> = vec![];
+        assert_eq!(prime_factors(1), empty);
     }
 }

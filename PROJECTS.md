@@ -8,25 +8,25 @@
 - [x] 05. Tile Cost Calculator
 - [x] 06. Mortgage Calculator
 - [x] 07. Change Return Program
-- [ ] 08. Binary to Decimal and Back
-- [ ] 09. Calculator
-- [ ] 10. Unit Converter
-- [ ] 11. Alarm Clock
-- [ ] 12. Distance Between Two Cities
-- [ ] 13. Credit Card Validator
-- [ ] 14. Tax Calculator
-- [ ] 15. Dijkstra's Algorithm
+- [x] 08. Binary to Decimal and Back
+- [x] 09. Calculator
+- [x] 10. Unit Converter
+- [x] 11. Alarm Clock
+- [x] 12. Distance Between Two Cities
+- [x] 13. Credit Card Validator
+- [x] 14. Tax Calculator
+- [x] 15. Dijkstra's Algorithm
 
 ## Text
-- [ ] 16. Reverse a String
-- [ ] 17. Pig Latin
-- [ ] 18. Count Vowels
-- [ ] 19. Check if Palindrome
-- [ ] 20. Count Words in a String
-- [ ] 21. Text Editor
-- [ ] 22. RSS Feed Creator
-- [ ] 23. Post it Notes Program
-- [ ] 24. Quote Tracker
+- [x] 16. Reverse a String
+- [x] 17. Pig Latin
+- [x] 18. Count Vowels
+- [x] 19. Check if Palindrome
+- [x] 20. Count Words in a String
+- [x] 21. Text Editor
+- [x] 22. RSS Feed Creator
+- [x] 23. Post it Notes Program
+- [x] 24. Quote Tracker
 - [ ] 25. Guestbook / Journal
 - [ ] 26. News Ticker and Game Scores
 - [ ] 27. Fortune Teller
