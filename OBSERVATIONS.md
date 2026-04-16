@@ -516,3 +516,183 @@ The author field tracks where content came from. In the noosphere, every piece o
 Twenty-four projects in. The Text category has traversed from string manipulation (G016–G020) through state machines (G021) to structured content (G022) and data stores (G023–G024). The pattern: raw text → structured documents → collections of documents → curated knowledge bases. Each step adds a layer of meaning.
 
 ---
+
+## G025 — Guestbook / Journal
+
+**The first immutable data structure.**
+
+G023's notes could be edited and deleted. Journal entries cannot. Once written, they're permanent. This is the event log pattern from G021's undo stack, but without the undo. The log IS the truth. No revision, no deletion — only append.
+
+This is how the vault's daily notes work. You append to today. You don't edit yesterday. The daily note's "What I Did Today" section is a journal — chronological, authored, immutable once the day passes. The Rosetta Stone keeps building primitives that the vault already embodies.
+
+**Time is the primary index.**
+
+Entries are ordered by when they were written, not by content or priority. G025 is chronological-only. This connects to G011's temporal chain — the journal's timeline IS a temporal chain at the entry level. Date-range queries (`get_entries_in_range`) are the first temporal queries in the Rosetta Stone: "what happened between Monday and Wednesday?"
+
+**Append-only + chronological + attributed = audit trail.**
+
+Author on every entry. Timestamp on every entry. No edits. This is the accountability pattern: you can always answer "who wrote what, when." The vault's git history is an audit trail. The DB's conversations table is an audit trail. The journal is the simplest expression of this pattern.
+
+---
+
+## G026 — News Ticker and Game Scores
+
+**Priority enters the picture.**
+
+G025's journal was chronological only. The ticker adds a second ordering axis: importance. Priority + time = how agents triage incoming information. Items sorted by priority first, then recency within the same priority. This is the first multi-key sort in the Rosetta Stone, and it's the one that matters most for agent attention management.
+
+**Temporal scope: items expire.**
+
+TTL (time-to-live) means items are valid for a window, then gone. This is G011's alarm clock in reverse: instead of "do X when time arrives," it's "stop showing X when time expires." Not everything is permanent. Some information is only relevant right now. The noosphere needs both permanent records (G025's journal) and ephemeral signals (G026's ticker). Temporal scope is how agents manage attention — the ticker auto-prunes so agents aren't drowning in stale data.
+
+**Breaking news is an interrupt.**
+
+Max-priority insertion that preempts normal flow. In InnateScript, this maps to forced output — an alert that demands immediate attention regardless of what else is happening. The choreography must handle interrupts: a breaking alert from Kathryn (market crash) preempts Eliana's scheduled infrastructure report. Not all information waits its turn.
+
+**The ticker is the dpnbar.**
+
+Nathan's Quickshell bar already IS a ticker — widgets displaying real-time status (clock, battery, bluetooth, network) sorted by spatial priority (left to right). The Rosetta Stone is building the data model behind the bar.
+
+---
+
+## G027 — Fortune Teller
+
+**Constrained nondeterminism.**
+
+G024 introduced raw nondeterminism (random from entire pool). G027 adds constraints: random, but *from category X*. This is stratified sampling — nondeterministic selection within defined bounds. The resolver's randomness needs to support constraints. Unrestricted random (G024), constrained random (G027), and deterministic dispatch (G013) are three points on a spectrum from full autonomy to full control.
+
+**Context-independent response: the anti-pattern.**
+
+`ask_question(question)` acknowledges the question but responds from its pool regardless. The question doesn't influence the answer. This is the simplest model of an agent that listens but doesn't truly respond to input — it has its own agenda independent of the query. Naming this anti-pattern is useful: agents that ignore context are fortune tellers. Good agents are the opposite — their responses are shaped by the query.
+
+**Nondeterminism + scheduling + content = composition.**
+
+The daily inspiration case: the temporal alarm (G011) fires each morning, triggers a fortune selection (G027) from a category that rotates by day of week, and injects the result into the daily note (G025). Three Rosetta Stone concepts composing naturally. The projects aren't just accumulating — they're starting to *combine*.
+
+Twenty-seven projects in. The Text category's data model arc: flat collections (G023) → curated collections (G024) → immutable logs (G025) → priority streams with expiry (G026) → constrained random pools (G027). Each step adds a different access pattern to the same basic idea of "a collection of text items."
+
+---
+
+## G028 — Vigenere / Vernam / Caesar Ciphers
+
+**Reversible transformation with a secret.**
+
+G017's Pig Latin was reversible with a public rule. Ciphers are reversible with a *private* rule — the key. The key introduces shared secret: two parties must agree on it before communication. In InnateScript, this maps to private agent-to-agent channels. The choreography may be public, but the content is opaque to agents without the key.
+
+**The security spectrum: fixed < repeating < random.**
+
+Caesar (26 possible keys, trivially broken by enumeration), Vigenere (repeating key, breakable by frequency analysis), Vernam (one-time pad, theoretically unbreakable). The progression shows that security scales with key entropy relative to message entropy. Perfect security (Vernam) requires a key as long as the message, used only once — the cost of perfect privacy equals the cost of the thing it protects.
+
+This is a deep constraint. In the noosphere, maintaining a truly private channel between two agents requires as much coordination overhead as the communication itself. Most agents settle for good-enough encryption because perfect security doesn't scale. The trust model is a cost-benefit trade.
+
+**Encryption is content-level information hiding.**
+
+G013 masked part of a value (showing last 4 digits). Ciphers hide ALL the content. Only agents with the key can read it. This is access control via cryptographic means, enforced by mathematics rather than by the choreography's structure. The choreography says who *should* see the data. The cipher ensures only they *can*.
+
+---
+
+## G029 — Random Gift Suggestions
+
+**Attribute-based matching: the first recommendation engine.**
+
+Unlike exact search (G023) or category filter (G026), gift suggestion scores by *relevance* — count how many of the recipient's traits match the gift's compatible traits, sort by score. A gift matching 3/4 traits ranks higher than one matching 1/4. This is fuzzy matching, and it's the primitive behind every recommendation system.
+
+**Profiles are how agents find each other.**
+
+The recipient has traits. The gift has compatible traits. Matching profiles is how agents discover each other in the noosphere: an agent with capability X matches a task requiring capability X. Gift suggestion is agent-task matching in disguise. The `suggest()` function is `@find_agent{needs: ["scheduling", "calendar"]}` generalized.
+
+**Filter on top of ranking: optimize within bounds.**
+
+Budget constraint applies after relevance scoring — first rank by match quality, then filter by what you can afford. This is G015's Dijkstra with constraints: optimize (shortest path / best match), then prune (budget / capacity). The pattern: score → filter → select. The `where` scores the match; the budget is a `<-` gate.
+
+---
+
+## G030 — Text to HTML Generator
+
+**Format translation: same content, different representation.**
+
+Text-to-HTML is G008's base conversion (binary↔decimal) and G010's unit conversion (km↔miles) applied to documents. The content is the same; the representation changes. The resolver's normalize-to-canonical pattern applies: parse markup → internal structure → emit target format.
+
+**This is how the vault renders.**
+
+Every vault note is markdown. Every rendered view is HTML (or will be). The text-to-html converter is the rendering pipeline that sits between vault content and user-visible output. The Rosetta Stone is building the vault's renderer, one formatting rule at a time.
+
+**Multi-granularity parsing.**
+
+The converter operates at two levels simultaneously: block structure (paragraphs, headers, lists — line-level) and inline formatting (bold, italic, code, links — character-level). Block parsing happens first, then inline formatting runs within each block. This is the first multi-granularity parser in the Rosetta Stone — and it mirrors how agents process documents: understand the structure first, then the details within each section.
+
+**Pattern-based transformation at scale.**
+
+The inline rules (`**bold**` → `<strong>`, `*italic*` → `<em>`, `` `code` `` → `<code>`, `[text](url)` → `<a>`) are the same class of operation as G017's Pig Latin: scan for patterns, transform matches, preserve non-matching content. But where Pig Latin had one rule applied per-word, the HTML converter has multiple rules applied within each block. The transformation pipeline is: escape entities → apply patterns in order → wrap in block tags.
+
+Thirty projects in. The Text category has completed its arc from raw strings to structured content: manipulation (G016–G020) → state machines (G021) → formats and serialization (G022, G030) → data stores (G023–G027) → security (G028) → recommendation (G029). Two projects remain.
+
+---
+
+## G031 — CD Key Generator
+
+**Self-verifying tokens: proof embedded in the artifact.**
+
+A CD key carries its own verification. The last group is a checksum of the first four groups. Anyone can validate a key by recomputing the checksum — no database lookup, no network call, no external authority. The key IS its own proof.
+
+This is the opposite of G012's fact lookup, which required external state. Self-verifying tokens are *offline verification* — they scale infinitely because each validation is independent. In InnateScript, this maps to agent credentials: a token that proves authorization without calling back to a central authority. The issuing agent and the validating agent don't need to communicate. The token is the communication.
+
+**The checksum is a simplified digital signature.**
+
+The issuer computes the checksum (signs). The validator recomputes (verifies). The security is weak (the algorithm is public), but the pattern is real. Real digital signatures use asymmetric cryptography — the signing key is private, the verification key is public. CD keys use symmetric verification — anyone who knows the algorithm can both generate and verify. The difference is the trust model.
+
+**Batch generation is `@map` over nondeterminism.**
+
+`generate_batch(n)` applies a nondeterministic function n times independently. Each key is independently random. This is G017's `@map` + G024's nondeterminism combined. The independence is key: batch generation is embarrassingly parallel.
+
+---
+
+## G032 — Regex Query Tool
+
+**Regex is the substrate of text manipulation.**
+
+Every text operation in the Rosetta Stone — reverse, palindrome, cipher, HTML conversion — could be expressed as a sequence of regex operations. Regex is the primitive underneath text manipulation, the way Dijkstra was the primitive underneath graph operations. G030's `**bold** → <strong>` is just `s/\*\*(.*?)\*\*/<strong>\1<\/strong>/g`. The converters and transformers of the Text category are all special cases of regex replace.
+
+**Pre-built patterns are domain schemas expressed as strings.**
+
+EMAIL, URL, PHONE, DATE, IP_ADDRESS — each pattern encodes a domain's structural rules as a string. An email has `local@domain.tld`. A date has `YYYY-MM-DD`. The regex is the schema. This is the text equivalent of G022's RSS schema — structured content described by its pattern, verifiable by matching.
+
+**`extract_groups()` is ETL for the noosphere.**
+
+Capture groups pull typed fields out of free text. A log line becomes `(timestamp, level, message)`. An email becomes `(local, domain)`. This is how agents parse natural language into structured data: the regex is the schema, the text is the input, the groups are the fields. Structured extraction from unstructured content is the bridge between human-readable and machine-processable.
+
+---
+
+## Meta-observation: The Text Category (G016–G032)
+
+**Seventeen projects. One content architecture.**
+
+The Text category discovered InnateScript's content architecture, the way Numbers discovered the computational architecture:
+
+| Project | What it revealed |
+|---------|-----------------|
+| G016 Reverse | **Content vs values.** Text carries meaning. Granularity axis (chars vs words). |
+| G017 Pig Latin | **`@map` primitive.** Per-element transformation. Content/presentation split. Reversibility. |
+| G018 Count Vowels | **Measurement.** Content → values. `@breakdown` primitive. Agent perspective via parameters. |
+| G019 Palindrome | **Composition.** Building on prior operations. Normalization as projection. Content search. |
+| G020 Count Words | **Generic `@breakdown`.** Same operation at different granularities. Statistical vocabulary grows. |
+| G021 Text Editor | **State machines.** Event sourcing. Cursor as attention. Editor ops as command language. |
+| G022 RSS Feed | **Structured content.** String → document. Serialization. Publication channels. |
+| G023 Post-it Notes | **Data stores.** CRUD. Identity makes content addressable. Search as query. |
+| G024 Quote Tracker | **Curated collections.** Multi-label classification. Nondeterminism. Provenance. |
+| G025 Guestbook | **Immutable logs.** Append-only. Time as primary index. Audit trails. |
+| G026 News Ticker | **Priority streams.** Multi-key sort. Temporal scope (TTL). Interrupts. |
+| G027 Fortune Teller | **Constrained nondeterminism.** Stratified sampling. Context-independent response (anti-pattern). |
+| G028 Ciphers | **Encryption.** Shared secrets. Security spectrum. Content-level information hiding. |
+| G029 Gift Suggestions | **Recommendation.** Attribute matching. Profiles. Filter on top of ranking. |
+| G030 Text to HTML | **Format translation.** Multi-granularity parsing. Vault rendering pipeline. |
+| G031 CD Key Generator | **Self-verifying tokens.** Offline verification. Embedded proof. Batch nondeterminism. |
+| G032 Regex Query | **Universal pattern matching.** Domain schemas as patterns. Structured extraction from free text. |
+
+The content architecture: `@map` for per-element transformation + `@breakdown` for measurement + state machines with event sourcing + serialization for cross-boundary communication + CRUD for collections + regex as the universal substrate. Each project was a facet. Together they describe InnateScript's content layer — how agents create, transform, store, query, protect, and render text.
+
+Numbers gave us the resolver's computational core. Text gives us the resolver's content layer. Together: a computational engine that operates on meaning-bearing content.
+
+The Text category is complete.
+
+---

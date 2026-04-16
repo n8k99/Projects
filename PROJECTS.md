@@ -27,14 +27,14 @@
 - [x] 22. RSS Feed Creator
 - [x] 23. Post it Notes Program
 - [x] 24. Quote Tracker
-- [ ] 25. Guestbook / Journal
-- [ ] 26. News Ticker and Game Scores
-- [ ] 27. Fortune Teller
-- [ ] 28. Vigenere / Vernam / Caesar Ciphers
-- [ ] 29. Random Gift Suggestions
-- [ ] 30. Text to HTML Generator
-- [ ] 31. CD Key Generator
-- [ ] 32. Regex Query Tool
+- [x] 25. Guestbook / Journal
+- [x] 26. News Ticker and Game Scores
+- [x] 27. Fortune Teller
+- [x] 28. Vigenere / Vernam / Caesar Ciphers
+- [x] 29. Random Gift Suggestions
+- [x] 30. Text to HTML Generator
+- [x] 31. CD Key Generator
+- [x] 32. Regex Query Tool
 
 ## Networking
 - [ ] 33. FTP Program
