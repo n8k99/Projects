@@ -37,9 +37,9 @@
 - [x] 32. Regex Query Tool
 
 ## Networking
-- [ ] 33. FTP Program
-- [ ] 34. Get Atomic Time from Internet Clock
-- [ ] 35. Chat Application (Networking)
+- [x] 33. FTP Program
+- [x] 34. Get Atomic Time from Internet Clock
+- [x] 35. Chat Application (Networking)
 - [ ] 36. Fetch Current Weather
 - [ ] 37. P2P File Sharing App
 - [ ] 38. Port Scanner

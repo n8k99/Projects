@@ -30,7 +30,7 @@ pub fn pig_latin_word(word: &str) -> String {
     }
 
     let was_cap = core.chars().next().unwrap().is_uppercase();
-    let lower: String = core.to_lowercase().collect();
+    let lower: String = core.to_lowercase();
     let chars: Vec<char> = lower.chars().collect();
 
     let result = if is_vowel(chars[0]) {

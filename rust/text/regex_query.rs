@@ -73,7 +73,7 @@ pub fn extract_groups(text: &str, pattern: &str) -> Vec<Vec<String>> {
 // ---------------------------------------------------------------------------
 
 pub const EMAIL: &str = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}";
-pub const URL: &str = r"https?://[^\s<>""']+";
+pub const URL: &str = r#"https?://[^\s<>"']+"#;
 pub const PHONE: &str = r"\+?1?[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}";
 pub const DATE: &str = r"\d{4}-\d{2}-\d{2}";
 pub const IP_ADDRESS: &str = r"\b(?:\d{1,3}\.){3}\d{1,3}\b";

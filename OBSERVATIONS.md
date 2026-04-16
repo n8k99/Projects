@@ -696,3 +696,81 @@ Numbers gave us the resolver's computational core. Text gives us the resolver's 
 The Text category is complete.
 
 ---
+
+## G033 — FTP Program
+
+**The first protocol.**
+
+Every project before G033 was self-contained — functions calling functions within a single process. FTP introduces a *boundary*. The client and the server are distinct entities communicating through a defined command language: LIST, RETR, STOR, DELE, SIZE, QUIT. The client doesn't access the filesystem directly. It can only ask, through the protocol, and accept what comes back.
+
+This is what `@reference` resolution IS. Every `@agent/operation` in InnateScript is a request-response across a boundary. The resolver doesn't reach into agents — it speaks the protocol. FTP makes this pattern explicit and named. The command string is the request. The status-code-prefixed response is the reply. The protocol is the contract.
+
+**The command language IS a micro-InnateScript.**
+
+LIST is `@server/list-files`. RETR is `@server/get`. STOR is `@server/put`. The FTP command vocabulary maps one-to-one onto named operations in a `define-role`. The text-based command protocol and InnateScript's `@reference` syntax are the same thing at different levels of formality — a string that names an operation and supplies arguments, sent across a boundary to an entity that executes it and returns a result.
+
+**The virtual filesystem is a remote resource.**
+
+G023's post-it notes were a local collection — direct access, no intermediary. The FTP server's filesystem is a *remote* collection — the same CRUD operations, but gated by the protocol. The client can't `files.insert()`. It must `STOR filename content` and accept the response code. This indirection is the difference between a local variable and a database table. The vault's notes aren't local to any agent — they're behind `dpn-ipc`, which IS the FTP protocol wearing different clothes.
+
+**Client-server is the simplest choreography.**
+
+Two roles, strict request-response, no concurrency. The client initiates. The server responds. One message at a time. This is the degenerate case of choreography — a dance with exactly two participants and a turn-taking rule so simple it doesn't need `concurrent` or `join`. Everything more complex builds on this.
+
+Thirty-three projects in. The Networking category begins where the Rosetta Stone crosses from self-contained computation to distributed communication. The first thing it discovers: every `@reference` was already an FTP command.
+
+---
+
+## G034 — Get Atomic Time from Internet Clock
+
+**Consensus on "now."**
+
+FTP exchanged *content* across a boundary. Atomic time exchanges *truth* — an authoritative answer to "what time is it?" The server doesn't store files. It holds a reference clock. The client doesn't want data. It wants to correct its own clock. This is the first *calibration* protocol in the Rosetta Stone: a local state (my clock) is measured against an authoritative state (the server's clock), and the difference is used to correct the local state.
+
+**Every distributed system needs a shared "now."**
+
+The temporal chain — Daily Notes, Weekly, Monthly — assumes everyone agrees when midnight is. When agents run on different machines with different clocks, they don't. The daily note triggers at midnight *whose* midnight? NTP answers this: everyone syncs to the same authority, bounding the disagreement to milliseconds. Without time consensus, the temporal chain is a fiction — agents write to yesterday's note while others write to today's.
+
+**Latency introduces fundamental uncertainty.**
+
+The server sends its timestamp at time T. The message takes D seconds to arrive. The client receives it at T+D but thinks it's receiving T. The round-trip estimation (measure the total trip, divide by two, assume symmetric latency) is a *best guess*. Perfect synchronization is impossible over a network. The noosphere doesn't need perfect sync — it needs bounded error. As long as agents agree on which *day* it is, the temporal chain works. NTP's millisecond precision is overkill for daily notes, but essential for transaction ordering.
+
+**Calibration is a general pattern.**
+
+Time sync is calibration applied to clocks. But the pattern — sample local vs. remote, compute offset, average samples to reduce noise, apply correction — generalizes to any quantity that drifts. Vault replica reconciliation: how far has my local copy diverged from the droplet? Agent belief calibration: how far has my model of the world diverged from observed reality? The calibration protocol is a reusable pattern, and G034 is its simplest instance.
+
+**Multiple samples reduce noise.**
+
+A single query gives one offset measurement, contaminated by variable latency. Three queries give three measurements that can be averaged. The more samples, the better the estimate. This is the first statistical protocol in the Rosetta Stone — not statistical analysis of data (G018-G020 did that) but statistical improvement of a *measurement process*. The `where` for time sync isn't "is the offset zero?" — it's "is the bounded error acceptable?"
+
+Thirty-four projects in. G033 gave us the request-response protocol. G034 gives us the calibration protocol — and with it, the first consensus primitive. Agents that agree on time can coordinate. Agents that don't are just shouting into the void.
+
+---
+
+## G035 — Chat Application (Networking)
+
+**The first multi-party choreography.**
+
+G033's FTP was bilateral — one client, one server, strict turn-taking. Chat shatters this: N users, M rooms, messages fan out many-to-many. Every member of a room is simultaneously publisher and subscriber. The room IS a topic. The membership list IS the subscription registry. `send_message` IS `publish` scoped to a channel. This is pub-sub evolved from G022's one-to-many RSS into a fully symmetric many-to-many topology.
+
+**Dynamic membership introduces lifecycle.**
+
+FTP's client connected once and stayed connected. Chat users join and leave rooms mid-conversation. This is new — agents entering and exiting a choreography while it's running. Every prior pattern assumed fixed participants. Chat forces the questions: does a new member see backlog? Does a departed member's messages persist? Does an empty room dissolve? These are agent lifecycle questions, and the noosphere needs answers for all of them.
+
+**History is a scoped journal.**
+
+`get_messages(room, since)` is exactly G025's `get_entries(since)` with a namespace. The room is the journal, the message is the entry, the timestamp is the cursor. Message history is journaling with a scope parameter — proving that the journal pattern from Text generalizes across contexts. The daily note is a room called "today." The conversations table is a set of rooms. Same pattern, different scope.
+
+**Rooms are the unit of isolation.**
+
+Messages in `#general` don't leak into `#engineering`. Each room is its own world. This is the first encounter with *namespace isolation* in the Rosetta Stone — the guarantee that operations in one scope don't affect another. In InnateScript, choreographic scopes provide this isolation: agents inside one choreography don't see the state of another unless explicitly bridged.
+
+**The chathud is the living instance.**
+
+Nathan's Quickshell chathud reads and writes the `conversations` table via `dpn-ipc`. It has rooms (channels), users (nathan, agents), messages with timestamps, membership. The six implementations in the Rosetta Stone are this same architecture expressed in six syntaxes. The Rosetta Stone keeps building things that already exist — and this time, the thing it built is the primary communication channel between human and agents.
+
+**Membership enforcement is a `<-` gate.**
+
+`send_message` checks `room.members.contains(user)` before accepting the message. This is G013's structural validation reappearing as an access control gate: you must be a member to speak. The gate is cheap (set lookup), the operation it protects is meaningful (persisting a message to shared state). Progressive trust: first you register, then you join, then you speak. Each step is a gate that enables the next.
+
+Thirty-five projects in. Three into Networking, and the progression is clear: bilateral protocol (G033) → consensus protocol (G034) → multi-party messaging (G035). The communication layer is building from point-to-point to broadcast to fully connected mesh. Each project adds a dimension of coordination complexity: boundaries, then shared reference frames, then dynamic group membership.
