@@ -774,3 +774,411 @@ Nathan's Quickshell chathud reads and writes the `conversations` table via `dpn-
 `send_message` checks `room.members.contains(user)` before accepting the message. This is G013's structural validation reappearing as an access control gate: you must be a member to speak. The gate is cheap (set lookup), the operation it protects is meaningful (persisting a message to shared state). Progressive trust: first you register, then you join, then you speak. Each step is a gate that enables the next.
 
 Thirty-five projects in. Three into Networking, and the progression is clear: bilateral protocol (G033) → consensus protocol (G034) → multi-party messaging (G035). The communication layer is building from point-to-point to broadcast to fully connected mesh. Each project adds a dimension of coordination complexity: boundaries, then shared reference frames, then dynamic group membership.
+
+---
+
+## G036 — Fetch Current Weather
+
+**The resolver reaches the internet.**
+
+G012 introduced the fact store — world-state from a local database. G036 extends this to a *live external authority*: an HTTP API that returns a snapshot of the atmosphere, valid for minutes at best. The city table in G012 was static. Weather is the first **ephemeral fact** — a value that's true when you receive it and false by the time you act on it.
+
+This is the resolver's first encounter with **fact freshness as a first-class concern**. `@weather{city: "Jacksonville"}` doesn't return a cached constant. It returns a snapshot with an implicit TTL. The resolver must treat the result as time-bounded: useful now, stale soon, gone by tomorrow. G026's temporal scope (TTL on ticker items) reappears as a data-level concern — not "stop showing this item" but "stop trusting this value."
+
+**HTTP is FTP generalized.**
+
+G033's bilateral request-response protocol returns with a universal addressing scheme. `GET /data/2.5/weather?q=Jacksonville` is `RETR weather-jacksonville` with headers, status codes, and structured responses. But the key difference: the FTP response was a raw file. The HTTP response is **structured data** (JSON) that must be parsed into typed fields. This is G022's serialization pattern (structured content across a boundary) applied to an API response. The resolver needs HTTP + JSON parsing as a combined primitive: fetch and structure in one operation.
+
+**API keys are shared secrets applied to trust.**
+
+G028 introduced shared secrets between two parties. The API key is the same pattern applied to service trust: the key proves identity, gates access, and tracks usage. Without it, the server returns 401. This is G013's progressive trust model applied at the network boundary: the key is the cheapest `<-` gate (does this client have permission?), and the weather data is the expensive operation it protects.
+
+**Frame translation returns, live.**
+
+G010 discovered that agents think in frames and choreographies negotiate at boundaries. Weather data arrives in Kelvin — the API's canonical frame. Nathan thinks in Fahrenheit. European agents think in Celsius. The `@convert` pattern from G010 is embedded in every weather report: temperature stored in the canonical frame (Kelvin) and projected into the consumer's frame on demand. Same data, different views. The canonical form is what the API returns. The projections are what agents consume.
+
+**Comparison is concurrent fact gathering.**
+
+`compare_weather([Jacksonville, London, Tokyo])` requires three independent HTTP requests. Each returns a snapshot. The comparison aggregates snapshots into a composite view: warmest, coldest, most humid, windiest. This is G012's proximity-based coordination pattern: gather facts from multiple sources concurrently, compute derived metrics in parallel, aggregate into a decision-relevant structure.
+
+The `where` for a weather-aware choreography isn't "is the weather good?" — it's "are the facts fresh?" Stale weather is worse than bad weather. At least bad weather is true.
+
+Thirty-six projects in. Four into Networking. The category's arc: bilateral protocol (G033) → consensus on shared reference (G034) → multi-party messaging (G035) → live external data from a remote authority (G036). Each project extends the resolver's reach: from across a socket, to across a clock, to across a room, to across the internet. The resolver is no longer a closed system. It consumes the world.
+
+---
+
+## G037 — P2P File Sharing App
+
+**The first symmetric topology.**
+
+Every network pattern before G037 had an asymmetry. FTP: client asks, server answers. NTP: client calibrates against authority. Chat: server routes between clients. Weather: client consumes from API provider. One side was always structurally different from the other.
+
+P2P shatters this. Every peer is both client and server simultaneously. Alice serves files to Bob while requesting files from Carol. The role distinction collapses. This is the noosphere's natural topology — agents are symmetric. Any agent can request from any other agent. Any agent can serve to any other agent. The hub-and-spoke model was training wheels. The real architecture is a mesh.
+
+**Discovery is the bootstrap problem.**
+
+How does a peer find other peers when there's no center? You need at least one known peer to start — the bootstrap node. From there, peers exchange peer lists, and the network grows organically through gossip. In the noosphere, agent discovery works identically: a new ghost starts with one known agent (the orchestrator), learns about others through interaction, and builds its own peer table. The bootstrap is the first `@reference` that resolves.
+
+**Catalogs are distributed indexes.**
+
+No single peer has a global view. Each peer maintains its own index of what its neighbors share. Search is local — you query your known peers' catalogs, not a global database. The network's total knowledge is the union of all local catalogs, but no one node sees the union.
+
+The vault works this way. Lena knows about daily notes. Kathryn knows about financial positions. Sylvia knows about publications. No single agent indexes everything. The orchestrator coordinates, but the knowledge is distributed. There is no SELECT * FROM everything. There is only "ask the agents who know."
+
+**Chunked transfer is progressive verification.**
+
+A file splits into chunks. Each chunk carries its own hash. The receiver verifies each chunk independently — G013's progressive trust model applied to data transfer. A corrupted chunk is rejected without invalidating the entire transfer. Re-request chunk 7, not the whole file. Partial progress is preserved.
+
+This is how large choreographies should fail: if step 7 of 10 fails, re-execute step 7. The dance doesn't restart from the beginning. The chunk is the atomic unit of both trust and retry. The insight from G013's `<-` gates extends to error recovery: cheap verification gates expensive re-execution.
+
+**Content addressing makes identity location-independent.**
+
+A file's SHA-256 identifies it regardless of which peer hosts it. The same file on Alice's machine and Bob's machine has the same hash. You can request "file with hash X" from any peer that has it. This decouples identity from location.
+
+G023's post-it notes used sequential IDs — assigned by a central server, meaningless without it. Content addressing is the opposite: identity derived from content itself, requiring no authority. This is the difference between a database primary key and a content hash. The primary key says "row 47 in this table." The hash says "this exact content, wherever it lives." The noosphere should use content addressing for knowledge artifacts — a note's identity is what it says, not where it's stored.
+
+**Staleness and liveness enter the peer model.**
+
+Peers go offline. Peers' catalogs become stale. The `prune_stale_peers` function removes peers not heard from within a timeout — G026's TTL pattern applied to network membership. A peer that was alive five minutes ago might be gone now. The network's topology is dynamic, not static. Every connection is provisional.
+
+This is the first time the Rosetta Stone explicitly models liveness — the ongoing question "is this entity still there?" NTP (G034) assumed the server was always available. Chat (G035) tracked join/leave but within a stable server. P2P has no stable anything. Everything is provisional, everything expires, and the network survives because it doesn't depend on any single node.
+
+Thirty-seven projects in. Five into Networking. The topology progression: point-to-point (G033) → client-authority (G034) → client-server-clients (G035) → client-API (G036) → **peer-to-peer mesh (G037)**. The asymmetry has dissolved. From here, every networking project builds on a foundation where nodes are equal, discovery is organic, and trust is verified per-chunk.
+
+---
+
+## G038 — Port Scanner
+
+**Systematic exploration of a boundary.**
+
+Every networking project before G038 *knew* what it was connecting to. FTP connected to a file server. NTP to a time server. Chat to a chat server. Weather to an API. The destination was given. The port scanner doesn't know — it **discovers** what's listening by probing systematically. Each port is a question. The aggregate of answers is a map of the host's surface.
+
+This is the Rosetta Stone's first reconnaissance tool. Not "connect to service X" but "what services exist?" The shift from known-target to discovery is architecturally significant. In the noosphere, this is agent capability discovery: given a new ghost, what can it do? The resolver could probe `@agent/list-capabilities` — the port scan of the noosphere. Each capability is an open port. The scan builds a profile before the choreography begins.
+
+The ghost index in the vault — the catalog of agents and their roles — is the bootstrap node for this discovery. You don't scan every possible capability space. You start with the index and verify: is this ghost alive? Does it still support these operations? The index is the well-known port table. The scan confirms which entries have live implementations.
+
+**Three states, not two.**
+
+Open, closed, filtered. A port isn't binary. "Filtered" means something is silently dropping packets — a firewall, a rate limiter, network partition. The probe doesn't fail; it gets no answer at all. This is richer than success/failure. The resolver's `@reference` resolution needs the same three states: resolved (open), explicitly failed (closed), timed out with no response (filtered). G013's structural validation was binary. G038 adds silence as a distinct outcome.
+
+The distinction matters for error handling. "Closed" means "the agent understood the request and refused." "Filtered" means "the request never reached the agent, or the agent is not responding." The retry strategy differs: retry filtered (the path may clear), don't retry closed (the answer won't change).
+
+**Concurrent probing is the natural model.**
+
+Scanning 1024 ports sequentially takes 1024 timeouts. Scanning concurrently takes roughly one timeout (with enough threads). Each probe is independent — no shared state, no ordering dependency. This is G017's `@map` applied to network exploration: same operation applied to each element, results collected, no inter-element coordination.
+
+The scanner's thread pool is the resolver's `concurrent` block. Each probe runs independently. The results `join` into a report. The `where` evaluates the aggregate: is the surface larger than expected? Did something appear that shouldn't be there?
+
+**Well-known ports are a service registry.**
+
+Port 22 is SSH. Port 5432 is PostgreSQL. The mapping from numbers to names is a global convention — a namespace. The scanner doesn't just find open ports; it translates them into meaning using the registry. The resolver's namespace serves the same function: `@weather` maps to the weather service. Port scanning discovers which entries in the registry have live implementations.
+
+**Scan comparison is change detection.**
+
+`compare_scans(before, after)` produces a diff: newly opened, newly closed, still open. This is the first **temporal diff** in the Networking category — not comparing two hosts, but comparing the *same host at two different times*. A sequence of diffs is a changelog. The port scanner, run on G011's alarm schedule, becomes a service monitoring system that journals its findings (G025) and alerts on unexpected changes (G026's breaking-news interrupt).
+
+The `where` for infrastructure security isn't "are the right ports open?" — it's "did the surface change unexpectedly?" Expected changes are benign. Unexpected changes are the signal.
+
+Thirty-eight projects in. Six into Networking. The category adds its first exploration tool: not connecting to a known service, but discovering what services exist. The pattern — probe, classify, aggregate, compare over time — is the foundation of monitoring, and it's built from primitives the Rosetta Stone already established: `@map` for parallel probing, three-state classification, temporal comparison, and service registries as namespaces.
+
+---
+
+## G039 — Mail Checker
+
+**Polling is the alarm clock applied to external state.**
+
+G011 gave us the alarm — a temporal trigger. G036 gave us live external data. G039 combines both: poll an external source on a schedule, report what changed since the last check. The daily note template IS a mail check: `(@SarahLin){task_audit}` polls the task table, filters for changes, reports what's new. Every recurring check in the vault is a mail checker with a different inbox.
+
+The mail check is the universal monitoring primitive. Any time an agent asks "what's new since I last looked?" — that's a mail check. The inbox is just the most recognizable instance. The pattern: remember what you've seen, compare against what exists now, report the delta.
+
+**The inbox is a filtered priority stream.**
+
+G026's ticker was a priority stream with TTL. The inbox extends it: messages arrive unsolicited (push), accumulate until checked (queue), and the consumer controls when they look and what they look at. The filter pipeline is G013's progressive gates applied to content: sender filter → subject filter → body filter → since filter. Each gate reduces the result set. The `where` for an inbox check isn't "did mail arrive?" — it's "did mail arrive *that matters*?"
+
+This is attentional economy. The agent doesn't process every message. It processes the messages that pass its filters. The filter IS the agent's attention policy. Different agents with different filters reading the same inbox see different realities — G018's vowel-count perspective parameter, scaled to messaging.
+
+**Read-state is agent attention.**
+
+Three states: unread (unprocessed), read (acknowledged), flagged (actionable). This is the agent's triage protocol. The unread count is attention debt — how much input hasn't been processed. The flagged count is action debt — how much acknowledged input still requires response.
+
+The daily note has the same three states: sections that haven't been filled yet (unread), sections that have content (read), sections with action items (flagged). The daily note IS an inbox. The morning pages section is a message from Nathan to the vault. The `(@SarahLin){task_audit}` section is a message from Sarah. Reading the daily note is checking the inbox.
+
+**Notification callbacks invert the temporal model.**
+
+`on_new_mail(callback)` pushes to the agent when something arrives — event-driven rather than poll-driven. The vault uses both: the daily note template is polling (check once per section). The chathud is event-driven (new messages appear immediately). Same data, different temporal models. The agent chooses which model based on urgency: poll for batch review, subscribe for real-time.
+
+This is the first time the Rosetta Stone explicitly models both push and pull in the same system. FTP (G033) was pull. Chat (G035) was push. The mail checker supports both — `check()` for pull, `on_new_mail()` for push — unified in one inbox model.
+
+**The mail server is a message router.**
+
+`send()` routes a message to all recipients with local mailboxes. This is G035's chat server stripped to its essence: accept a message, deliver to matching mailboxes. No rooms, no membership — just routing by address. The simplification reveals the core: a server is a function from recipient addresses to mailboxes. Everything else is policy layered on top.
+
+Thirty-nine projects in. Seven into Networking. The category's arc adds its first monitoring primitive: the poll-filter-report pattern that underlies every recurring check in the vault. The mail checker isn't just email — it's the abstract shape of "what changed since I last looked?" applied to any source of incoming data.
+
+---
+
+## G040 — Packet Sniffer
+
+**Passive observation — watching without acting.**
+
+Every networking project before G040 was active — the agent initiated contact, sent requests, probed ports. The packet sniffer is the first passive tool. It doesn't connect. It doesn't send. It listens. It watches traffic flowing between others without generating any of its own.
+
+This is a fundamentally different mode of interaction. Active tools ask questions. The sniffer observes answers flowing between others. In the noosphere, this is the monitoring agent — an entity that watches choreographies execute without participating. Lena's `{nightly_summary}` is a packet sniffer: she doesn't produce the day's work, she observes what the other agents produced and reports on the aggregate shape. Not every agent in a choreography needs to act. Some exist to observe, measure, and report. The sniffer is the prototype for the observer role.
+
+**`@breakdown` returns at the network level.**
+
+G018 introduced `@breakdown` — measure a property across elements, return the distribution. The packet sniffer applies the same operation to network traffic: protocol distribution, bytes per IP, connections per source, bandwidth per second. The measurement primitive is truly generic — it doesn't care whether it's counting vowels in a string or TCP segments in a capture. Partition by property, count per partition, return the distribution. Same algorithm, different domain, same insight.
+
+**Connection tracking is bidirectional identity.**
+
+A flow from A:1234 → B:80 and the return from B:80 → A:1234 are the same conversation. The `ConnectionKey` normalizes direction by sorting endpoints — recognizing that two flows are one entity viewed from different sides. In InnateScript, agent communication is inherently bidirectional. A request from Kathryn to Eliana and Eliana's response are the same conversation. The choreography needs connection tracking to correlate the outbound request with the inbound response.
+
+**Anomaly detection is statistical `where`.**
+
+`detect_syn_flood` looks for too many SYN packets without matching ACKs. `detect_port_scan` looks for too many distinct destination ports from one source. These aren't examining individual packets — they evaluate the aggregate shape of the traffic. Statistical signatures that indicate hostile behavior.
+
+This is the `where` pattern applied to surveillance. The `where` doesn't judge individual actions. It judges the pattern of actions over time. The same pattern applies to the noosphere: an agent that sends too many requests without processing responses is exhibiting SYN-flood behavior. An agent that probes every capability without using any is port scanning. Network security patterns map directly to agent behavior monitoring.
+
+**The capture filter is a lens.**
+
+Different filters on the same traffic stream produce different views. Filter by protocol: see only TCP. Filter by source IP: see only one host's traffic. Filter by port: see only web traffic. The capture filter is G010's frame translation applied to observation — same raw data, different projected views depending on the observer's needs.
+
+Forty projects in. Eight into Networking. The category has now covered both sides of the interaction spectrum: active (send, request, probe) and passive (observe, measure, detect). The sniffer adds the observer role — the first agent type in the Rosetta Stone that exists to watch, not to act. This completes the toolset: connect (G033), synchronize (G034), communicate (G035), consume (G036), share (G037), discover (G038), monitor (G039), and now observe (G040).
+
+---
+
+## G041 — Country from IP Lookup
+
+**Identity-to-context resolution.**
+
+G012 mapped city names to coordinates — a human-readable identifier enriched with geographic data. G041 inverts this: a machine identifier (IP address) mapped to geographic context. The IP itself is opaque — four numbers separated by dots. The database supplies meaning: country, city, coordinates, timezone.
+
+This is a new resolver pattern. Given an opaque identifier, enrich it with contextual information from a lookup table. The resolver already does this with every `@reference` — `@kathryn` is an opaque name that resolves to a full agent profile. IP geolocation is the same pattern applied to network addresses. The Ghost Registry built earlier tonight is the GeoIP database of the noosphere: given a ghost name, resolve to team, role, and capabilities.
+
+**Private addresses are unresolvable outside their scope.**
+
+`192.168.1.1` has no country. It exists only within its local network. The lookup must recognize this and return "private" instead of guessing. In InnateScript, some `@references` are similarly scope-limited — a local variable inside a choreography has no meaning outside that choreography. The private IP check is the resolver's scope boundary: this identifier is valid, but only within a context I can't see from here.
+
+**Binary search over sorted ranges is the resolver's dispatch table.**
+
+The database is a sorted list of IP ranges. Lookup is O(log n) binary search. This is the same dispatch mechanism the resolver needs for `@references`: given an identifier, binary search the namespace for the matching handler. G013's card prefixes were discrete dispatch. G014's tax brackets were sequential ranges. G041 formalizes both into a single pattern: sorted ranges + binary search = fast dispatch. The resolver's namespace IS a GeoIP database where the "IP" is the reference name and the "location" is the handler.
+
+**Proximity routing connects geography to choreography.**
+
+`nearest_server(client_ip, server_ips)` applies G012's Haversine distance to find the closest server. This is G015's Dijkstra simplified to a single-hop case: no graph, just direct distances to all candidates, pick the smallest. In the noosphere, agent selection could use the same pattern: when multiple agents can fulfill a request, choose the nearest — whether "nearest" means geographic proximity, organizational proximity (same department), or capability proximity (best skill match).
+
+**Country breakdown is `@breakdown` applied to identity.**
+
+`country_breakdown(ips)` partitions IPs by country and counts per partition. This is G018's vowel frequency and G020's word frequency applied to network identities. The measurement primitive continues to generalize across every domain the Rosetta Stone touches: characters → words → protocols → countries. Same algorithm. Different partition key. Same insight.
+
+**The droplet resolves.**
+
+`144.126.251.126` → United States, New York. The DigitalOcean droplet that hosts the DPN database has a geographic identity. The SSH tunnel from localhost:5433 to the droplet crosses 900 miles. The IP lookup quantifies what was already known: the data lives in New York, the client sits in Jacksonville.
+
+Forty-one projects in. Nine into Networking. The category adds context resolution: enriching opaque identifiers with meaning from a lookup table. The pattern connects back to the Ghost Registry — the bootstrap node is the noosphere's GeoIP database, and every `@reference` resolution is a lookup in that table.
+
+---
+
+## G042 — Whois Search Tool
+
+**Ownership — who controls this name?**
+
+G041 answered "where is this address?" Whois answers "who owns this name?" The domain is the identity. The whois record is its provenance: who registered it, when, through whom, and when it expires. This is the first time the Rosetta Stone queries for ownership of a network identity — not what it is or where it is, but who it belongs to.
+
+In the noosphere, every `@reference` has an owner. The Ghost Registry is the whois database of the noosphere. A query on `@finance_positions` returns: registrant is Kathryn Lyonne, registered to the Success Department, capabilities include `@cover_obligations` and `@pace_check`, status active. The parallel is exact.
+
+**Registration is temporal — names expire.**
+
+Domains have creation dates, update dates, and expiry dates. A domain that exists today might expire tomorrow. The name is a renewable lease, not a permanent grant. This connects to G037's peer staleness and G026's TTL: identities in the network are time-bounded.
+
+In InnateScript, agent assignments could follow the same model. Kathryn's delegation of `@finance_positions` was granted at a point in time. The `check_expiry` function — warn about domains expiring within N days — maps to proactive monitoring: whose capability delegation needs renewal? Which agent assignments are about to lapse?
+
+**Semi-structured text parsing is G032 returned.**
+
+Whois responses are nearly-but-not-quite structured. Each registrar formats differently. `Registrar:` vs `Registrar Name:`. `Creation Date:` vs `Created Date:`. The parser must handle multiple surface forms for the same concept. This is G032's regex toolkit applied to a real-world protocol where normalization precedes extraction.
+
+The challenge scales: the resolver will face the same problem with agent communication. Different agents express the same concept differently. The parser that handles "Creation Date" and "Created Date" is the same parser that handles an agent saying "task complete" vs "finished" vs "done." Normalization of surface forms into canonical concepts.
+
+**Record comparison is domain-level change detection.**
+
+`compare_records(before, after)` is G038's `compare_scans` applied to registration data. Registrar change → possible domain transfer. Name server change → possible DNS hijack. Expiry date change → renewal or lapse. The temporal diff pattern is now fully general across the Rosetta Stone: port scans, inbox deltas, and now registration records. Always the same shape: snapshot, snapshot, delta. The domain determines what the delta means.
+
+**The registrar is the trust anchor.**
+
+The registrar is the entity that vouches for the domain's ownership. This is a trust chain: you trust the whois record because you trust the registrar, and you trust the registrar because ICANN accredited it. G013's progressive trust gates at the domain registration level. The chain: ICANN → registrar → registrant → domain → content. Trust flows downward through delegation.
+
+Forty-two projects in. Ten into Networking. The category now covers identity at three levels: where it is (G041 geolocation), who owns it (G042 whois), and what it does (G038 port scan). Together they form a complete identity profile for any network entity — location, ownership, and capability. The same three dimensions the Ghost Registry captures for each agent.
+
+---
+
+## G043 — Zip / Postal Code Lookup
+
+**The third resolution layer.**
+
+G012 resolved city names to coordinates. G041 resolved IP addresses to countries. G043 resolves postal codes to locations. Three layers of identity-to-context resolution, each mapping a different identifier to geographic data. The resolver's pattern is consistent across all three: take an opaque identifier, look it up, return enriched context. The identifier type varies. The operation doesn't.
+
+**Postal codes are hierarchical identifiers.**
+
+US zip codes encode hierarchy in their digits: `3` = southeast, `32` = northeast Florida, `322` = Jacksonville area. The first digit routes to a region. The first three narrow to a sectional center. All five specify the delivery area. This is namespace hierarchy — the same structure as `@success.strategic.kathryn` or `www.example.com`. The prefix routes, the suffix specifies.
+
+The resolver's namespace could follow postal code logic: the first segment routes to the department, the next to the team, the last to the agent. Hierarchical dispatch where each level narrows the resolution space. This is cheaper than flat lookup when the namespace is large — you don't search 64 ghosts, you search 7 departments then 10 team members.
+
+**Radius search is proximity discovery.**
+
+`codes_within_radius(center, km)` finds all entries near a geographic point. This is G029's gift suggestion (attribute-based matching with scored results) applied to physical space. G038's port scan enumerated ports on a host. G043's radius search enumerates locations near a point. The pattern — enumerate candidates, measure distance, filter by threshold, sort by proximity — is the same across domains.
+
+In the noosphere, capability search works identically: "find all agents within 2 skill-hops of this capability" is a radius search in capability space. The metric changes from kilometers to skill similarity, but the algorithm doesn't.
+
+**Multiple indexes serve different query patterns.**
+
+The database has three indexes: by-code (exact lookup), by-city (reverse lookup), by-state (regional aggregation). Same data, different entry points. The resolver needs the same flexibility: look up an agent by name, search by capability, filter by department. Each access pattern requires its own index into the same underlying registry.
+
+**Jacksonville to St. Augustine: ~50 km.**
+
+The Haversine distance between 32202 (Jacksonville) and 32084 (St. Augustine) is approximately 50 kilometers. The same road Nathan drives to [[The Amp]], quantified by the postal code database. The Rosetta Stone keeps building tools that describe the world the user inhabits.
+
+Forty-three projects in. Eleven into Networking. The identity resolution trilogy is complete: IP → country (G041), domain → owner (G042), postal code → city (G043). Three different identifier types, three different enrichment databases, one consistent pattern. The resolver's generic protocol — identifier in, context out — applies unchanged across all three. Four projects remain in Networking.
+
+---
+
+## G044 — Remote Login
+
+**Identity verification across a boundary.**
+
+Every networking project so far assumed trust — the client connected, and the server answered. Remote login introduces distrust. The server doesn't know who the client is until they prove it. The credential is the proof. The session token is the ongoing assertion of that proof. This is the Rosetta Stone's first trust *establishment* protocol — not checking whether data is valid (G013), but checking whether an entity is who they claim to be.
+
+**Salted hashing is one-way trust.**
+
+The server never stores the password. It stores a salted hash — a one-way transformation that can verify but never recover the original. G028's cipher was reversible (given the key, decrypt). The hash is irreversible. The server confirms "you know the password" without itself knowing the password. In the noosphere, agent authentication works the same way: the agent proves its identity by demonstrating knowledge without transmitting the secret.
+
+**Sessions are time-bounded identity assertions.**
+
+The token is G031's self-verifying artifact combined with G026's TTL. It asserts: "this client authenticated as this user, and the assertion expires at this time." Every temporal pattern in the Rosetta Stone converges here: G011's alarm (session timeout is a deferred obligation), G026's TTL (the session expires like a ticker item), G042's domain expiry (the session is a renewable lease). Time bounds trust.
+
+**Brute-force protection is rate-limited `<-` gates.**
+
+Lock the account after N failed attempts — G013's progressive trust applied to authentication. Each failure is a failed gate. After too many failures, the gate closes for a cooldown. The ascending cost: first attempt is free, subsequent attempts accumulate risk, final attempt triggers lockout.
+
+The audit log is G025's immutable journal applied to security events. Every attempt recorded: who, from where, when, success or failure, reason. This is the accountability pattern from G025 deployed at the authentication boundary.
+
+**Revoke-all is retroactive trust invalidation.**
+
+`revoke_all(username)` invalidates every session for a user — retroactive cancellation of previously-granted trust. The sessions were valid when created. They're invalid now because the trust basis changed. This is new: the Rosetta Stone's first retroactive operation. Everything before this was append-only (journals, tickers, audit logs). Revocation goes backward, invalidating artifacts that were valid at creation time.
+
+In the noosphere, if an agent's credentials are compromised, every choreography it's participating in must be halted and re-authenticated. The revocation propagates through all active sessions — a cascade that the resolver must handle atomically.
+
+Forty-four projects in. Twelve into Networking. The category adds its first trust establishment protocol. The progression: the Networking category started with connecting (G033), moved through identity resolution (G041–G043), and now reaches identity *verification*. You can't just say who you are. You have to prove it. Three projects remain.
+
+---
+
+## G045 — Site Checker with Time Scheduling
+
+**The convergence project.**
+
+G045 is where five prior patterns compose into a single operational tool:
+
+| Source | Pattern | How it appears |
+|--------|---------|---------------|
+| G011 Alarm Clock | Scheduled trigger | Check every N seconds |
+| G026 News Ticker | Priority dashboard with TTL | Status board with freshness |
+| G036 Weather | HTTP request to external endpoint | The health check itself |
+| G038 Port Scanner | Three-state classification | Up/down/degraded ≈ open/closed/filtered |
+| G039 Mail Checker | Poll-filter-report with change detection | Check, compare to previous, alert on change |
+
+The site checker doesn't introduce a new concept. It demonstrates that the concepts already built compose naturally. This is the Rosetta Stone doing what G019 (Palindrome) first showed: operations layer. Reverse + equality = palindrome. Alarm + HTTP + three-state + polling + alerting = site checker. The vocabulary is rich enough to describe complex operational tools without new primitives.
+
+**Four-state health is the agent liveness model.**
+
+Up, down, degraded, unknown. G038 had three states. The site checker adds **degraded** — the entity responds, but not well enough. This matters for choreographies: a degraded agent might complete the task but miss the deadline or produce suboptimal output. The `where` needs to score not just completion but quality. An agent that returns a result in 30 seconds when the SLA is 5 seconds is degraded, not down.
+
+**Consecutive failures are confidence decay.**
+
+One failure is noise. Five consecutive failures is a pattern. The `consecutive_failures` counter is a confidence metric — how sure are we that the diagnosis is real? This prevents false alerts from transient errors while catching genuine outages. G034 (NTP) used multiple samples to reduce measurement noise. G045 uses consecutive checks to reduce diagnostic noise. Same principle: repeated observation increases confidence.
+
+**Status change alerts are event-sourced state transitions.**
+
+The alert fires on *transitions*, not states. "Down" isn't an alert — "up → down" is. The system notifies when something changes, not when something is. This is G021's event-sourcing pattern applied to monitoring: the check history is the event log, the current status is the derived state, the alert is the transition event.
+
+The daily note uses the same model. Lena's `{nightly_summary}` doesn't report the vault's state — it reports what *changed*. The transition is the news. The state is the context.
+
+Forty-five projects in. Thirteen into Networking. The convergence project proves the Rosetta Stone's vocabulary is sufficient to compose complex tools from existing primitives. Two projects remain in Networking.
+
+---
+
+## G046 — Small Web Server
+
+**The other side of the boundary.**
+
+Every networking project before G046 was a client — sending requests, consuming responses. The web server receives requests and produces responses. This completes the bilateral protocol from G033 (FTP): we built the client side then; now we build the server side.
+
+This is architecturally significant for the noosphere. Every ghost has been a requester. The web server says: a ghost can also serve. `@kathryn/finance_positions` isn't Kathryn requesting data — it's Kathryn's service endpoint that other agents call. Every capability in the Ghost Registry is a route in Kathryn's web server. The route table IS the capability list.
+
+**Routing is `match` applied to URLs.**
+
+The router matches method + path to a handler. `GET /health` → `health_handler`. This is G013's prefix dispatch applied to URL paths. The route table is the resolver's namespace: each entry maps an identifier (the URL) to a handler (the function). URL routing and `@reference` resolution are the same algorithm with different syntax.
+
+**Request-response is the universal protocol shape.**
+
+Client sends structured request (method, path, headers, body). Server returns structured response (status, headers, body). Every interaction in the Rosetta Stone follows this shape: FTP commands, NTP queries, chat messages, weather API calls. HTTP formalizes what the resolver has been doing implicitly since G001.
+
+**Static file serving is cached resolution.**
+
+A static file maps a path to a fixed response — no computation, just lookup and return. This is the resolver's cache: if the value hasn't changed, return the stored result. Static files are the degenerate case where the answer never changes.
+
+**The dpn-api-client IS this web server.**
+
+Nathan's `dpn-api-client` at `144.126.251.126:8080` receives IPC requests, routes to handlers (read, write, refresh), returns JSON. The Rosetta Stone's web server is the simplified version of what's already running on the droplet.
+
+---
+
+## G047 — Web Bot
+
+**The agent that navigates.**
+
+The server sat still. The bot moves — it navigates, follows links, reads pages, extracts content, fills forms, and makes assertions. It's the first autonomous actor in the Networking category: an entity that decides where to go based on what it finds.
+
+This is the ghost. Every executive ghost is a web bot: navigate the vault, read documents, extract data, fill in daily note sections, assert conditions via `where`. Lena's `{nightly_summary}` is a crawl: start at today's daily note, follow links to project pages, extract accomplishments, compose a summary. The bot is the abstract shape of agent behavior.
+
+**Crawling is BFS over a link graph.**
+
+Start at a URL, extract links, add to queue, visit each. Breadth-first search over the web's directed graph. The vault's `[[wiki-links]]` form the same graph. A vault crawler would follow `[[links]]` the way the bot follows `href` attributes. Same algorithm, different link syntax. The `em-org-wallpaper` on Nathan's desktop renders this graph.
+
+**Scripted automation is a choreography.**
+
+The `BotScript` is ordered steps with preconditions. Navigate, assert, extract, fill. Each depends on the previous. Failure halts the sequence. The `assert` is the `<-` gate. The `extract` stores variables. The script IS a choreography — a web bot script expressed in InnateScript would be indistinguishable from a regular choreography.
+
+**Same-domain filtering is scope restriction.**
+
+`same_domain_only: true` keeps the crawler within one domain. The agent stays within its authorized namespace. In the noosphere, a ghost assigned to The Forge shouldn't crawl The Markets unless authorized. The domain filter is the role boundary.
+
+---
+
+## Meta-observation: The Networking Category (G033–G047)
+
+**Fifteen projects. One distributed architecture.**
+
+The Networking category discovered InnateScript's distributed architecture, the way Numbers discovered the computational core and Text discovered the content layer:
+
+| Project | What it revealed |
+|---------|-----------------|
+| G033 FTP | **Bilateral protocol.** Request-response across a boundary. Commands as a micro-InnateScript. |
+| G034 Atomic Time | **Consensus.** Shared reference frames. Calibration via multiple samples. |
+| G035 Chat | **Multi-party messaging.** Pub-sub, dynamic membership, scoped history. |
+| G036 Weather | **Live external data.** Fact freshness. API keys as shared secrets. Frame translation. |
+| G037 P2P Sharing | **Symmetric topology.** No center. Chunked transfer. Content addressing. |
+| G038 Port Scanner | **Boundary exploration.** Three-state probing. Service discovery. Change detection. |
+| G039 Mail Checker | **Polling pattern.** Inbox model. Read-state as attention. Push and pull unified. |
+| G040 Packet Sniffer | **Passive observation.** Traffic analysis. `@breakdown` at network level. Anomaly detection. |
+| G041 IP Lookup | **Identity-to-context.** Geographic resolution. Proximity routing. Binary search dispatch. |
+| G042 Whois Search | **Ownership resolution.** Domain provenance. Temporal registration. Trust chains. |
+| G043 Zip Lookup | **Hierarchical identifiers.** Namespace hierarchy. Radius search. Multiple indexes. |
+| G044 Remote Login | **Trust establishment.** Salted hashing. Sessions as time-bounded trust. Brute-force protection. |
+| G045 Site Checker | **Convergence.** Five patterns composed. Four-state health. Consecutive failure confidence. |
+| G046 Web Server | **Server side.** Routing as dispatch. Request-response formalized. Static serving as cache. |
+| G047 Web Bot | **Autonomous navigation.** Crawling as BFS. Scripts as choreographies. Domain as scope. |
+
+The distributed architecture: bilateral protocols + consensus + messaging + external data + peer mesh + discovery + monitoring + observation + identity resolution + ownership + trust + health monitoring + serving + autonomous agents. Each project was a facet. Together they describe the noosphere's network layer — how agents discover, authenticate, communicate, monitor, serve, and navigate across boundaries.
+
+Numbers gave us the resolver's computational core. Text gave us the content layer. Networking gives us the distributed communication layer. Together: a computational engine that operates on meaning-bearing content and communicates across network boundaries.
+
+The Networking category is complete.

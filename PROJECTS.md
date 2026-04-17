@@ -40,18 +40,18 @@
 - [x] 33. FTP Program
 - [x] 34. Get Atomic Time from Internet Clock
 - [x] 35. Chat Application (Networking)
-- [ ] 36. Fetch Current Weather
-- [ ] 37. P2P File Sharing App
-- [ ] 38. Port Scanner
-- [ ] 39. Mail Checker
-- [ ] 40. Packet Sniffer
-- [ ] 41. Country from IP Lookup
-- [ ] 42. Whois Search Tool
-- [ ] 43. Zip / Postal Code Lookup
-- [ ] 44. Remote Login
-- [ ] 45. Site Checker with Time Scheduling
-- [ ] 46. Small Web Server
-- [ ] 47. Web Bot
+- [x] 36. Fetch Current Weather
+- [x] 37. P2P File Sharing App
+- [x] 38. Port Scanner
+- [x] 39. Mail Checker
+- [x] 40. Packet Sniffer
+- [x] 41. Country from IP Lookup
+- [x] 42. Whois Search Tool
+- [x] 43. Zip / Postal Code Lookup
+- [x] 44. Remote Login
+- [x] 45. Site Checker with Time Scheduling
+- [x] 46. Small Web Server
+- [x] 47. Web Bot
 
 ## Classes
 - [ ] 48. Product Inventory Project
