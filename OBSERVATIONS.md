@@ -1410,3 +1410,56 @@ Between `find_slot` returning a candidate and `schedule` committing it, other ch
 An appointment is one record. But it appears in three schedules: doctor's, room's, patient's. One source, three views — the database-view pattern from G052 elevated from "two accounts per transaction" to "three indexes per appointment." Every vault record that participates in multiple indexes has this shape. A task lives in the Tasks index, the Project index, and the Agent-assigned index simultaneously; a conversation in the Thread index, Participants index, and Topic index. G054 is the first project where multi-index membership is explicit and ergonomic — a primary list with filtered projections.
 
 G048 identity → G049 status-valued interaction → G050 scheduled interaction → G051 measured interaction → G052 atomic multi-entity change → G053 three-layer identity + queue + in-flight renewal → G054 *conjunctive availability + self-exclusion on move + search-based slot finding*. Seven projects, and the Classes category has gathered the full palette the noosphere's coordination layer will be built out of.
+
+---
+
+## G055 — Recipe Creator and Manager
+
+**The entity is its inner structure.**
+
+Every prior entity in the Rosetta Stone had scalar fields. Products had prices, accounts had balances, appointments had start/end. G055's recipe has a **list of line items**, each itself a small structure (ingredient + quantity + unit). The recipe's identity is its name; its *substance* is the ordered multiset inside.
+
+Operations on scalar-field entities are trivially typed — add, set. Operations on structure-field entities are *maps and folds over the inner collection*. Scale: map every line. Can_make: fold lines against the pantry. Shopping list: filter-map lines. The operation is not a single write — it is a traversal.
+
+This is how every rich vault entity works. A project has a list of goals. An agent has a capability set. A conversation has a message stream. The `Projects`, `Agents`, `Conversations` indexes each hold compositional entities. G055 is the first Rosetta Stone project to formally model one.
+
+**Scaling is a pure linear map — and exact arithmetic matters.**
+
+`scale(recipe, factor)` multiplies every line's quantity by factor and returns a new recipe with the same shape. No mutation, linear over the structure. In categorical terms, scaling is a morphism in the category of recipes-at-different-quantities: all scales share line identities; only quantities change.
+
+Exact arithmetic is load-bearing here. Scaling 100g by 1/3 should give 100/3 g, not 33.333333. The implementations use rationals everywhere quantities live: Python's `Fraction`, a Rust `Qty { num, den }`, Common Lisp's native rationals, a Lean `Qty` struct, a Go `Qty` type. Floats would be wrong — the same reason G052 used integer cents. The demo's output includes `275/2 g` and `3/2 tsp` after making half a recipe, proving the rationals survive the full pipeline.
+
+The noosphere will have many such morphisms over compositional entities: "compress this project's timeline by 30%", "halve the agent's workload", "double this conversation's priority weights." G055 introduces the pattern cleanly; the rest of Classes will use it.
+
+**`can_make` is an N-ary conjunction over a dynamic width.**
+
+G054 introduced binary conjunction (doctor AND room). G055 generalizes to **N-ary**: can_make is a conjunction over *every line*, and the width is dynamic — some recipes have 3 ingredients, some have 30. The conjunction adapts.
+
+```
+can_make(r)  ⇔  ∀ line ∈ r.lines: pantry_covers(line)
+```
+
+This is the shape of every "requirements met" check in the noosphere. All dependencies installed? Conjunction over a dynamic dependency list. All tests pass? Conjunction over a test list. All agents ready? Conjunction over the roster. Width-dynamic conjunction is how reality works; G055 is the first project where it appears cleanly.
+
+When the conjunction fails, the report is **structured** — which lines failed, and why. Three reason codes: `not_stocked`, `unit_mismatch`, `insufficient`. The failure mode isn't a single boolean or a single error string; it's a list of per-line diagnoses. Good `where` clauses in InnateScript should always return this shape when they fail. "where failed" with no detail is almost useless; "where failed because A (reason x), B (reason y), C (reason z)" is actionable.
+
+**Shopping list is a computed delta — not a stored record.**
+
+```
+shopping_list = required − available    (per line, clipped at zero)
+```
+
+The list doesn't exist as a record anywhere. It is derived on demand from the gap between desire and reality. First project where the main output of a query is a *gap report*.
+
+Gap-based reporting is its own primitive. Every noosphere planning operation produces such a report: a project's roadmap gap is "required phases minus completed phases"; a context gap is "what the choreography needs minus what it has access to"; a capability gap is "what the task demands minus what the agent has." These are computed deltas over structured fields. Recipes make the pattern concrete with the clearest possible example.
+
+**`make` is atomic multi-entity consumption — conservation's other face.**
+
+G052 introduced atomic multi-entity updates via conservation (transfer entries sum to zero). G055 uses the same atomicity for a different semantic: **consumption** rather than transfer. `make(recipe)` subtracts from N pantry items; either all subtractions land or none do. The distinction matters:
+
+- G052's transfer preserved total (conservation): what left one account arrived at another.
+- G055's make does NOT preserve — ingredients are destroyed. The pantry's total diminishes.
+
+Two faces of multi-entity atomic updates: conservation (money, labels) and consumption (materials, attention, compute). Both need atomicity; they differ in whether the total is invariant. InnateScript's choreography engine will need the distinction when scoring `where` clauses — "did the transfer balance?" is a conservation check; "did we have enough?" is a consumption check.
+
+G048 identity → G049 status interaction → G050 scheduled → G051 measured → G052 atomic (conservation) → G053 three-layer + queue + renewal → G054 conjunctive + self-exclusion + search → G055 *structure-valued entity + exact scaling + N-ary conjunction + gap reporting + atomic consumption*. Eight projects, and Classes has now shown how the noosphere's compositional entities — projects, agents, conversations — get their scale, their requirements checks, their shopping lists, and their atomic consumption semantics.

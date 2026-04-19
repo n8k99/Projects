@@ -61,7 +61,7 @@
 - [x] 52. Bank Account Manager
 - [x] 53. Library Catalog
 - [x] 54. Patient / Doctor Scheduler
-- [ ] 55. Recipe Creator and Manager
+- [x] 55. Recipe Creator and Manager
 - [ ] 56. Image Gallery
 - [ ] 57. Handle Large Numbers
 - [ ] 58. Chart Making Class / API
