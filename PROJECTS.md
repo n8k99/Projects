@@ -93,7 +93,7 @@
 - [x] 80. Scheduled Auto Login and Action
 - [x] 81. E-Card Generator
 - [x] 82. Content Management System
-- [ ] 83. Template Maker
+- [x] 83. Template Maker
 - [ ] 84. CAPTCHA Maker
 
 ## Files

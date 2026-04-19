@@ -14,3 +14,4 @@ pub mod text_game;
 pub mod scheduler;
 pub mod ecard;
 pub mod cms;
+pub mod template_maker;

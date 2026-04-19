@@ -2715,3 +2715,43 @@ Articles have both a numeric id (surrogate) and a slug (natural). Uniqueness enf
 Production CMSes uniformly do this. Changing a slug is a renaming operation requiring URL rewrites or 301 redirects; the id never changes.
 
 G069 → ... → G081 E-Card → G082 *multi-state lifecycle FSM + append-only revisions + time-triggered transitions + archived-as-frozen + slug-as-natural-key + dimension-scoped queries*. Fourteen Web projects done, two to go. Web adds **content lifecycle with revision history** as the fifteenth component — the shape of every CMS, every versioned document system, every note-publishing flow.
+
+---
+
+## G083 — Template Maker
+
+**The code that produces templates is itself a data model.**
+
+G081 treated a Template as data: slots, HTML, category. The template was produced once (hand-written struct) and consumed many times. G083 makes the **production step** itself data-driven: `TemplateBuilder` is an editable record holding the in-progress definition; `TemplateMaker` is the tool that mutates it, validates it, produces the frozen Template.
+
+First Rosetta Stone **meta-level** project — the tool that creates tools. Same philosophical shift as G080's "tasks are data" and G081's "templates are data" — but at a higher level. Not "store the output as data"; "store the process as data." Every good authoring tool has this shape: Figma stores design files, Excel stores spreadsheets, the vault's note-template system stores templates (all data, not code).
+
+**Cross-reference validation between two representations.**
+
+Builder has two representations of "what slots exist":
+1. **Slots list** — declarative (name, kind, required, default).
+2. **HTML placeholders** — operational (every `{{name}}` in the draft).
+
+These must agree. Validator finds mismatches: **UnusedSlot** (declared but not referenced — clutters UI, indicates editing without updating slot list) and **UndeclaredPlaceholder** (referenced but not declared — produces raw `{{typo}}` in output).
+
+First Rosetta Stone project where **two representations of the same concept are validated against each other**. G082's lifecycle states and scheduled publishes were different concepts. G083 has one concept (slots) with two representations (declared + referenced) and validation detects drift.
+
+Every schema-migration tool does this (DB schema vs ORM model must agree). Every protobuf-to-code generator does this (.proto vs generated code). G083 is a tiny version of the same pattern.
+
+**Preview uses sample data, not real data.**
+
+Template author has no real cards yet. `preview` uses per-slot sample values the author provides; missing samples fall back to defaults; still missing shows the raw placeholder.
+
+First Rosetta Stone project with **design-time sample data** separate from runtime data. G081 only had real card values; G083 introduces samples on the builder itself, so the author can preview without creating cards. The vault's note-template system does exactly this.
+
+**Issue-kind-typed validation results.**
+
+Four bug families: Structural (invalid names, duplicates), Completeness (unused, undeclared), Runtime-preview (missing sample for required). Each is a different kind of problem with different authoring mistakes and different fixes. `validate()` returns an itemised list with kind+name, letting the UI render specifics per kind.
+
+First Rosetta Stone project with **structured validation results** rather than single-error returns. Production linters (ESLint, Clippy, pylint) work this way — validate everything, return a list, let the caller render. G083 at minimum scale.
+
+**Reserved names as schema extensions.**
+
+`{{_recipient}}` and `{{_sender}}` can be referenced without declaration. Validator skips `_`-prefixed names (they're system-provided). First Rosetta Stone project with **a naming convention as a schema extension mechanism** — same pattern as Python's `__dunder__`, Ruby's `@@class_vars`, HTML's `data-*`. The noosphere's choreography language can reserve `@_ctx`, `@_out`, `@_err` by the same convention.
+
+G069 → ... → G082 CMS → G083 *meta-level tooling + cross-reference validation + design-time samples + issue-kind typing + reserved-name conventions*. Fifteen Web projects done, one to go. Web adds **authoring tools** as the sixteenth component — the shape of every schema editor, template builder, form designer, or content-creation IDE.
