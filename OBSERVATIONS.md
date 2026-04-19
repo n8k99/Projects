@@ -2285,3 +2285,51 @@ Refuse rename on mismatch; `dest` stays absent; `.partial` stays present. Delibe
 First Rosetta Stone case where **failure produces diagnostic artifacts rather than returning to clean state**. Parallels: core dumps on crashes, `.rej` files from patch conflicts, failed-migration logs in database tools — all leave evidence. Principle: fail noisily with forensics.
 
 G065 atomic counter → G066 worker pool → G067 broadcast → G068 shared index → G069 WYSIWYG → G070 browser state → G071 parser → G072 *durable state on disk + atomic rename + resume-aware hashing + abstract transport + forensic-on-failure*. Four Web projects done, twelve to go. The category's theme has expanded: structured model + render function + query language + robust input handling + **durable state with atomic promotion** = five-component architecture for any real document/file system.
+
+---
+
+## G073 — Telnet Application
+
+**Protocol ≠ transport.**
+
+A telnet *application* is not a telnet *server*. The server binds a socket and reads/writes bytes; the application decides what a line means once the socket delivers it. G073 implements the application; the socket is a detail slotted underneath.
+
+This separation is the single most important lesson. Every real protocol — HTTP, SMTP, IRC, Redis RESP, Postgres wire protocol — gains testability the moment protocol logic splits from byte transport. Protocol tests call `handle_line(session, "login alice")` directly; transport tests mock byte streams; the two tests never need each other. First Rosetta Stone project where **protocol/transport split IS the design**. Every noosphere agent-dispatch integration test over IPC will use this shape: protocol is `{cmd, args, response}`; transport is Unix socket today, TCP tomorrow, WebSocket next.
+
+**Session state is a three-state FSM with a terminal state.**
+
+`Unauthenticated → Authenticated → Disconnected`. G062's vending machine had two states; G073 has three, and the third is terminal — no operation brings a session back from Disconnected.
+
+**Terminal state is load-bearing.** Naive servers let commands run on disconnected sessions "because the data is still there" — that's a bug, not a feature. Disconnected means the protocol has ended; subsequent commands represent either a server logic error or an adversary holding a stale session id. G073 refuses all commands on Disconnected with an error.
+
+First Rosetta Stone protocol with a **terminal state** — G062's terminal states (Completed/Cancelled/Failed) were optional for its purpose; G073's Disconnected is mandatory, every session eventually reaches it. Every real connection-oriented protocol has this: TCP CLOSED, HTTP/2 closed stream, IRC QUIT, Postgres terminated connection.
+
+**Commands are a dispatch map, not a switch.**
+
+G073's command handling is: parse line into `(cmd, args)`, look up `cmd`, delegate to handler. The handler-map pattern makes the command set **data, not code**. Adding a new command is an entry; removing is deleting an entry. Production protocol servers (Redis, Postgres, most chat servers) implement commands exactly this way.
+
+Pattern matters for the noosphere: every choreography resolver is this. `@agent/dispatch{cmd, args}` looks up `cmd` in the resolver table, delegates, returns. The resolver's command set is extensible at runtime; new natives register without recompiling.
+
+**State-gated commands map the security model.**
+
+- `help` — any state (zero-trust)
+- `login` — Unauthenticated only (double-login is error, not silent reassignment)
+- `whoami` / `who` — Authenticated only (unauthenticated sessions cannot enumerate users; real information-disclosure concern)
+- `echo` — any state (trivially safe)
+- `quit` — any non-terminal state
+
+**The legal-in-state table IS the protocol's security policy.** What commands are available to unauthenticated callers *is* the attack surface; anything beyond `help` and `login` leaks information. Every protocol bug has had a command accidentally legal in a state where it shouldn't have been.
+
+First Rosetta Stone project where **access control is expressed through state-gating** rather than a separate permission system. Real servers often have both (RBAC + session-state); G073 shows state-gating alone is sufficient for many protocols.
+
+**Per-session history is audit, not replay.**
+
+Every line is recorded as `(line, reply)`. Not a replay mechanism — G073 doesn't re-execute history. It's an **audit trail**: who typed what, what the server answered. Survives until the session is GC'd.
+
+**Journal-vs-queue** pattern from G067 Chat App applied to per-session scope. History is a journal (permanent, append-only); session state is the queue-like output of replaying it. Production analogues: HTTP access logs, Postgres query logs, IRC channel logs, the vault's future choreography-execution log. All append-only, all per-session-scoped, all independent of the application state they describe.
+
+**Sessions are isolated — this is the whole point.**
+
+Alice's login does not affect Bob's session. Alice's quit does not terminate Bob's. First Rosetta Stone project where **state isolation across callers is a correctness property**. G067 had similar isolation for chat inboxes but inboxes were symmetric data structures. G073 has asymmetric state (one user's login) and must guarantee independence — a regression letting Alice's login leak into Bob's session is a protocol-level security failure.
+
+G065/G066/G067/G068 taught concurrency primitives; G069/G070/G071/G072 taught document/transfer primitives; G073 is the first *interactive* application — where a remote caller holds a session and issues commands over a line-oriented protocol. Five Web projects done, eleven to go. The Web category's architecture is now **model + render + query + robust input + durable state + interactive protocol** — six components, the foundation of any real application server.

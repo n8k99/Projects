@@ -83,7 +83,7 @@
 - [x] 70. Web Browser with Tabs
 - [x] 71. Page Scraper
 - [x] 72. File Downloader
-- [ ] 73. Telnet Application
+- [x] 73. Telnet Application
 - [ ] 74. Online White Board
 - [ ] 75. Bandwidth Monitor
 - [ ] 76. Bookmark Collector and Sorter
