@@ -76,7 +76,7 @@
 - [x] 65. Progress Bar for Downloads
 - [x] 66. Download Manager
 - [x] 67. Chat Application (Threading)
-- [ ] 68. Bulk Thumbnail Creator
+- [x] 68. Bulk Thumbnail Creator
 
 ## Web
 - [ ] 69. WYSIWYG Editor

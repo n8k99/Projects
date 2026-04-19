@@ -2063,3 +2063,65 @@ When Bob leaves, his inbox is discarded with his user entry. But his past messag
 This separation matches every real chat system and is deliberate. The noosphere's conversations table works the same way: a deactivated agent's messages are still attributed to that agent in the historical record; only future messages are skipped.
 
 G065 single producer/consumer → G066 N consumers pulling → G067 *every-actor-both-roles + broadcast-per-send + dynamic-membership synchronisation + total-ordering via logical clock + journal/queue split + membership-memory orthogonality*. One Threading project remains: G068 Bulk Thumbnail, which takes G066's fan-out worker pool and applies it to CPU-bound work where the result-aggregation is the point (an index of thumbnails-by-source-hash), closing the category with fan-out feeding into a merged output structure.
+
+---
+
+## G068 — Bulk Thumbnail Creator
+
+**The result is an aggregation, not a list of independent outcomes.**
+
+G066 produced a list of `DownloadResult`s — each independent, the list was bookkeeping. G068 produces a **shared index** that workers cooperatively build: `content_hash → thumbnail`, `source_id → content_hash`. The result is a single aggregated artifact shaped by every worker's contribution, not a collection of isolated outputs.
+
+First Rosetta Stone project where this distinction is explicit. Many real parallel pipelines produce an aggregate: search indexes, dependency graphs, code maps, embedding stores. Workers don't compute independent answers — each contributes a piece of a final whole. The output IS the point of the computation.
+
+**Content-addressing makes dedup trivial and parallel-safe.**
+
+The naive check-if-exists-then-generate has a race: two workers see "not present," both generate, one overwrites the other. Wasted work at best, torn writes at worst.
+
+**Content-addressing dissolves the race.** The primary key of the index is the content hash itself. Two workers with identical content compute the same hash, which collides in the index under a single lock — and *only one worker succeeds in claiming the slot*. The other observes the collision and records the mapping without regenerating. The expensive thumbnailer runs **exactly once per unique content**, regardless of source or worker count.
+
+This is the pattern behind every content-addressed system: Nix/Guix package caches (hash of inputs → build output), Docker image layers, Git objects, IPFS, the vault's future blob-backed image store. G056 introduced content-addressed identity; G068 shows why it's the right choice under concurrency.
+
+**The reservation pattern decouples lock hold time from work time.**
+
+Naive check-and-insert holds the lock while generating the thumbnail — serialising all workers and destroying the point of the pool. The **reservation pattern** fixes this:
+
+1. Acquire lock.
+2. If hash present, release, record dedup.
+3. Otherwise, insert placeholder (empty string / None), release.
+4. Run expensive work **unlocked**.
+5. Reacquire briefly to install real value.
+
+Concurrent workers arriving between steps 3 and 5 see the placeholder as "present" and treat it as dedup — semantically correct, because someone else IS generating this thumbnail. The lock is held for two tiny windows; expensive work runs in parallel. Initial Rust test (with thumbnailer running *inside* the lock) took 241ms for 8 jobs on 4 workers — fully serialised. Reservation-pattern version took 60-80ms — real parallelism.
+
+This is the primitive behind `sync.Once` (Go), `OnceLock` (Rust), memoisation under concurrency, content-addressed cache lookups, and any "compute once, share many" scenario. Production libraries hide it; G068 presents it explicitly.
+
+**CPU-bound parallelism has different ergonomics from I/O-bound.**
+
+G066 was I/O-bound; G068 is CPU-bound. The differences:
+
+- **Optimal worker count.** I/O-bound: many workers win (most time spent waiting). CPU-bound: workers beyond CPU count produce no speedup, may slow via context-switching. G068's best worker count is usually `N = num_CPUs`.
+- **Lock contention matters more.** CPU-bound workers are constantly ready to run; any serialisation directly caps throughput.
+- **Python's GIL matters.** Python threads don't provide CPU-bound parallel speedup for pure-Python code. Dedup correctness still works; speedup doesn't materialise unless the thumbnailer releases the GIL (most image libraries do). Real Python CPU-parallelism needs `multiprocessing`. G068's Python version documents this honestly rather than faking a speedup claim.
+
+**Aggregation state requires partitioned locks.**
+
+G066 had effectively one hot lock (the queue). G068 has two:
+- Queue lock (every pop).
+- Index lock (every claim and install).
+
+These are **orthogonal** — operations on the queue don't affect the index. Two separate mutexes are correct and preferred; a worker waiting on the queue lock doesn't block another worker installing into the index. First Rosetta Stone project where **partitioning locks** is visibly the right choice.
+
+Production systems partition further: shard the index lock by hash prefix, or replace with a lock-free concurrent map (DashMap, sync.Map, java.util.concurrent.ConcurrentHashMap). G068 uses one global index lock because the demo doesn't need more — but the seam for partitioning is there.
+
+**Closing Threading — all four primitives are now present.**
+
+The category's four projects introduced, in order:
+- G065 **shared counter + FSM** (one producer, one consumer, atomic primitives, cooperative cancellation, time as input).
+- G066 **shared queue + fan-out** (one producer, N consumers, pull scheduling, concurrency limit, failure isolation).
+- G067 **shared broadcast** (N producers, N consumers, total ordering via monotonic counter, journal/queue split, dynamic membership).
+- G068 **shared index** (N producers contributing to an aggregated output, content-addressed dedup, reservation pattern, partitioned locks).
+
+Together these cover the four fundamental concurrency patterns. Any real multi-threaded program is assembled from these: a thread pool (G066) with per-worker progress tracking (G065), broadcasting completions to subscribers (G067), and contributing results to a shared index (G068). The noosphere's agent-dispatch layer will use all four. **Threading is complete.**
+
+G048 (identity + counts) → G064 (self-referential graph) → G065–G068 (concurrency added to everything above). Four Threading projects + 17 Classes projects = 21 projects of entity/concurrency vocabulary, the foundation that Web (G069–G084), Files (G085–G100), Databases (G101–G113), and Graphics (G114–G130) will build on top of. 68/130 complete. The foundational third of the milestone (numbers, text, networking, classes, threading = 68 projects) is done; the remaining 62 projects are applications and integrations using the vocabulary now established.
