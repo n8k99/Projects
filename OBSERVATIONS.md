@@ -2515,3 +2515,37 @@ Explicit API-level separation: `get_summary` returns metadata only; `get_passwor
 First Rosetta Stone project with **explicit API-level separation between metadata and secret material**. Production managers do this: clipboard-write ≠ display-in-UI; display is summary-only by default with explicit "reveal" gesture required. G077 models the API shape of that.
 
 G069 → ... → G076 Bookmarks → G077 *encryption-at-rest + zero-knowledge + lock/unlock FSM + auto-lock via time + orthogonal generation/strength + verifier-≠-key + metadata-secret API split*. Nine Web projects done, seven to go. Web's architectural vocabulary adds **security primitives** (key-lifecycle, state-gated secrets, time-based transitions) — the tenth component.
+
+---
+
+## G078 — Media Player Widget
+
+**Three-state playback is the minimum for pausable playback.**
+
+G062 had two states (Idle, Accepting). G073 had three with one terminal (Unauthenticated, Authenticated, Disconnected). G077 had two (Locked, Unlocked). G078 has three **non-terminal** states — Stopped, Playing, Paused — and every state can transition to every other state (full 3×3 transition table).
+
+Stopped = nothing loaded-and-ready-to-resume; Playing = time advances on tick; Paused = loaded and positioned but tick is a no-op, resume is cheap. Skip Paused and every lift of Play resets to track 0. Merge Stopped into Paused and you lose "start fresh" vs "pick up where I left off." First Rosetta Stone project where a three-state FSM is **load-bearing**, not incidental. The noosphere's choreography engine will likely use this exact pattern.
+
+**Transport actions are context-dependent.**
+
+`play()` has different behaviour in each state: Stopped → start track 0 + emit TrackStarted; Paused → resume, emit StateChanged only; Playing → no-op. The caller doesn't check state first — the handler encapsulates the policy.
+
+Compare a naive design with separate `start()`/`resume()`/`continue()` — caller must check state. G078's `play()` absorbs the dispatch. **State-interpreted operations** (works in every state, does the right thing) vs G062's **state-gated operations** (refused if wrong state). First Rosetta Stone project with context-dependent operations on a running state machine.
+
+**The tick function is the engine.**
+
+`tick(delta_ms)` advances position, checks track end, fires boundary events, advances to next track (consulting repeat/shuffle), loops until `delta_ms` is consumed or the playlist runs out. The **game-loop pattern**: world has a tick that takes a time delta and advances everything. Every simulation, physics engine, game, scheduled-task executor has this shape.
+
+First Rosetta Stone project with **tick-driven state advancement**. G062's transitions were instantaneous; G065's time was elapsed-since-start. G078 is the first where time is **consumed** by a function that turns "time passed" into "state changed and events fired."
+
+**Playlist modes (repeat + shuffle) are orthogonal.**
+
+Four combinations: repeat=(None|One|All) × shuffle=(off|on). Every combination is valid. Shuffle changes which track is next; repeat changes whether to stop or continue at end. They don't interact; they're independent axes. First Rosetta Stone project with **orthogonal mode dimensions** on the same operation. Previous projects had single-mode operations; G078 shows mode axes compose.
+
+**Events fire on boundaries, not every tick.**
+
+Track end → TrackEnded. New track start → TrackStarted. Playlist end → PlaylistEnded. State change → StateChanged. **Events are boundary signals**, not continuous streams. UI subscribed to events updates on changes; polls `position_ms` for the scrubber; subscribes to events for "now playing" display.
+
+First Rosetta Stone project with **event stream as supplement to state query**. G065 had state queries only; G066 had outcomes returned from run. G078 has both: queries for continuous display, events for boundary-triggered reactions.
+
+G069 → ... → G077 Password Safe → G078 *three-state non-terminal FSM + context-dependent transport + tick-as-engine + orthogonal mode dimensions + events-on-boundaries*. Ten Web projects done, six to go. Web adds **tick-driven engines** as the eleventh component — a primitive that will power every simulation, scheduled-task runner, or choreography executor in the noosphere.

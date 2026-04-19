@@ -88,7 +88,7 @@
 - [x] 75. Bandwidth Monitor
 - [x] 76. Bookmark Collector and Sorter
 - [x] 77. Password Safe
-- [ ] 78. Media Player Widget
+- [x] 78. Media Player Widget
 - [ ] 79. Text Based Game Like Utopia
 - [ ] 80. Scheduled Auto Login and Action
 - [ ] 81. E-Card Generator
