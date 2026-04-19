@@ -69,7 +69,7 @@
 - [x] 60. Matrix Class
 - [x] 61. Flower Shop Ordering
 - [x] 62. Vending Machine
-- [ ] 63. Josephus Problem
+- [x] 63. Josephus Problem
 - [ ] 64. Family Tree Creator
 
 ## Threading

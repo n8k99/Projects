@@ -1834,3 +1834,53 @@ A subtle but important design choice — inserted coins are NOT part of the mach
 Keeping them separate until commit is the first instance of **two-phase settlement** in the Rosetta Stone. Phase 1: insert coins into a holding area. Phase 2: commit (merge into main pool) or refund (return from holding). This is how real payment systems work — holds on credit cards, escrow accounts, pending transactions. G062 makes the pattern concrete.
 
 G048 ... → G060 shape-typed → G061 build-up/commit → G062 *finite state machine + state-gated ops + capacity-constrained greedy + bidirectional atomic flow + two-phase settlement*. Fifteen projects. Only three Classes projects remain (Josephus, Family Tree, and the wildcard choice at the end). Classes has delivered its full vocabulary; the remaining projects are applications, not new primitives.
+
+---
+
+## G063 — Josephus Problem
+
+**Modular arithmetic replaces structure.**
+
+N people in a ring; count k; remove; repeat. The whole of circular traversal fits in `(pos + k - 1) mod |ring|`. No linked list. No cycle detection. No wrap-around bookkeeping. Modulo *is* the ring.
+
+This is the first Rosetta Stone project where **arithmetic replaces structure**. A circular linked list works — Common Lisp's classic `(setf (cdr tail) head)` trick — but the modular index is shorter, faster, and portable across every language with `%`. The design lesson is the choice: arithmetic over structure, wherever the structure exists only to be walked cyclically.
+
+Modular position is everywhere in the noosphere: day-of-week (`date mod 7`), hour-of-day, beat-of-a-measure, ring-buffer writeback in the IPC layer. G063 isolates the primitive at minimal scale.
+
+**The recurrence obsoletes the simulation.**
+
+```
+J(1, k) = 0
+J(n, k) = (J(n-1, k) + k) mod n
+```
+
+O(n) versus the simulation's O(n²). For n=1,000,000 the recurrence runs in milliseconds; the simulation takes a trillion operations. The closed form is not an optimisation — it is a **qualitative change in what the problem is**.
+
+G063 is the first Rosetta Stone project where a one-line recurrence obliterates a visible simulation. The simulation stays in the code as a **verification oracle** — property-tested against the recurrence for every (n, k) up to a bound — but in production nobody runs it.
+
+This generalises. Fibonacci has the golden-ratio formula. BigInt multiplication has Karatsuba and FFT. Many problems with obvious quadratic simulations have sub-quadratic closed forms that nobody would guess from the problem statement. The lesson: when the simulation is easy and slow, ask whether there's a shortcut. Sometimes there isn't. Sometimes there's a one-liner hiding in the math.
+
+**Two queries on the same process, two optimal algorithms.**
+
+"Who survives?" — recurrence, O(n). "In what order are they eliminated?" — only the simulation answers this, O(n²). The two questions have different optimal algorithms on the same process.
+
+This pattern recurs everywhere:
+- Git **blame** (who last touched this line?) vs git **log** (the whole history).
+- Agent dispatch — "who gets this job?" (one decision) vs "how did we assign yesterday's 10,000 jobs?" (the full ledger).
+- Final balance of an account (one number) vs the movement log (every entry).
+
+One answer is a reduction over a process. The other answer *is* the process. **Choose the algorithm to match the query, not the query to match the algorithm.** Systems that store only the closed form can't answer narrative questions; systems that store only the log compute summaries slowly. Most real systems carry both, by design.
+
+**The answer is the fixpoint of iterated reduction.**
+
+Simulation is a fold that keeps deleting until one element remains. The survivor is not a computed property of the input; the survivor IS the final state of the iteration. This is the first Rosetta Stone project where the output is the terminal point of a transformation rather than a derived scalar.
+
+Consensus algorithms iterate until no message changes state; physics simulations iterate until energy stops decreasing; optimisation iterates until the gradient vanishes. Every "keep going until you can't" algorithm has the same shape as Josephus simulation. G063 is the minimal discrete instance.
+
+**Closed forms hide the process.**
+
+There is a philosophical edge here: the recurrence tells you *who* survives but gives no account of *how*. You cannot point at `J(n,k) = (J(n-1,k) + k) mod n` and say "she survived because the eighth elimination removed the person three seats to her left." The recurrence is statement-of-fact without narrative. The simulation has narrative but no shortcut.
+
+The noosphere carries both. Audit logs, movement ledgers, and choreography traces record the narrative. Computed projections drop it and keep the summary. **Neither is more correct.** They answer different questions, and any system that commits to only one will be unable to answer the questions the other handles. Be explicit about which you store — and accept that storing both is the cost of answering both kinds of question.
+
+G048 ... → G062 finite state machine → G063 *circular indexing + closed-form recurrence + two-queries/two-algorithms + fixpoint answer + narrative-vs-summary*. Sixteen projects. Josephus is the smallest project in Classes by code volume — the whole recurrence is three lines — and one of the largest in conceptual yield. Two projects remain in the category.

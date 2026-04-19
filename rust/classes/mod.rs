@@ -15,3 +15,4 @@ pub mod shapes;
 pub mod matrix;
 pub mod flower_shop;
 pub mod vending_machine;
+pub mod josephus;
