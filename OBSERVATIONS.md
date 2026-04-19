@@ -2379,3 +2379,43 @@ Every stroke carries its author. First Rosetta Stone project where **every atom 
 The noosphere's agent-provenance tracking will use this pattern: every choreography output, vault edit, deliverable carries the agent/user that produced it. "Show me only what Alice's agents produced this week" becomes a filtered walk over provenance-annotated data.
 
 G069 WYSIWYG (1D text model) → G070 Browser → G071 Parser → G072 File Downloader → G073 Telnet → G074 *spatial coordinates + retained-mode entities + z-order-as-storage-order + spatial-index seam + parameterised render + per-atom provenance*. Six Web projects done, ten to go. G074 opens the door to every remaining spatial/visual project in the milestone, particularly Graphics (G114–G130), by establishing the fundamental primitives of 2D entities and spatial queries.
+
+---
+
+## G075 — Bandwidth Monitor
+
+**The useful signal is the derivative, not the counter.**
+
+A network interface tells you one thing: a monotonically-increasing byte counter. "47,385,219 bytes since boot" is not actionable. The **signal** is bytes/sec right now, on average over the last minute, at peak over the last five minutes.
+
+G075 stores the counter stream; it derives every rate. Every query walks the counters, picks samples spanning the window, divides byte-delta by time-delta. Counter is source of truth; rates are projections.
+
+First Rosetta Stone project where **stored form and useful form are different**. Previous projects returned values stored directly (balance, user count, tags). G075 stores counters but never returns counters — only derived rates, computed on every query. Parallels: CPU percent, disk I/O, request throughput — every metrics system (Prometheus, StatsD, the vault's future observability) has this shape.
+
+**Sampling cadence trades precision for overhead.**
+
+Too infrequent: misses bursts (1s-average over 100ms spike sees 10× smaller). Too frequent: wastes CPU (sampling every 1ms on a GB/s link generates 1M samples/s overhead to detect rates that change 10×/s). Real monitors choose ~1 Hz for general use, higher for burst debugging.
+
+First Rosetta Stone project where **observation frequency is itself a design parameter** separate from the observation primitive. The noosphere's agent-metric collection faces this: sample on a cadence that catches interesting behaviour without drowning in data.
+
+**Average smooths, peak preserves — different statistics on same data.**
+
+Steady 1 MB/s with a 100ms 10 MB/s spike: average ~1.9 MB/s (nearly invisible), peak 10 MB/s (exactly the spike). Saturated-link spikes are visible in peak but hidden in average; slow-sustained-growth is visible in average but not peak. Production monitors report both.
+
+First Rosetta Stone project where **two summary statistics answer different questions about the same data**. Same shape as G063 (survivor vs elimination-order), G067 (log vs inbox), G074 (structure vs render). Pick the algorithm to match the question; store raw data so multiple algorithms can apply.
+
+**Counter wraparound is an adversary, not an error.**
+
+32-bit byte counters wrap at 4 GB — on a 100 Mbit link, every 5.5 minutes. Naive `(bytes_now - bytes_before)` goes negative across the wrap and reports implausible rates.
+
+G075 treats wraparound as a **gap in observation** — if new count < old count, that pair is skipped; interval contributes zero, not negative. Rate resumes with next consecutive increasing pair. Alternatives (assume one wrap, compute `(new + 2^32 - old)`) work if you know counter width; G075's skip approach is safe without that knowledge.
+
+First Rosetta Stone project where **the adversarial-data model is explicit**. Previous projects trusted inputs; G075 treats input as potentially misbehaved because it is. Every real metrics system has this: Prometheus reset detection, statsd counter-reset handling, Linux `/proc/net/dev` documenting counters can reset.
+
+**Ring buffer is the right shape.**
+
+Fixed-capacity deque that evicts oldest when full. Queries walk the buffer; no pagination, no external aggregation, no database. Bounded memory, bounded query cost.
+
+First Rosetta Stone project where **bounded storage** is an explicit design property. Previous projects assumed unbounded growth (Family Tree nodes, Chat Room log, WYSIWYG runs); G075 caps because time-series is "most recent N" semantics. Same pattern: kernel perf ring buffer, syslog rotation, Prometheus TSDB chunks, vault activity log with rolling archive.
+
+G069 → ... → G074 Whiteboard → G075 *counter-to-rate derivation + cadence-as-parameter + average-vs-peak orthogonality + wraparound-as-gap + bounded ring buffer*. Seven Web projects done, nine to go. Web architecture now eight components: model + render + query + robust input + durable state + interactive protocol + spatial data + time-series observation.
