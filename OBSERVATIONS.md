@@ -1597,3 +1597,43 @@ This "same-sign add / different-sign sub with sign-of-larger" is the template fo
 Token counts across a year can exceed 64-bit range. Cumulative P&L across trades can exceed native integer limits. Cryptographic hashes live far outside any machine integer. Any aggregation at scale requires a type that *cannot* silently overflow. BigInt's entire point — the single property that earns it its place — is that addition can always succeed. When the domain assumes unboundedness but the language doesn't provide it, you need a value class to enforce the invariant.
 
 G048 identity → G049 status interaction → G050 scheduled → G051 measured → G052 atomic (conservation) → G053 three-layer + queue + renewal → G054 conjunctive + self-exclusion + search → G055 structured field + scaling + gap + atomic consumption → G056 external refs + content-addressed + set-algebra + intrinsic-vs-curated → G057 *value class + laws + canonical form + schoolbook algorithm + signed case-analysis*. Ten projects. Classes now contains both the noosphere's domain entities (G048–G056) and its first value class (G057); every entity in the vault or the resolver will be one of these two shapes.
+
+---
+
+## G058 — Chart Making Class / API
+
+**The chart is a function, not a container.**
+
+Traditional OO charts have a `Chart` class with `add_series`, `set_color`, `draw` — state accumulates, mutation everywhere. G058 takes the grammar-of-graphics approach: the chart is a spec + data; rendering is a pure function `render(spec, data) → output`. No hidden state. Same spec + data always produces the same output. This is how Vega, Vega-Lite, D3, and ggplot2 work.
+
+Every prior Classes project had a container with state. G058 inverts the pattern: the spec is static, data flows through, output is computed. The class is a **pipeline definition**, not a state machine. Composability follows naturally — combine two specs into a layered chart; parameterize a spec over datasets for small multiples; swap one renderer for another to change output format.
+
+**Scales are functions, made explicit.**
+
+The core primitive of data visualization is the scale — a function from data domain to visual range. `LinearScale(0, 100, 0, 40).at(50) = 20`. The class exists to name the function and carry its parameters. Three scale variants cover most charts: linear (continuous → continuous), ordinal (categories → positions), log (orders of magnitude).
+
+Every visualization reduces to "which scales, on which fields?" This is the first project in the Rosetta Stone where the domain model is explicitly **higher-order**: the spec contains functions, not just values. The noosphere will use scales everywhere — project progress 0–100% onto a visual bar; a pace_check score [-1, +1] onto a color channel. Every dashboard widget is a chart spec in miniature.
+
+**Each stage is independently testable.**
+
+The pipeline decomposes into five pure functions: data, scale, encode, layout, render. Every prior Classes project had a monolithic "do the thing" method — schedule the appointment, record the grade, check out the book. G058 is the first project where the operation decomposes into stages you can test in isolation. If the chart looks wrong, you can pinpoint the bad stage: bad data, bad scale, bad encoding, bad layout, or bad renderer.
+
+This generalizes to every pipeline in the noosphere. A choreography has stages (parse, validate, project, execute, report). A build has stages (fetch, compile, test, package, deploy). Each stage is independently testable if it's a pure function. G058 is the Rosetta Stone's first *composed-pipeline* class, and the pattern scales up without modification.
+
+**Declarative spec vs imperative drawing.**
+
+The chart spec doesn't say "draw a rectangle at (100, 200) with width 50, height 80." It says "bar chart with `x = category`, `y = value`". The renderer figures out the rectangles.
+
+This is the first separation in the Rosetta Stone between **what to show** and **how to draw it**. The noosphere needs this separation everywhere. A daily-note template says "list today's completed tasks" (declarative); the renderer decides checkbox style. A project summary says "show blockers, goals, current context" (declarative); the renderer decides card-vs-table. Declarative specs are interchangeable — swap the renderer, same spec, different output.
+
+**The renderer is a pluggable backend.**
+
+We render to ASCII here because every language has strings and terminals. The same spec could render to SVG, canvas, PDF, TikZ, or a truecolor terminal. Only the final stage changes. **Backend-as-strategy** is the pattern, and it's the only reason grammar-of-graphics libraries support ten output formats without rewriting the user-facing API.
+
+The demo proves the separation: the same temperature dataset renders as a bar chart AND as a line chart, with the same `DataPoint` type feeding both. Backend is pluggable; spec is declarative; pipeline is pure. In the vault, one dashboard spec could drive terminal widgets, emailed weekly reports, and web UI without any change to the spec layer.
+
+**The line chart reveals the Rosetta Stone's first algorithmic *drawing*.**
+
+Unlike the bar chart (draw a bar per row), the line chart interpolates. Between two plotted points, empty cells along the diagonal get filled with dot-marks (`·`) via a step-along-the-longer-axis walk. This is a tiny Bresenham-ish algorithm — the first time a Classes project renders **continuous visuals from discrete marks**. It's still schoolbook-clear; but it's no longer just iteration over rows. The grid-of-chars + step-along-diagonal technique is what every terminal UI library uses underneath.
+
+G048 identity → G049 status interaction → G050 scheduled → G051 measured → G052 atomic → G053 three-layer+queue+renewal → G054 conjunctive+search → G055 structured+scaling+gap → G056 external-refs+set-algebra → G057 value class + laws → G058 *pipeline class + scale-as-function + declarative spec + pluggable backend + grid rendering*. Eleven projects. Classes has now modeled: static entities (G048), two-way interactions (G049), intervals (G050), measurements (G051), atomic multi-entity (G052), three-layer taxonomies (G053), dual-calendar scheduling (G054), structure-valued containers (G055), external references (G056), value types (G057), and composed pipelines (G058). One-third of the category left.
