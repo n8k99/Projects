@@ -1234,3 +1234,33 @@ A rental with `due_at` creates a pending obligation until the movie is returned.
 `store.overdue(now)` doesn't send emails, charge fees, or lock accounts. It reports the set of obligations that have crossed their deadlines. The reaction — late fees, notifications — is a separate choreography that consumes the overdue list. The data layer answers "what is true right now"; the choreography layer decides "what to do about it." `@store/overdue` is a pure query; a cron-triggered choreography reads it and scores a `where`. The store is oblivious to consequences. That separation is the correct shape of a state model — data is observational, reaction is dispatched.
 
 The Classes category is two projects in and has already described the full entity grammar: things with identity (G048), things that interact (G049). The rest of the category will elaborate these two primitives across seventeen domains.
+
+---
+
+## G050 — Reservation System
+
+**Specific resources, not fungible copies.**
+
+G049 modeled movies as fungible — any of 2 copies of Casablanca satisfies a rental. G050 modifies the pattern: seat 12A is specifically 12A. Room 304 has a specific view. If you reserve 12A, you can't be handed 12B. This is the first model with identity at the resource level, not just at the title level. The resource table is the primary key space; fungibility becomes a special case (multiple resources of the same kind with equivalent attributes).
+
+The noosphere has both. The conversations table: thread `1a2b3c` is specifically that thread. The tasks table: task #247 is a specific task. The temporal calendar: `[[2026-04-19]]` is specifically that day — not a fungible "some day in April." G050 describes how the vault models things that can't be substituted.
+
+**Intervals conflict, points don't.**
+
+A movie rental is active-or-not at a point in time. A reservation is a *span*. Two spans either overlap or they don't, under the clean definition `[a,b) overlaps [c,d) ≡ a < d ∧ c < b`. Half-open intervals matter: a reservation ending at 3:00 and another starting at 3:00 do not conflict. This is the same convention the temporal calendar uses — `[[2026-04-19]]` is `[April 19 00:00, April 20 00:00)`. Adjacent days don't overlap. Half-open semantics is how discrete time composes without ambiguity.
+
+InnateScript choreographies that coordinate over intervals — "Sarah handles the morning, Kathryn the afternoon" — should use the same half-open semantics by default. Two agents with touching intervals don't conflict; the handoff is clean.
+
+**Availability is a negative search.**
+
+For G049, available = `on_hand > 0`. For G050, available-for-[start, end) = resources with *no reservation* overlapping that range. The query is structured as negation over conflicts: for each resource, check the conflict set is empty.
+
+This generalizes. A free agent for a task = agents with no active choreography during the needed window. A free meeting slot = times with no existing event in any participant's calendar. A quiet period for deployment = time ranges with no open incident, no change freeze, no release. Every scheduling question in the noosphere is "empty conflict set" over intervals.
+
+**Cancel is the first non-atomic retraction.**
+
+Rent/return happened at discrete moments: rent now, return later. A reservation is different — it is a *future claim*. The interval `[start, end)` may not have arrived yet when you cancel. Canceling retracts an intention before it takes full effect; returning releases an effect that already started.
+
+This is the shape of scheduled choreographies. A `@nightly-summary` scheduled for midnight has a future claim on Lena's attention. If it's cancelled at 22:00, it retracts. If it runs and Lena partially executes, "cancel" wouldn't make sense — you'd need a "return partial" or `rollback` semantics. InnateScript needs both: a `cancel` primitive for future choreographies and a `retract` primitive for in-flight ones. G050 surfaces the distinction that G049 didn't need.
+
+G048 → identity. G049 → interaction. G050 → interaction across a future interval with exclusivity constraints. Classes is showing its shape as a progressive elaboration of the same entity grammar.

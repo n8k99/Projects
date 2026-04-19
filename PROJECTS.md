@@ -56,7 +56,7 @@
 ## Classes
 - [x] 48. Product Inventory Project
 - [x] 49. Movie Store
-- [ ] 50. Airline / Hotel Reservation System
+- [x] 50. Airline / Hotel Reservation System
 - [ ] 51. Student Grade Book Application
 - [ ] 52. Bank Account Manager
 - [ ] 53. Library Catalog
