@@ -1210,3 +1210,27 @@ Every `where` clause in InnateScript can be re-read as a reorder point on an agg
 `sell` fails if `on_hand < requested`. This is the first transition in the Rosetta Stone with a precondition that depends on aggregated state. The choreographic reading: `@inventory/sell{sku, qty}` is a step with a `<-` gate. The gate tests the aggregate. If it fails, the choreography halts. This is not error handling — it is structural. The transition is only legal when the precondition holds. The distinction between "illegal" and "failed" matters: an overdrawn sell is not a runtime error to recover from, it's an invalid state transition that shouldn't occur.
 
 Forty-seven projects in, the Rosetta Stone ignored identity and persistence. G048 is where the noosphere's entity layer begins: the shape of a vault record, expressed six ways.
+
+---
+
+## G049 — Movie Store
+
+**The join table is the conversation.**
+
+G048 modeled a single entity. G049 introduces two entities connected by a third. Movies and Customers are independent — neither references the other. The rental is the join record: when a customer borrows a movie, the interaction is captured as a new entity with its own identity and lifecycle.
+
+This is how the noosphere works. `conversations` joins user and project. `tasks` joins agent and goal. `annotations` joins ghost and article. Every time two entities interact, a third record captures the interaction — and that third record is where the temporal dimension lives. Movies don't have due dates. Customers don't have due dates. The *rental* has a due date, because obligations live on interactions, not on the things being interacted with.
+
+**Availability is capacity minus active obligations.**
+
+`copies_total` is stored. `copies_available` is `total − count(active_rentals)`. Same aggregate pattern as G048, now with a filter on an auxiliary entity. This formula generalizes to every availability question in the noosphere: an agent's availability = allocated tokens − active choreographies; a project's bandwidth = weekly hours − active commitments; a timeline slot's freedom = calendar capacity − scheduled events. The movie store is the minimum viable capacity model.
+
+**Due dates are the first temporal obligation.**
+
+A rental with `due_at` creates a pending obligation until the movie is returned. Between rented and due, healthy. After due with no return, overdue. This is the first temporal `where` in the Rosetta Stone: a condition that flips from pass to fail as time passes, even though no one touched the system. InnateScript's `until` now has a concrete model — `@rental until @returned or @due_at` — an obligation bounded by *either* fulfillment or deadline. This is the shape of every scheduled check: nightly summary (due at midnight), forex pace check (due at month-end), Rosetta Stone goal (due at milestone completion). Pass or overdue, scored automatically, no one calls the check.
+
+**The overdue query is a passive observer.**
+
+`store.overdue(now)` doesn't send emails, charge fees, or lock accounts. It reports the set of obligations that have crossed their deadlines. The reaction — late fees, notifications — is a separate choreography that consumes the overdue list. The data layer answers "what is true right now"; the choreography layer decides "what to do about it." `@store/overdue` is a pure query; a cron-triggered choreography reads it and scores a `where`. The store is oblivious to consequences. That separation is the correct shape of a state model — data is observational, reaction is dispatched.
+
+The Classes category is two projects in and has already described the full entity grammar: things with identity (G048), things that interact (G049). The rest of the category will elaborate these two primitives across seventeen domains.
