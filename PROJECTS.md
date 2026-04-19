@@ -80,7 +80,7 @@
 
 ## Web
 - [x] 69. WYSIWYG Editor
-- [ ] 70. Web Browser with Tabs
+- [x] 70. Web Browser with Tabs
 - [ ] 71. Page Scraper
 - [ ] 72. File Downloader
 - [ ] 73. Telnet Application

@@ -2169,3 +2169,41 @@ First Rosetta Stone case where **render is a trivial projection**. G058 Chart Ma
 Web (G069–G084) is about **interfaces that render meaningful output users interact with directly**. Every project in the category has a structured internal model that projects to an output format. G069 sets the convention (model is source of truth, operations mutate model never output, rendering is projection, user coordinates differ from storage coordinates). Page scrapers, CMSes, template makers, image browsers — all inherit this shape.
 
 68 foundational projects done (numbers/text/networking/classes/threading) → 69 begins the applications third of the milestone. The vocabulary from Classes (entity, state, invariant, traversal) and Threading (shared state, fan-out, broadcast, content-addressed index) is now being applied rather than extended; G069 is the first project where the primary lesson is *how to use the vocabulary*, not *what the vocabulary is*.
+
+---
+
+## G070 — Web Browser with Tabs
+
+**Scope is the central design decision.**
+
+Every piece of state in the browser belongs to exactly one scope. Per-tab: URL, back stack, forward stack, scroll position, session cookies. Browser-wide: bookmarks, downloads, global history, persistent cookies, user settings. **Getting the scope wrong shows up as user-surprise moments** — "why did closing this tab lose my bookmark?" (bookmarks in tab scope), "why does Back go to a page from a different tab?" (back-stack in browser scope). G070 makes scope explicit; tests enforce it (closing a tab preserves bookmarks, per-tab history is independent across tabs, closed-tab stack survives tab-switches).
+
+First Rosetta Stone project where **"which thing owns this state?" is itself the load-bearing lesson**. The vault/noosphere will ask this constantly: does this metadata live on the note or on the project? Does this preference live on the agent or on the session? Does this cache live in the choreography-run or in the user-session? G070 is the minimal case where the answer determines correctness.
+
+**Per-tab history is independent timelines.**
+
+Each tab's back/forward stacks are completely independent of every other tab's. Navigate Tab 1 `a → b → c`, switch to Tab 2, navigate `x → y`, switch back to Tab 1, click Back — land on `b`, not `y`. Per-tab stacks are **branching timelines**, not shared state.
+
+Early browsers had one shared navigation stack and it was awful — every tab-switch was a navigation event, Back went to whatever you last clicked regardless of which tab. Modern browsers moved to per-tab history and nobody misses the old model. G070 implements only the modern one because only one design is defensible. Analogues in the vault: each open note has its own cursor/scroll/folding state; each agent conversation has its own context history; each choreography execution has its own step-by-step state. G070 in a domain everyone recognises.
+
+**Navigate truncates forward — the "branching timelines" pattern.**
+
+When the user clicks Back then navigates to a new URL, the forward stack is cleared. The previous timeline (where they were going to visit `c` after `b`) is gone; they've branched onto a new path.
+
+Correct and subtle. The naive alternative "keep the old forward stack, the user can push Forward to get back to it" gives the user two possible futures and one current state — semantically incoherent. Every browser, editor-with-undo, and version-control system works this way: redo/forward is lost as soon as you branch. Git reflog and the closed-tab stack are the *workarounds* for this — they let you recover a branched-away timeline, but only because they live in a different scope: they're recovery mechanisms, not first-class history.
+
+**Closed-tab recovery is a second, orthogonal undo stack.**
+
+Ctrl+Shift+T reopens the last-closed tab with URL and full per-tab history intact. This is a **completely separate** undo mechanism from per-tab back/forward:
+- Per-tab back/forward — within a tab, navigate between visited URLs.
+- Closed-tab recovery — within the browser, undo the decision to close a tab.
+
+Scopes different, lifecycles different, storage different, they don't interact. First Rosetta Stone project where **two undo-like stacks coexist with different scopes and different semantics**. Vim has this (per-buffer undo tree vs global `:bdelete` stack); the noosphere will eventually have this (per-choreography step-undo for aborting a step vs global session-recovery for cancelled choreographies). G070 is the minimal teaching case.
+
+**Active tab is a pointer, not a state.**
+
+Which tab is active is a single `Option<TabId>` on the browser. No per-tab `is_active` flag — that would be redundant and could desync from the browser's pointer. The single source of truth is the browser's pointer; every "is tab X active?" query consults it.
+
+First Rosetta Stone case where the DRY / single-source-of-truth principle is applied to **mutually-exclusive state** — exactly one answer at a time, storing it in one place guarantees consistency. Parallels: filesystem CWD pointer, terminal-focused-window pointer, vault's "current note" as UI-level pointer not note-level property. Cost: every mutation (close, open, switch) must maintain the pointer invariant. G070 implements all three close-and-reactivate cases (next tab if exists, previous if no next, null if empty) because leaving `active` pointing at a closed tab crashes every subsequent operation.
+
+G069 edit-is-render → G070 *scope-as-design-decision + independent per-tab timelines + branching-timeline truncation + orthogonal recovery stacks + pointer-not-state for mutual exclusion*. Two Web projects done (WYSIWYG + Browser), fourteen to go.
