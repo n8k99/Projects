@@ -16,3 +16,4 @@ pub mod matrix;
 pub mod flower_shop;
 pub mod vending_machine;
 pub mod josephus;
+pub mod family_tree;

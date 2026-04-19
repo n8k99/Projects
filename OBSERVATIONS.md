@@ -1884,3 +1884,45 @@ There is a philosophical edge here: the recurrence tells you *who* survives but 
 The noosphere carries both. Audit logs, movement ledgers, and choreography traces record the narrative. Computed projections drop it and keep the summary. **Neither is more correct.** They answer different questions, and any system that commits to only one will be unable to answer the questions the other handles. Be explicit about which you store — and accept that storing both is the cost of answering both kinds of question.
 
 G048 ... → G062 finite state machine → G063 *circular indexing + closed-form recurrence + two-queries/two-algorithms + fixpoint answer + narrative-vs-summary*. Sixteen projects. Josephus is the smallest project in Classes by code volume — the whole recurrence is three lines — and one of the largest in conceptual yield. Two projects remain in the category.
+
+---
+
+## G064 — Family Tree Creator
+
+**The class references itself.**
+
+Every prior Classes project had fields of primitives or references to *other* types. Person is the first type whose most important field is a list of references back into its own collection — `Person.parents: List<PersonId>`. The type is self-referential; the graph is in the data, not beside it. Conversations reference conversations. Documents reference documents. Tasks reference tasks. Every recursive structure in the vault has this shape. G064 is the primitive.
+
+Two representations available, one chosen: **reference fields on the node** (direct, duplicative if both directions stored, risk of drift) versus **external edge list** (normalised, SQL-shaped, costlier queries, no duplication). G064 takes the first and *derives* the reverse index (children) as a maintained cache, reconciled on every edit. Every implementation in every language rebuilds this the same way — the pattern is portable.
+
+**"Family tree" is a misnomer — it's a DAG.**
+
+A tree has one root and one path per node. A family pedigree has multiple roots and multiple paths to shared ancestors (cousins married each other at some point in most old families). The correct data structure is a directed acyclic graph, and traversal must track a seen-set to avoid re-visiting the same ancestor via multiple paths.
+
+This is the same lesson as the vault's wiki-link graph: tools that assume tree structure (breadcrumbs, "parent folder" for tags) fail silently on the real shape of the data. Any structure that permits joining of branches — references, citations, block-level transclusions, friendship graphs — is not a tree and should not be rendered as one.
+
+**Cycle prevention is the first transitive-closure invariant.**
+
+Adding P as a parent of C requires checking that P is not already a descendant of C — walking the *entire reachable* structure, not just the proposed edge's neighbours, and refusing if the edge would close a cycle. This is the first Rosetta Stone invariant that spans the transitive closure of the structure rather than a local neighbourhood.
+
+Transitive invariants are expensive. G064's check is O(n) per `set_parents`. Real genealogy databases maintain precomputed ancestor/descendant sets, invalidated on edit — cheap reads at the cost of expensive writes. The choice between "compute on read" and "materialise and maintain" is one every graph-backed system makes.
+
+Same shape elsewhere in the vault: task blockers (adding "A blocks B" when B transitively blocks A would deadlock the project), citation graphs (self-citation through intermediaries is broken), choreography dependencies (A requires B requires A is a logical error). All three demand the same transitive closure walk G064 performs.
+
+**Traversal is the primary interface.**
+
+Family trees aren't queried by field lookup. They're queried by traversal: `ancestors(me)`, `descendants(me)`, `common_ancestors(a, b)`, `siblings(me)`, `cousins(me, n)`. Each is a BFS with a particular expansion rule — and G064's BFS is parameterised on a successor function and a depth bound, so the same search engine handles every query.
+
+This is the first Classes project where **search, not indexed lookup, is the API**. Wiki-link walks, conversation reply-chain traversals, and task-blocker resolution all have the same shape. The BFS code in G064 can be copied verbatim into any graph-shaped domain.
+
+**Bounded traversal: cost budget built into the query.**
+
+`ancestors(me, max_depth=3)` asks not "who are all my ancestors?" but "who are my ancestors, but only back three generations." The search terminates at depth 3 even if more ancestors exist beyond — the cost budget cuts the BFS at the frontier, not post-filters the result.
+
+Bounded traversal is the default for any unbounded-graph query: web crawls with max-depth, federated feed walks with hop limits, git log with max-count, LLM context-window budgeting as a depth bound on conversation history. G064 introduces the primitive at minimal scale, and the `None`/`-1`/`nil` "unbounded" sentinel remains available for cases where the graph is known to be small.
+
+**Set algebra over computed sets.**
+
+`common_ancestors(a, b) = ancestors(a) ∩ ancestors(b)` — set algebra composed on top of algorithmic sets rather than pre-materialised ones. G056 did set algebra on tag *fields* (the data existed); G064 does set algebra on *traversal results* (the data is computed by algorithm, doesn't exist until asked for). Most real graph queries work this way: "authors I've co-written with AND who cited Paper X" is one BFS on the co-authorship graph ∩ one BFS on the citation graph, neither set stored anywhere. G064 makes the compositionality explicit.
+
+G048 ... → G063 closed-form shortcut → G064 *self-referential graph + transitive-closure invariant + traversal-as-API + bounded BFS + set algebra over computed sets*. **Seventeen projects. Classes is complete.** From G048's product inventory (identity + counts) to G064's family graph (identity + self-reference + transitive invariants), the category has walked the full vocabulary of entity-based programming: identity, interaction, scheduled interaction, measured interaction, multi-sided atomicity, three-layer identity, conjunctive availability, structure-valued entities, external references, value classes, pipelines, polymorphism, shape-typed values, build-up/commit drafts, finite state machines, closed-form shortcuts, and now self-referential graphs. The next category — Threading (G065–G068) — takes this vocabulary and adds concurrency.
