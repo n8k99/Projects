@@ -79,7 +79,7 @@
 - [x] 68. Bulk Thumbnail Creator
 
 ## Web
-- [ ] 69. WYSIWYG Editor
+- [x] 69. WYSIWYG Editor
 - [ ] 70. Web Browser with Tabs
 - [ ] 71. Page Scraper
 - [ ] 72. File Downloader

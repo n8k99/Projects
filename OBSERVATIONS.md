@@ -2125,3 +2125,47 @@ The category's four projects introduced, in order:
 Together these cover the four fundamental concurrency patterns. Any real multi-threaded program is assembled from these: a thread pool (G066) with per-worker progress tracking (G065), broadcasting completions to subscribers (G067), and contributing results to a shared index (G068). The noosphere's agent-dispatch layer will use all four. **Threading is complete.**
 
 G048 (identity + counts) → G064 (self-referential graph) → G065–G068 (concurrency added to everything above). Four Threading projects + 17 Classes projects = 21 projects of entity/concurrency vocabulary, the foundation that Web (G069–G084), Files (G085–G100), Databases (G101–G113), and Graphics (G114–G130) will build on top of. 68/130 complete. The foundational third of the milestone (numbers, text, networking, classes, threading = 68 projects) is done; the remaining 62 projects are applications and integrations using the vocabulary now established.
+
+---
+
+## G069 — WYSIWYG Editor
+
+**Edit IS render — no intermediate representation.**
+
+Every pre-WYSIWYG text format had a source form distinct from rendered output. LaTeX source ≠ PDF. HTML source ≠ web page. Markdown ≠ its preview. A separate parser lifted source into a render tree; a separate renderer projected the tree back to pixels. WYSIWYG is the philosophical opposite: **the model you edit IS the model that displays**. There is no source form, no parse step; the user manipulates the display directly and the underlying representation is what they see.
+
+First Rosetta Stone project where this property is the *point*. Opens the Web category and sets its convention: structured internal model, render function, coordinate-translation at the API boundary. The vault itself is Markdown-native (source-projection world); Google Docs, Notion's editor, rich-text fields in most CMSes are WYSIWYG (no source form). G069 is the minimum structure needed to support the WYSIWYG model.
+
+**Runs are the right granularity.**
+
+Character-by-character attribute storage is correct but wasteful. Region-by-region storage (ranges like `bold: [0..5], [12..20]`) is compact but hard to update. **Runs** — contiguous spans of uniformly-formatted text — are the middle path. Three invariants:
+
+1. All characters in a run share the same attribute set.
+2. Adjacent runs have *different* attribute sets (else they'd merge).
+3. Concatenation of run texts = document's plain text.
+
+These hold after every operation; `normalize` re-establishes them — drop empty runs, merge adjacent-identical runs. It runs after every mutation. First Rosetta Stone project where **a normalization pass is a mandatory part of the API contract**, not an optimisation. A denormalised document (two adjacent bold runs) is a bug, not a valid state.
+
+**Range operations reshape runs.**
+
+User-facing operations work on character ranges (`bold positions 5..12`). The implementation splits runs at range boundaries (creating new run boundaries if necessary), modifies attributes of runs fully inside the range, then re-normalises. User thinks in positions; storage lives in runs; `split_at` is the bridge.
+
+First Rosetta Stone project where the **user coordinate system and the storage coordinate system are deliberately different** and an operation translates between them. Parallels: spreadsheet cells by (row,col) but storage is sparse maps; DOM selection by character offset but storage is a tree; git line-level operations on content-hashed blobs; vault `[[wiki-link]]` text resolved against a graph. G069 is the minimal instance.
+
+**Attributes compose as sets, not scalar overwrite.**
+
+Applying bold to bold-and-italic text must preserve the italic. Removing bold from bold-italic leaves italic. Attributes compose as **set union** / **set removal**. G056 had tags as set-algebra but tags were one dimension (tag sets ∩ tag sets). G069 has many orthogonal dimensions (bold, italic, underline, heading, link, color, font) on the same character. Each is independent; each composes.
+
+Most real text formats get this wrong. CSS `font-weight: bold` conflicts with `font-weight: bold italic` (latter is a font name, not a composition). HTML `<b>` nested inside `<strong>` produces ambiguous semantics. WYSIWYG done right stores attributes as a set and renders to whatever the output format needs — **the model is the source of truth; every render format is a projection.** G069 renders to HTML; the same model renders to RTF, DOCX, Markdown-with-extensions, or ANSI terminal codes with a different function.
+
+**Rendering is a trivial projection of the model.**
+
+Given the document is already structured, `to_html` is a walk: for each run emit opening tags, escape and emit text, emit closing tags in reverse order. No parsing, no round-trip. `to_plain` is an even simpler walk. Every output format is a 20-line function because the model has already done the hard work.
+
+First Rosetta Stone case where **render is a trivial projection**. G058 Chart Making had render as a pipeline stage (data → scale → encode → layout → draw). G069 is one walk. The difference: G058's model was *data* (values to chart); G069's model is already *structured display intent*.
+
+**Opens the Web category.**
+
+Web (G069–G084) is about **interfaces that render meaningful output users interact with directly**. Every project in the category has a structured internal model that projects to an output format. G069 sets the convention (model is source of truth, operations mutate model never output, rendering is projection, user coordinates differ from storage coordinates). Page scrapers, CMSes, template makers, image browsers — all inherit this shape.
+
+68 foundational projects done (numbers/text/networking/classes/threading) → 69 begins the applications third of the milestone. The vocabulary from Classes (entity, state, invariant, traversal) and Threading (shared state, fan-out, broadcast, content-addressed index) is now being applied rather than extended; G069 is the first project where the primary lesson is *how to use the vocabulary*, not *what the vocabulary is*.
