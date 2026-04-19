@@ -73,7 +73,7 @@
 - [x] 64. Family Tree Creator
 
 ## Threading
-- [ ] 65. Progress Bar for Downloads
+- [x] 65. Progress Bar for Downloads
 - [ ] 66. Download Manager
 - [ ] 67. Chat Application (Threading)
 - [ ] 68. Bulk Thumbnail Creator

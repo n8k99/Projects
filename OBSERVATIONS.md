@@ -1926,3 +1926,47 @@ Bounded traversal is the default for any unbounded-graph query: web crawls with 
 `common_ancestors(a, b) = ancestors(a) ∩ ancestors(b)` — set algebra composed on top of algorithmic sets rather than pre-materialised ones. G056 did set algebra on tag *fields* (the data existed); G064 does set algebra on *traversal results* (the data is computed by algorithm, doesn't exist until asked for). Most real graph queries work this way: "authors I've co-written with AND who cited Paper X" is one BFS on the co-authorship graph ∩ one BFS on the citation graph, neither set stored anywhere. G064 makes the compositionality explicit.
 
 G048 ... → G063 closed-form shortcut → G064 *self-referential graph + transitive-closure invariant + traversal-as-API + bounded BFS + set algebra over computed sets*. **Seventeen projects. Classes is complete.** From G048's product inventory (identity + counts) to G064's family graph (identity + self-reference + transitive invariants), the category has walked the full vocabulary of entity-based programming: identity, interaction, scheduled interaction, measured interaction, multi-sided atomicity, three-layer identity, conjunctive availability, structure-valued entities, external references, value classes, pipelines, polymorphism, shape-typed values, build-up/commit drafts, finite state machines, closed-form shortcuts, and now self-referential graphs. The next category — Threading (G065–G068) — takes this vocabulary and adds concurrency.
+
+---
+
+## G065 — Progress Bar for Downloads
+
+**The producer and the consumer are distinct actors.**
+
+Every prior project had a single actor that both recorded state changes and surfaced them. G065 is the first project where the recorder (a worker thread incrementing a byte counter) and the observer (a display thread reading the counter) are **different threads** with a contract mediated by a synchronisation primitive. This separation is what makes concurrency *necessary* — a single thread's operations are already ordered; two threads are two timelines that must be merged explicitly.
+
+Every concurrency pattern in the noosphere has this shape: agent A streaming to agent B; the IPC daemon handling many clients; the choreography runner polling spawned tasks; the UI polling the vault for updates. G065 is the primitive, isolated from every other concern.
+
+**Atomics are the minimum synchronisation.**
+
+A counter that is only incremented by one thread and only read (not modified) by another needs no lock — atomic add + atomic load is sufficient. Rust and Go use this directly. Python and Common Lisp idiomatically take a mutex, but the critical section holds one addition, so the lock functions *as* an atomic.
+
+**Choose the lightest primitive that works.** A mutex costs more than an atomic, a channel costs more than a mutex, an RwLock is overkill for single-writer state. Every concurrency primitive has a cost; the design question is which is cheap enough for the required throughput. G065 presents the cost-reasoning on the smallest possible case, and the answer is "atomic counter."
+
+**Completion is a state, not a flag.**
+
+A boolean "done" is insufficient: the tracker must distinguish running, completed, cancelled, and failed. Same FSM pattern as G062 Vending Machine — but now observed from another thread, which introduces memory-ordering concerns that never existed in single-threaded state machines.
+
+Terminal states are sticky: `compare_exchange` / `CompareAndSwap` enforces "only transition from Running; ignore if already terminal." First Rosetta Stone pattern where **state transitions are conditional on current state at the CPU instruction level**, not behind a mutex. The ordering matters: worker writes bytes, then writes status; observer reads status, then reads bytes — if these aren't ordered, the observer can see `status == Completed && bytes < total`, a corrupt view. Rust's `SeqCst` and Go's default sequential-consistency atomics enforce the ordering. This is the concurrency specialist's permanent vigilance: every multi-field read is a place interleavings can betray you.
+
+**Cancellation is cooperative, not preemptive.**
+
+The controller does not kill the worker thread; it sets a flag, and the worker checks it between chunks. **Preemptive cancellation is unsafe in almost every language** — killing a thread mid-operation leaves locks held, files open, refcounts wrong. Every production concurrency library (Go contexts, Rust tokio, Java interruption, Python Event) uses cooperative cancellation because the alternatives are nightmares.
+
+Cooperative cancellation imposes a contract on the worker: **check frequently**. Chunk size is itself a design parameter — coarser grain means cheaper work but slower cancellation response; finer means faster response at more overhead. The noosphere's choreography runner uses the same pattern: between steps, it checks cancellation. An agent that runs 10 minutes without checkpoints is uncancellable; the fix is to insert more checkpoints, not to "force-kill" the agent.
+
+**Output throughput decouples from input throughput.**
+
+A 1 GB download in 1 KB chunks is a million increments; the eye distinguishes 30 frames/sec. The display polls on its own schedule, not the producer's — **every 50 ms regardless of whether one chunk or ten thousand arrived in between**. First Rosetta Stone pattern where the consumer deliberately doesn't react to every producer event: coalescing, downsampling, debounce.
+
+Every prior project had 1:1 event-to-response mapping. G065 introduces deliberate output-rate independence. Log aggregation, metrics collection, the vault's editor-update debounce, the quickshell bar's 10s bluetooth poll — all instances of "consumer chooses its own cadence, ignoring the producer's rate." G065 is the minimal teaching example.
+
+**Time becomes a first-class input.**
+
+Every prior project computed outputs as pure functions of data inputs. G065 is the first where **wall-clock time is part of the computed output**: rate is bytes-over-elapsed, ETA is remaining-over-rate. These values depend on a clock, not just on the data.
+
+This is the edge where pure-functional code ends. Time-dependent output means repeated calls return different values — a violation of referential transparency. Testing gets harder: either inject a fake clock or accept non-determinism. G065 lets `elapsed_seconds` be real time because the tests that matter only assert `eta > 0`, not a specific value — the first instance of **accepting imprecision in tests because the system is inherently non-deterministic**.
+
+Any real system that ignores time as an input fails as soon as it deals with durations: daily-note schedule blocks, agent-dispatch SLA checks, cache expiration — all need the clock. G065 introduces it at minimal scale.
+
+**Classes vocabulary + concurrency = Threading category.** Where Classes taught entity, state, invariant, traversal, G065 adds: shared state across timelines, atomic primitives, FSM observed from outside, cooperative termination, consumer-scheduled rendering, time-as-input. The three remaining Threading projects build on this foundation — G066 Download Manager (multiple concurrent workers sharing a pool), G067 Chat App-Threading (bidirectional message passing between threads), G068 Bulk Thumbnail Creator (fan-out, fan-in, work-stealing). The category is short because the primitives are few; the projects test each in combination.
