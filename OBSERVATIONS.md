@@ -2247,3 +2247,41 @@ G069 was trusted; operations produced valid documents by construction. G071 take
 Safety properties G071 maintains: **termination** (every input produces output in bounded time — loops advance on every iteration, recursion bounded by input size), **memory bound** (output linear in input, no pathological amplification), **no crashes** (mismatched tags, truncated input, unusual UTF-8 don't panic). Production-hardening (rate limiting, depth limits, max attribute size) is orthogonal to the teaching point.
 
 G069 WYSIWYG → G070 Browser → G071 *parse-as-partial-inverse-of-render + forgiving-parser + DSL-selectors + path-pattern-matching + tree-as-multi-query + untrusted-input-defence*. Three Web projects done, thirteen to go. The Web category's recurring theme is emerging: **structured model + render function + query language + robust input handling** — the four components every real document-processing system needs.
+
+---
+
+## G072 — File Downloader
+
+**The file on disk is the durable state.**
+
+In G065/G066 state lived in memory; process death = state death. G072 is the first project where **state survives the process** — the `.partial` file on disk IS the state, and the process can die arbitrarily without losing work. A 10-minute download must not restart from zero when the network blips at minute 9; bytes already received live on disk in a file whose name encodes "transfer in progress," and resume picks up from that file's size.
+
+This is the boundary between "memory is state" and "disk is state." Every production download manager, rsync, torrent client, and backup system uses this pattern. The noosphere's future file-sync and media-fetch will use it exactly. First Rosetta Stone project where durability-across-process-lifetime is the property.
+
+**Atomic rename is the promotion primitive.**
+
+The download never writes to `dest` directly. It writes to `dest.partial` during transfer, then `rename(.partial, dest)` on success. `rename` on POSIX is atomic with respect to observers of `dest`: there is no instant where `dest` exists as a partial file. An observer sees either absence (transfer in progress) or the complete file (done).
+
+Standard primitive for **making a write appear instantaneous** from observer's perspective even though the work took minutes. Databases commit this way (WAL + fsync + rename); config files update this way (write to `.tmp`, rename); package managers replace binaries this way; editors save this way. First Rosetta Stone project where **atomic promotion** is the correctness property. The vault's future document-write flow needs this — a half-saved note is worse than no save.
+
+**Resume requires the hash to account for already-downloaded bytes.**
+
+Subtle correctness bug: if the hasher starts fresh on the second attempt, it hashes only the bytes received on that attempt, not the bytes already on disk from the first. The final hash is wrong even though the disk bytes are correct.
+
+Fix: on resume, open `.partial`, read its bytes, seed the hasher, continue appending new bytes to BOTH file AND hasher. Final hash now reflects the entire byte stream regardless of attempt count. First Rosetta Stone project where an invariant **spans the process lifetime** — hash state must be recoverable across restart, either by serialising it alongside `.partial` (complex) or re-deriving from `.partial` at resume time (what G072 does). Every real incremental-hash system faces this choice.
+
+Parallels: rsync's block-level checksum table (recovered from both ends), `git fsck` (redirives integrity from stored objects), BitTorrent clients (re-hash pieces on startup to find what they already have).
+
+**Transport is a parameter.**
+
+The downloader doesn't know HTTP, FTP, local copy, or in-memory test transports. It asks an abstract `Transport` for "bytes starting at offset N." Protocol behind the trait is irrelevant to the correctness properties.
+
+First Rosetta Stone project with **dependency injection as the transport boundary**. Tests use `FakeTransport` that can be told to fail at specific offsets; production uses HTTP clients; downloader code is identical. Pattern foundation of testable networked systems — every integration test of noosphere's agent-dispatch will use this (fake transport plays back pre-recorded interactions, production transport is real HTTP).
+
+**Hash-mismatch keeps `.partial` for inspection.**
+
+Refuse rename on mismatch; `dest` stays absent; `.partial` stays present. Deliberate: corrupt bytes available for inspection, debugging, content-addressed recovery (G068 could identify the mismatch if bytes had been seen correctly before). Alternative of "delete `.partial` on mismatch" loses the evidence.
+
+First Rosetta Stone case where **failure produces diagnostic artifacts rather than returning to clean state**. Parallels: core dumps on crashes, `.rej` files from patch conflicts, failed-migration logs in database tools — all leave evidence. Principle: fail noisily with forensics.
+
+G065 atomic counter → G066 worker pool → G067 broadcast → G068 shared index → G069 WYSIWYG → G070 browser state → G071 parser → G072 *durable state on disk + atomic rename + resume-aware hashing + abstract transport + forensic-on-failure*. Four Web projects done, twelve to go. The category's theme has expanded: structured model + render function + query language + robust input handling + **durable state with atomic promotion** = five-component architecture for any real document/file system.

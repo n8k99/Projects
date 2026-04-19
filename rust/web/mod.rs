@@ -3,3 +3,4 @@
 pub mod wysiwyg;
 pub mod browser;
 pub mod page_scraper;
+pub mod file_downloader;

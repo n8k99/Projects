@@ -82,7 +82,7 @@
 - [x] 69. WYSIWYG Editor
 - [x] 70. Web Browser with Tabs
 - [x] 71. Page Scraper
-- [ ] 72. File Downloader
+- [x] 72. File Downloader
 - [ ] 73. Telnet Application
 - [ ] 74. Online White Board
 - [ ] 75. Bandwidth Monitor
