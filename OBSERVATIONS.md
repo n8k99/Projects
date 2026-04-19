@@ -1970,3 +1970,47 @@ This is the edge where pure-functional code ends. Time-dependent output means re
 Any real system that ignores time as an input fails as soon as it deals with durations: daily-note schedule blocks, agent-dispatch SLA checks, cache expiration — all need the clock. G065 introduces it at minimal scale.
 
 **Classes vocabulary + concurrency = Threading category.** Where Classes taught entity, state, invariant, traversal, G065 adds: shared state across timelines, atomic primitives, FSM observed from outside, cooperative termination, consumer-scheduled rendering, time-as-input. The three remaining Threading projects build on this foundation — G066 Download Manager (multiple concurrent workers sharing a pool), G067 Chat App-Threading (bidirectional message passing between threads), G068 Bulk Thumbnail Creator (fan-out, fan-in, work-stealing). The category is short because the primitives are few; the projects test each in combination.
+
+---
+
+## G066 — Download Manager
+
+**The queue is the rendezvous.**
+
+G065 synchronised one producer and one consumer through a counter. G066 synchronises **one queue and N consumers** through a shared mutable collection. The queue is the rendezvous point: producers don't know which worker runs a job, workers don't know about each other, and a single queue-lock mediates every hand-off.
+
+First Rosetta Stone project with a **shared mutable collection** under concurrent access. The queue must be safe against simultaneous pops (two workers returning the same job), push-during-pop (torn state), length-during-mutation (garbage readings). Every language's answer has the same shape: a mutex around pop/push with a tiny critical section. Go's channels hide the mutex inside the runtime's channel implementation — same primitive, different ergonomics.
+
+**Pull scheduling balances load for free.**
+
+No dispatcher assigns jobs to workers. Workers **pull** jobs whenever they're ready. A slow worker (big file, slow disk, congested network) pulls less often; a fast worker pulls more. The queue drains at the combined rate of all workers.
+
+**Load balancing is emergent, not designed.** The system doesn't predict which job is slow or which worker is loaded — the pull model makes the right decision automatically. A bad guess about job size at enqueue doesn't penalise throughput; a fast worker blows through many small jobs while a slow worker grinds on its one big one, and both finish near the same time.
+
+Push scheduling (dispatcher-routes-to-specific-worker) is worse in almost every case: it requires the dispatcher to guess worker load, guess job cost, and correct its guesses as reality diverges. Pull scheduling punts the whole problem to the workers themselves. The noosphere's agent-dispatch will use pull: idle agents request the next task, no dispatcher picks winners.
+
+**Worker count is a resource cap.**
+
+More workers = more parallelism = more throughput, up to a point. Past that point, more workers = more context-switching, memory pressure, open connections, and the system slows down. The optimal count depends on workload and machine. G066 presents it as a constructor parameter.
+
+First Rosetta Stone project with a **concurrency limit as an explicit resource cap**. Setting it to 1 is legal (degenerate serial case). Setting it to 1000 is legal but almost certainly wrong. Every real pool exposes this as configuration: the agent-dispatch pool size, the max-IPC-client count, the parallel-tool-call cap when an LLM spawns agents. G066 introduces the primitive.
+
+**Fan-out, fan-in — the map-reduce shape.**
+
+The queue fans out work across N workers; the results collection fans in outcomes into one list. This is the classic **map-reduce** shape, minimal instance. Every large-scale batch pipeline (Hadoop, Spark, Beam, the noosphere's future bulk reindex job) has this exact shape. Worker count tunes parallelism; reduce step determines what the answer is.
+
+**Failure isolation is the whole point of per-job transactions.**
+
+If one download fails, the others must keep going, and remaining jobs must still run. A worker that lets an exception propagate kills itself and orphans remaining jobs. A manager that aborts on first failure loses all successful work.
+
+G066 treats each job as a **transaction**. The worker wraps `simulate` in try/catch / Result match / error-value propagation; errors become the outcome of that specific job and the worker moves on. First project where **partial failure is a first-class outcome, not an abort condition**. Every prior project treated failure as fatal for the entire operation. G066 promotes failure to a per-job outcome co-equal with success and cancellation.
+
+Production systems live on this distinction. A batch of 10,000 tasks with 3 failures is a report-and-continue case, not a crash-the-pipeline case. The result list is the audit trail: "10,000 attempted, 9,997 succeeded, 3 failed with these errors." G066 is the pattern at minimum scale.
+
+**Cancellation now has scope.**
+
+G065 had one worker and one cancel flag. G066 has N workers and **cancellation applies to all of them at once**. A single `cancel()` call causes every running worker to produce `Cancelled` outcomes on the next check (or exit, for jobs not yet claimed).
+
+The scope is **the whole manager** — no per-job cancel. Finer control (cancel-job-by-id) is possible but invites complexity (job might already have started, might be partially complete, might be in flight). G066 makes the coarse choice. Go's `context.Context`, Rust tokio's `CancellationToken`, and Python's `threading.Event` all encode the same pattern; ergonomics differ.
+
+G065 producer-consumer → G066 *shared-queue worker pool + pull scheduling + concurrency limit + fan-out/fan-in + failure isolation + batch-scoped cancellation*. The next two Threading projects take this and add: G067 Chat App — bidirectional message passing (readers and writers on the same queues, not just producer→consumer); G068 Bulk Thumbnail — CPU-bound fan-out with result aggregation into an index.
