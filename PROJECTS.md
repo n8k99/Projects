@@ -75,7 +75,7 @@
 ## Threading
 - [x] 65. Progress Bar for Downloads
 - [x] 66. Download Manager
-- [ ] 67. Chat Application (Threading)
+- [x] 67. Chat Application (Threading)
 - [ ] 68. Bulk Thumbnail Creator
 
 ## Web

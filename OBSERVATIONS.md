@@ -2014,3 +2014,52 @@ G065 had one worker and one cancel flag. G066 has N workers and **cancellation a
 The scope is **the whole manager** — no per-job cancel. Finer control (cancel-job-by-id) is possible but invites complexity (job might already have started, might be partially complete, might be in flight). G066 makes the coarse choice. Go's `context.Context`, Rust tokio's `CancellationToken`, and Python's `threading.Event` all encode the same pattern; ergonomics differ.
 
 G065 producer-consumer → G066 *shared-queue worker pool + pull scheduling + concurrency limit + fan-out/fan-in + failure isolation + batch-scoped cancellation*. The next two Threading projects take this and add: G067 Chat App — bidirectional message passing (readers and writers on the same queues, not just producer→consumer); G068 Bulk Thumbnail — CPU-bound fan-out with result aggregation into an index.
+
+---
+
+## G067 — Chat Application (Threading)
+
+**Every actor is both producer and consumer.**
+
+G065 separated the producer and consumer onto different threads. G066 had one producer and N consumers. G067 is the first project where **every actor is both**: the communication graph is fully connected, not a pipeline. Alice sends to Bob's inbox and reads from her own; Bob sends to Alice's inbox and reads from his own.
+
+This is what "chat" means structurally, and what **peer-to-peer**, **federated**, and **multi-agent** mean structurally. IRC/Matrix/Discord, agent meshes, shared-document collaboration, gossip protocols — all have G067's shape. The noosphere's agent-to-agent broadcast will look exactly like G067 at the communication layer.
+
+**Broadcast is fan-out on every send.**
+
+A send doesn't go to "the next available consumer" (G066's pull). It goes to **every joined user's inbox simultaneously**. The fan-out happens per send, not once at startup; the target set changes dynamically as users join and leave. A 1,000-user room where Alice says "hello" creates 1,000 inbox entries. Broadcast is expensive at scale — real chat systems use server-side fan-out, pub/sub brokers, per-room partitioning to mitigate cost. G067 presents the naive version: loop over inboxes, push to each.
+
+**Dynamic membership is a new synchronisation problem.**
+
+Users join and leave while others are mid-conversation. Three races not present in earlier projects:
+1. Alice sends while Bob is leaving — does Bob receive?
+2. Alice reads while Carol is joining — does Carol see past messages?
+3. Bob leaves then Alice sends — silent skip or error?
+
+G067's answer: membership and sends serialise on a single lock, giving deterministic resolution. Bob-leaves-then-Alice-sends means Alice's send sees post-leave membership and skips Bob. Alice-sends-then-Bob-leaves means Bob receives the message before leaving. There is no "in between" state; the lock makes operations atomic with respect to each other. Carol-joining-mid-conversation does NOT retroactively receive past messages — **join-time-forward delivery** — matching every real chat system's convention. Past messages live in the log; joining users query the log if they want backfill.
+
+**Total ordering from a monotonic counter under a single lock.**
+
+Wall-clock timestamps collide or drift; network delivery order depends on recipient's position. G067 establishes a total order by assigning a **monotonically increasing sequence number** at send time, **under the same lock** that protects the user list.
+
+Every recipient sees strictly-increasing sequence numbers. Within a single sender, numbers also strictly increase (serialised by the lock). Across senders, interleaving is determined by lock-acquisition order — arbitrary, but **once determined, consistent across all recipients**. Alice's message seq=5 reaches Bob as seq=5 and Carol as seq=5.
+
+This is the **logical clock** pattern at minimal scale. Real distributed systems use Lamport clocks (per-node counter), vector clocks (per-node counters tracked across all nodes), or hybrid logical clocks (physical+logical). G067 is the single-machine case: one counter, one lock, total order. Any multi-agent choreography with events from many sources needs this primitive — wall-clock is unsafe, a room-scoped counter is the right answer for any single-broker scenario.
+
+**The log and the inboxes are two different data structures.**
+
+The room maintains both:
+- **log** — every message ever sent, append-only, permanent. Audit trail.
+- **inbox per user** — unread messages for that user. Drain-on-read.
+
+Their consistency requirements differ, but both are maintained atomically inside `send`. They serve distinct queries: "what did we say?" (log) vs "what do I need to look at?" (inbox). First Rosetta Stone project where **the same events are recorded in two data structures serving different questions**.
+
+The split — **journal vs queue** — is everywhere in real systems. Email has a sent-folder log + per-recipient inbox queues. The bank has transaction journals + account-balance state. The noosphere's conversations table is a log; the agent-dispatch queue is an inbox. G067 introduces the primitive.
+
+**Leave doesn't retroactively break history.**
+
+When Bob leaves, his inbox is discarded with his user entry. But his past messages remain in the log with his name intact — the log is immutable history. A user who rejoins later has a fresh empty inbox but can query the log to see what happened while away. **Membership and memory are orthogonal**: losing your seat at the table doesn't erase your name from the minutes.
+
+This separation matches every real chat system and is deliberate. The noosphere's conversations table works the same way: a deactivated agent's messages are still attributed to that agent in the historical record; only future messages are skipped.
+
+G065 single producer/consumer → G066 N consumers pulling → G067 *every-actor-both-roles + broadcast-per-send + dynamic-membership synchronisation + total-ordering via logical clock + journal/queue split + membership-memory orthogonality*. One Threading project remains: G068 Bulk Thumbnail, which takes G066's fan-out worker pool and applies it to CPU-bound work where the result-aggregation is the point (an index of thumbnails-by-source-hash), closing the category with fan-out feeding into a merged output structure.
