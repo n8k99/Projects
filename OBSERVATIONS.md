@@ -1367,3 +1367,46 @@ And the precondition is structural: renewal fails if other patrons have waiting 
 In the noosphere: a choreography running past its scheduled end can renew if nothing downstream is waiting. If a downstream choreography has a hold on the same agent or resource, renewal blocks. G050 introduced scheduled obligations; G053 introduces the first policy that makes scheduled obligations yield to queues behind them.
 
 G048 identity → G049 interaction (one-off, status-valued, fungible copies) → G050 scheduled interaction (specific resources, intervals) → G051 measured interaction (valued join, aggregation) → G052 atomic multi-entity change (conservation) → G053 *three-layer identity with tree-structured taxonomy, waiting queues, and in-flight deadline mutation gated by queue state*. Six projects, and the Classes category has enumerated most of the primitives the noosphere will ever need.
+
+---
+
+## G054 — Patient / Doctor Scheduler
+
+**Dual-resource availability is a conjunction, not a sum.**
+
+G050's reservations checked one calendar per booking. G054 requires two at once: an appointment occupies the *doctor's* calendar AND the *room's* calendar simultaneously. Availability is the conjunction:
+
+```
+schedule(p, d, r, [s, e))  ⇔  doctor_free(d, [s, e))  ∧  room_free(r, [s, e))
+```
+
+The two conflict queries are independent (different tables, no shared state) but the commit is joint (both must pass before either side is marked busy). This is a small atomic transaction in the G052 sense — reads against two resources, then a single write if both reads approve.
+
+Generalizes instantly throughout the noosphere: a build needs both a runner and a cache lock; a meeting needs every attendee's calendar AND a conference room; a deploy needs the CI pipeline AND the production window. Most real-world choreographies involve multiple resources in alignment, not just one. G054 is the Rosetta Stone's first conjunctive availability constraint; expect variations at every turn.
+
+**Reschedule requires self-exclusion.**
+
+Moving an existing appointment is not "cancel + rebook" — that pattern loses the slot between cancel and rebook, racing other bookings for it. It is a single mutation: the appointment's start and end move in place. But the conflict check must exclude the appointment's *own current state*, or it conflicts with itself and no move is ever legal.
+
+```
+reschedule(x, [s', e'))  ⇔  doctor_free(x.doctor, [s', e'), except x)
+                          ∧  room_free(x.room,    [s', e'), except x)
+```
+
+The `except x` clause is new. Previous conflict checks in G050 and G053 were global ("anything overlapping"). Reschedule introduces the *exclusion predicate* on the entity being updated. This generalizes to every in-place update of a temporal obligation: a deploy window being shifted excludes itself, a shift being moved excludes itself, an event being rescheduled excludes itself. "Ignore yourself when checking if you'd collide with someone" is the shape of move-in-place in any system with temporal uniqueness.
+
+**`find_slot` turns availability into a search problem.**
+
+G050's `available(start, end)` asked: given this window, what's free? G054's `find_slot(doctor, duration, within)` asks: within this window, where is *something* free? The second is a search, not a check. The scheduler walks time forward at some step granularity, evaluating the dual-resource constraint at each step, and returns the first point where both calendars agree.
+
+This is the first project where the answer is **computed by scanning** rather than retrieved by lookup. Every "when can we meet" dialog, every agent scheduler looking for a free window is running this algorithm. The step granularity is an explicit policy parameter — a 15-minute step won't find 10-minute slots starting on the 7's; a 5-second step is wasteful for hour-long appointments. The scheduler exposes the knob rather than hardcoding it; this is the Rosetta Stone's first explicit cost/precision tradeoff on a resolver native.
+
+**find_slot is advisory; schedule is authoritative.**
+
+Between `find_slot` returning a candidate and `schedule` committing it, other choreographies might book that slot. `find_slot` cannot hold a lock — it would stall every other scheduler. The right pattern is: `find_slot` hands you a candidate, `schedule` tries to commit, and the `where` catches the race. This is optimistic concurrency expressed as two separate resolver calls, and it generalizes to every coordination layer that exposes both "look" and "commit" primitives. The look is cheap and hint-only; the commit is authoritative and atomic.
+
+**One record, three projections.**
+
+An appointment is one record. But it appears in three schedules: doctor's, room's, patient's. One source, three views — the database-view pattern from G052 elevated from "two accounts per transaction" to "three indexes per appointment." Every vault record that participates in multiple indexes has this shape. A task lives in the Tasks index, the Project index, and the Agent-assigned index simultaneously; a conversation in the Thread index, Participants index, and Topic index. G054 is the first project where multi-index membership is explicit and ergonomic — a primary list with filtered projections.
+
+G048 identity → G049 status-valued interaction → G050 scheduled interaction → G051 measured interaction → G052 atomic multi-entity change → G053 three-layer identity + queue + in-flight renewal → G054 *conjunctive availability + self-exclusion on move + search-based slot finding*. Seven projects, and the Classes category has gathered the full palette the noosphere's coordination layer will be built out of.

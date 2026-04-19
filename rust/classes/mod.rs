@@ -6,3 +6,4 @@ pub mod reservation_system;
 pub mod grade_book;
 pub mod bank_account;
 pub mod library_catalog;
+pub mod patient_doctor_scheduler;

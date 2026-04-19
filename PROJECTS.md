@@ -60,7 +60,7 @@
 - [x] 51. Student Grade Book Application
 - [x] 52. Bank Account Manager
 - [x] 53. Library Catalog
-- [ ] 54. Patient / Doctor Scheduler
+- [x] 54. Patient / Doctor Scheduler
 - [ ] 55. Recipe Creator and Manager
 - [ ] 56. Image Gallery
 - [ ] 57. Handle Large Numbers
