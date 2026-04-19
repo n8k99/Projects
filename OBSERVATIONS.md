@@ -2461,3 +2461,57 @@ First Rosetta Stone project where **a hierarchical concept is represented flatly
 Re-add is upsert (keeps id, updates properties) — **soft idempotence**: same identity, possibly different content. First Rosetta Stone project with **upsert semantics by default**. Previous dedup was content-addressed (G056/G068); G076 is upsert at the API level, visible to callers. Production REST APIs often have both (POST = insert-only, PUT = upsert); G076 picks PUT as default because it matches user intuition.
 
 G069 → ... → G075 Bandwidth → G076 *orthogonal multi-axis organisation + natural-key dedup + sort-as-view + flat-string hierarchy + cross-field search + upsert-default semantics*. Eight Web projects done, eight to go. Web is now exactly halfway; the category's architectural vocabulary is complete (model + render + query + robust input + durable state + interactive protocol + spatial data + time-series observation + multi-axis organisation), and remaining projects (password safe, media player widget, MUD-style game, scheduled action, e-card, CMS, template maker, CAPTCHA) are applications combining these components.
+
+---
+
+## G077 — Password Safe
+
+**NOT real crypto.** Byte-sum pseudo-hash and XOR keystream demonstrate the *structure* of encryption-at-rest without pretending to be secure. Production would use Argon2id + AES-GCM. The STRUCTURE is faithful; the CRYPTOGRAPHY is pedagogical.
+
+**The key lives only when unlocked.**
+
+Safe has two states: Locked (key absent) and Unlocked (key in memory). When Locked there is no way to decrypt — ciphertext is persistent, key is ephemeral. Locking wipes the key; unlocking re-derives it from master+salt.
+
+This is the fundamental pattern of **encryption at rest**. Encrypted data is always present (durable); decryption key is present only during active sessions (ephemeral). First Rosetta Stone project where **memory state and persistent state are deliberately different** — G072 had durable state on disk; G077 has *two kinds* of state (durable ciphertext + ephemeral key) with strict rules about when each exists. The noosphere's future encrypted-vault layer will use this exact pattern.
+
+**Zero-knowledge is the feature.**
+
+The safe has NO way to recover the master. No "email reset link," no security-question escape, no admin override. Losing the master loses the data.
+
+**Zero-knowledge storage** — the safe doesn't know the master, can only verify it. 1Password, Bitwarden, KeePass all explicitly disclaim recovery; the feature this enables ("even if the database leaks, attackers can't decrypt without the master") is the entire point of a password manager.
+
+First Rosetta Stone project where **the system explicitly refuses a recovery path** as a security property. Every prior project had some recovery path (rebuild from log, re-derive from source, reparse from storage). G077 has none by design. Noosphere will face this tension: more recovery = more attack surface; less = more user frustration. Different data classes justify different answers.
+
+**Lock/unlock is an FSM (same pattern as G073).**
+
+G073 had Unauthenticated → Authenticated → Disconnected. G077 has Locked ↔ Unlocked (no terminal — user can cycle indefinitely). Same primitive (state-gated operations), different lifecycle.
+
+Every mutating operation requires Unlocked; they fail cleanly (return None / false / empty) when Locked. `get_summary` is the interesting exception — metadata (service/username/notes) is stored as plaintext and can be read without the key. **Only the password is encrypted.**
+
+First Rosetta Stone project where **some fields are encrypted and some are not within the same record**. Real production choice: encrypting service name hurts search without adding security; encrypting password is load-bearing; encrypting everything uniformly is wasteful.
+
+**Auto-lock is a time-based state transition.**
+
+Unlocked state has a timeout. `auto_lock_after_ms` elapsed without activity → auto-lock. Activity (add/read/search) resets the timer. **Time as an implicit state-transition trigger** — same family as G062 Vending Machine state transitions but fired by clock, not by user action.
+
+First Rosetta Stone project with **time as state-transition trigger**. Previous projects had time as input (G065 elapsed, G075 rates); never as the cause of a transition. G077 introduces the pattern. Parallels: HTTP session timeouts, SSH idle disconnect, OS screen lock, future vault "auto-dim" behaviour. Design knobs: duration + reset-on-activity policy.
+
+**Password generation and strength are orthogonal.**
+
+`generate_password(policy, seed)` and `password_strength(pw)` are separate functions. Generation doesn't check strength; strength doesn't care where the string came from. Rationale: users paste existing passwords ("save my Gmail password, don't rewrite it") and strength must work on those too; generation might produce Weak with a restrictive policy and user should see the score to tighten.
+
+First Rosetta Stone project where **two related-but-orthogonal concerns are deliberately decoupled**.
+
+**Verifier hash is NOT the key.**
+
+Two different derivations from the same master+salt: verifier (stored, used for yes/no authentication) and key (derived fresh each unlock, used to encrypt/decrypt). Different functions so neither can be derived from the other. Attacker with stolen state gets verifier + ciphertext but cannot derive key from verifier.
+
+First Rosetta Stone project where **two outputs derived from the same secret are NOT interchangeable**. Subtle but critical; forgetting this distinction is a headline vulnerability.
+
+**Summaries never include the password.**
+
+Explicit API-level separation: `get_summary` returns metadata only; `get_password` returns plaintext. Search returns summaries. Rationale: logs, UI scrollback, error messages all tend to contain "whatever the function returned"; if summaries included passwords they'd leak everywhere.
+
+First Rosetta Stone project with **explicit API-level separation between metadata and secret material**. Production managers do this: clipboard-write ≠ display-in-UI; display is summary-only by default with explicit "reveal" gesture required. G077 models the API shape of that.
+
+G069 → ... → G076 Bookmarks → G077 *encryption-at-rest + zero-knowledge + lock/unlock FSM + auto-lock via time + orthogonal generation/strength + verifier-≠-key + metadata-secret API split*. Nine Web projects done, seven to go. Web's architectural vocabulary adds **security primitives** (key-lifecycle, state-gated secrets, time-based transitions) — the tenth component.
