@@ -91,7 +91,7 @@
 - [x] 78. Media Player Widget
 - [x] 79. Text Based Game Like Utopia
 - [x] 80. Scheduled Auto Login and Action
-- [ ] 81. E-Card Generator
+- [x] 81. E-Card Generator
 - [ ] 82. Content Management System
 - [ ] 83. Template Maker
 - [ ] 84. CAPTCHA Maker

@@ -12,3 +12,4 @@ pub mod password_safe;
 pub mod media_player;
 pub mod text_game;
 pub mod scheduler;
+pub mod ecard;

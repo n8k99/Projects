@@ -2633,3 +2633,45 @@ Scheduler doesn't know what tasks *do* — only when they fire and that they ret
 First Rosetta Stone project with **dependency injection at the core execution boundary**. Scheduler is 200 lines of scheduling logic; dispatch function is where the real work lives, and it's a parameter. The split is what makes the scheduler reusable across tasks with wildly different semantics (HTTP polling, vault backups, agent heartbeats, credential refreshes).
 
 G069 → ... → G079 Text Game → G080 *data-driven tasks + skip-missed catch-up + sum-type schedules + soft-disable + per-task history + pluggable dispatch*. Twelve Web projects done, four to go. Web adds **scheduled execution with history** as the thirteenth component — the shape of every automation, every cron-style background job, every scheduled agent action.
+
+---
+
+## G081 — E-Card Generator
+
+**Content and presentation separate via a template.**
+
+Every prior project that produced formatted output had the format baked into code. G069's render knew about `<h1>/<b>/<i>`; G074's `to_svg` knew about `<polyline>`. G081 is the first where **the rendering format is template-driven** — HTML surface is data (a string in the template record), swapping templates swaps output without code changes.
+
+First Rosetta Stone project where **presentation is data, not code**. Same philosophical move as G080's "tasks are data" — declarative over imperative for anything user-visible or user-editable. Every production CMS, email system, invoice generator, document-generation pipeline works this way; the vault's note-template system uses this exact shape.
+
+**Slots are a schema, validated at creation.**
+
+A `Slot` declares name, kind, required, optional default. Validation at card creation: unknown slot → reject, missing required → reject, optional without value → apply default. **Stored cards are always valid** — every required slot is filled, no unknown slots, defaults materialised. Rendering is pure substitution; cannot fail on stored cards.
+
+First Rosetta Stone project where **validation is a creation-time operation, not render-time**. G069 rendered whatever was in the model; if model was broken, render was broken. G081 won't let you store a broken card. **Fail-fast at the data-layer boundary**.
+
+Trade-off: strict validation means sloppy/exploratory creation is harder. Production systems often add "draft" states with relaxed validation; G081 keeps it simple with only valid cards.
+
+**Defaults are materialised, not lazy.**
+
+Unfilled optional slot → default value is **copied into the card's filled map** at creation. Card is self-contained (render without referring back to template), template edits don't retroactively change existing cards, serialisation produces complete snapshots.
+
+Alternative (store user values only, fall back to template defaults at render) is more compact but less stable — template edits change rendering of old cards, surprising users.
+
+First Rosetta Stone project where **defaults are materialised at creation** rather than looked up at render. Same pattern: database NULL-with-default (materialised on insert), React default props (materialised at mount), vault note creation from template (slots filled, then frontmatter written).
+
+**Multiple output formats from one card.**
+
+`render` → HTML; `render_plain` → text. Both are projections. More formats (markdown, email-safe, ASCII) are mechanical to add; none require changing template or card. Pattern established in G069/G074: **model + multiple render functions = multiple output formats without duplicating content**. G081 applies it explicitly through the template mechanism.
+
+**Unknown placeholders are visible bugs.**
+
+`{{nonexistent_slot}}` in a template — placeholder whose slot isn't declared — is left as-is in output. Template-author's typo is **visible**, not silently hidden by empty-string substitution.
+
+First Rosetta Stone project where **a design choice actively preserves visible evidence of bugs**. Parallels: Python's KeyError vs JavaScript's undefined; Rust's Result forcing error handling vs silently swallowing. Domain matters — G071's page scraper is forgiving (external, often-broken input); G081's renderer is strict (user-authored templates where typos should be fixed not hidden).
+
+**Categories are an axis; slots are not.**
+
+Templates have a `category` for user browsing. Slots belong to individual templates; one template's "age" is not the same as another's. First Rosetta Stone project where **category-instance hierarchy is explicit** — categories like folders/tags (organisational across instances), slots like fields (meaningful only within one record). Mixing them creates the "tag that's really a field" anti-pattern.
+
+G069 → ... → G080 Scheduler → G081 *presentation-as-data + validation-at-creation + materialised-defaults + multi-format rendering + visible-bugs over silent-swallow + category-vs-slot scoping*. Thirteen Web projects done, three to go. Web adds **template-data rendering** as the fourteenth component — the shape of every CMS, every note template, every email merge, every document-generation pipeline.
