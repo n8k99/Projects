@@ -1182,3 +1182,31 @@ The distributed architecture: bilateral protocols + consensus + messaging + exte
 Numbers gave us the resolver's computational core. Text gave us the content layer. Networking gives us the distributed communication layer. Together: a computational engine that operates on meaning-bearing content and communicates across network boundaries.
 
 The Networking category is complete.
+
+---
+
+## G048 — Product Inventory
+
+**The first persistent entity.**
+
+Everything before G048 either computed a value and returned it, or processed a stream and moved on. Nothing *stayed*. A product is the first thing in the Rosetta Stone with **identity that persists across calls**. The SKU is not a parameter — it's a name. `SKU-001` on Monday is the same `SKU-001` on Friday, with different quantities, same identity.
+
+This is the shape of every vault entity. A project has a slug, a task has an id, a conversation has a thread. They persist. Their fields mutate. The category is called `classes`, but what it's really modeling is `entities`.
+
+**Quantity is an aggregate, not a field.**
+
+`quantity_on_hand(sku)` is not stored. It is summed from the movement ledger. Current state is a projection over event history. This is event sourcing, and it is how the noosphere already works: `current_context` on a project is the latest aggregate over a stream of conversations; a daily note's `accomplishments` section is a projection over T.A.S.K.S. completions. The inventory makes the pattern explicit — the ledger is canonical, the field is a view.
+
+The implication for InnateScript: `@inventory/quantity{sku}` is not a field access. It is a resolver fold over a stream. Swap the stream for `@conversations{project: X}` and the same fold computes a project's message count. The resolver's primary operation over persistent entities is `fold-over-history`, not `read-field`.
+
+**Reorder points are the `where` threshold.**
+
+A reorder point is a condition: when on-hand drops to or below this number, fire. The `restock_needed` list is the set of products whose `where` currently fails. This is Kathryn's `pace_check` applied to inventory — not "are we on track for month-end revenue," but "are we on track for next week's stockout." Same shape, different units.
+
+Every `where` clause in InnateScript can be re-read as a reorder point on an aggregate. The inventory is the canonical example: the clause `quantity_on_hand > reorder_point` is what a thousand `where` blocks in the noosphere will eventually look like.
+
+**Receive and sell are preconditioned transitions.**
+
+`sell` fails if `on_hand < requested`. This is the first transition in the Rosetta Stone with a precondition that depends on aggregated state. The choreographic reading: `@inventory/sell{sku, qty}` is a step with a `<-` gate. The gate tests the aggregate. If it fails, the choreography halts. This is not error handling — it is structural. The transition is only legal when the precondition holds. The distinction between "illegal" and "failed" matters: an overdrawn sell is not a runtime error to recover from, it's an invalid state transition that shouldn't occur.
+
+Forty-seven projects in, the Rosetta Stone ignored identity and persistence. G048 is where the noosphere's entity layer begins: the shape of a vault record, expressed six ways.

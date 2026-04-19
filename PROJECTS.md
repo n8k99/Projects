@@ -54,7 +54,7 @@
 - [x] 47. Web Bot
 
 ## Classes
-- [ ] 48. Product Inventory Project
+- [x] 48. Product Inventory Project
 - [ ] 49. Movie Store
 - [ ] 50. Airline / Hotel Reservation System
 - [ ] 51. Student Grade Book Application
