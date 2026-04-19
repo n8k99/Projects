@@ -1637,3 +1637,66 @@ The demo proves the separation: the same temperature dataset renders as a bar ch
 Unlike the bar chart (draw a bar per row), the line chart interpolates. Between two plotted points, empty cells along the diagonal get filled with dot-marks (`·`) via a step-along-the-longer-axis walk. This is a tiny Bresenham-ish algorithm — the first time a Classes project renders **continuous visuals from discrete marks**. It's still schoolbook-clear; but it's no longer just iteration over rows. The grid-of-chars + step-along-diagonal technique is what every terminal UI library uses underneath.
 
 G048 identity → G049 status interaction → G050 scheduled → G051 measured → G052 atomic → G053 three-layer+queue+renewal → G054 conjunctive+search → G055 structured+scaling+gap → G056 external-refs+set-algebra → G057 value class + laws → G058 *pipeline class + scale-as-function + declarative spec + pluggable backend + grid rendering*. Eleven projects. Classes has now modeled: static entities (G048), two-way interactions (G049), intervals (G050), measurements (G051), atomic multi-entity (G052), three-layer taxonomies (G053), dual-calendar scheduling (G054), structure-valued containers (G055), external references (G056), value types (G057), and composed pipelines (G058). One-third of the category left.
+
+---
+
+## G059 — Shape Area and Perimeter
+
+**One interface, many implementations — and six different dispatch mechanisms.**
+
+The simplest possible shape-polymorphism problem exists because it is the cleanest demonstration of the big OO idea: **different types of things obey the same protocol**. Circle, Rectangle, Triangle, Regular Polygon share no data; they share a behavioral contract — each answers `area()` and `perimeter()` using its own geometry.
+
+The six languages express the same contract with fundamentally different machinery. Studying them side by side is its own lesson in what polymorphism means:
+
+| Language | Mechanism | Open? |
+|---|---|---|
+| Python | ABC + duck typing | Open |
+| Rust | Traits, `Box<dyn Shape>` | Open |
+| Go | Structural interfaces (implicit satisfaction) | Open, structural |
+| Common Lisp | Generic functions (defgeneric/defmethod) | Open, multimethod |
+| Lean | Inductive sum type, exhaustive pattern match | **Closed** |
+| InnateScript | Resolver dispatch on kind tag | Configurable |
+
+Five are open — adding a new shape means writing a new module, nowhere else. Lean's inductive-type approach is closed — the compiler enforces exhaustivity, refusing to compile if you add a case and forget a function's pattern match. Both are correct; they optimize for different things.
+
+**Open polymorphism enables extension without modification.**
+
+In Rust, Go, Python, and Common Lisp, adding a Pentagon is one new file — implement the protocol, done. The `Shape` interface is not modified. The `total_area` function still works because it depends only on the protocol, not on the enumeration of implementers.
+
+Open polymorphism is the norm in most runtime-dispatched systems. The noosphere needs it: new agent types, new document formats, new choreography kinds should be addable as new modules without touching protocol definitions. This is why the vault uses string-tagged kinds (`kind: agent`, `kind: project`, `kind: goal`) — anyone can define a new kind and its resolvers.
+
+**Closed polymorphism enables exhaustivity checking.**
+
+Lean's inductive `Shape` says: there are EXACTLY four shapes. Add a fifth and every pattern-matching function fails to compile until it handles the new case. The compiler has enumerated the cases and confirms none are missing.
+
+This is a different kind of power. Open polymorphism lets you add without touching the core. Closed polymorphism refuses to compile incomplete code. Every choreography in InnateScript faces the same choice: when the set of cases is stable, closed polymorphism catches forgotten cases at compile time; when the set is evolving, open polymorphism lets ecosystems grow without coordination.
+
+For real software: stable taxonomies (`payment_method: credit | debit | cash`) benefit from closed polymorphism; evolving ecosystems (plugins, formats, agent kinds) need open polymorphism. The noosphere will use both — and the tension is productive.
+
+**Heterogeneous collections are the payoff.**
+
+All six languages can hold a list of mixed shapes and compute the total area:
+
+```
+total_area([Circle(5), Rectangle(4, 6), Triangle(3, 4, 5)])
+```
+
+Python's version is cleanest because Python boxes everything by default. Rust's is noisiest because Rust forces explicit `Box<dyn Shape>`. Go lands between them — no syntax for boxing, but a pointer indirection under the hood. The *semantic* operation is identical across all six: fold over a mixed list, calling `.area()` on each. If you can write `shapes.map(&.area).sum`, you have polymorphism — whether the dispatch is a vtable lookup, a class-method lookup, a generic-function lookup, or a pattern match is implementation detail.
+
+**Smart constructors enforce validity at the type boundary.**
+
+Triangle has a non-trivial precondition: the triangle inequality. If violated, no valid triangle exists. Every implementation handles this at construction:
+
+- Python: `__post_init__` raises `ValueError`.
+- Rust: `Triangle::new` returns `Result<Triangle, String>`.
+- Go: `NewTriangle` returns `(Triangle, error)`.
+- Common Lisp: `make-triangle` signals via `error`.
+- Lean: `Shape.mkTriangle` returns `Except String Shape`.
+
+The pattern is **smart constructor**: the type allows only valid values because the constructor refuses to build invalid ones. Once you hold a `Triangle`, its sides are valid by construction — `area()` doesn't re-check. This generalizes: every domain-constrained value class uses smart constructors. A `Date` refuses February 30; a `Percentage` refuses -5. The smart-constructor pattern, combined with the value-class pattern from G057, is how the noosphere will enforce domain invariants without runtime checks throughout the codebase.
+
+**Collection operations belong to the interface, not to any implementer.**
+
+`total_area`, `largest_by_area`, and `sort_by_perimeter` are defined on `list[Shape]`, never on any concrete shape. They are the first Rosetta Stone functions that operate *purely through the interface* — the implementations are invisible to them. This is the signature of well-designed polymorphic code: the caller can't (and shouldn't) know which concrete types are present.
+
+G048 identity → G049 status → G050 scheduled → G051 measured → G052 atomic → G053 three-layer+queue+renewal → G054 conjunctive+search → G055 structured+gap → G056 external-refs+set-algebra → G057 value class → G058 pipeline class → G059 *interface-dispatch + open-vs-closed polymorphism + smart constructors + interface-only collection ops*. Twelve projects; Classes has now delivered every shape of entity (domain entities, value classes, pipelines) and every shape of dispatch (enum match, trait/interface, generic function, resolver) the noosphere will ever need.

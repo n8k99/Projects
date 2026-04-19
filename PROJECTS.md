@@ -65,7 +65,7 @@
 - [x] 56. Image Gallery
 - [x] 57. Handle Large Numbers
 - [x] 58. Chart Making Class / API
-- [ ] 59. Shape Area and Perimeter Classes
+- [x] 59. Shape Area and Perimeter Classes
 - [ ] 60. Matrix Class
 - [ ] 61. Flower Shop Ordering
 - [ ] 62. Vending Machine
