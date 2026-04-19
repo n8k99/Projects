@@ -1463,3 +1463,59 @@ G052 introduced atomic multi-entity updates via conservation (transfer entries s
 Two faces of multi-entity atomic updates: conservation (money, labels) and consumption (materials, attention, compute). Both need atomicity; they differ in whether the total is invariant. InnateScript's choreography engine will need the distinction when scoring `where` clauses — "did the transfer balance?" is a conservation check; "did we have enough?" is a consumption check.
 
 G048 identity → G049 status interaction → G050 scheduled → G051 measured → G052 atomic (conservation) → G053 three-layer + queue + renewal → G054 conjunctive + self-exclusion + search → G055 *structure-valued entity + exact scaling + N-ary conjunction + gap reporting + atomic consumption*. Eight projects, and Classes has now shown how the noosphere's compositional entities — projects, agents, conversations — get their scale, their requirements checks, their shopping lists, and their atomic consumption semantics.
+
+---
+
+## G056 — Image Gallery
+
+**The entity as a metadata envelope around external state.**
+
+Every prior entity was self-contained: the product had a price, the recipe had lines, those values *were* the data. G056 introduces **external references**: the image's bytes live at a path, a URL, an S3 key. The `Image` record is a description — filename, dimensions, mime type, a content hash, and a `BlobRef` pointer.
+
+The database doesn't own the bytes. It doesn't know if the file still exists at that path, if it's been modified, if the bytes match the hash. The entity is a pointer, not the content. `BlobRef.exists` is a last-known-availability flag, not a live property. This is the first stale-reference primitive in the repo.
+
+This is how every vault references the outside world. A daily note references a screenshot at some filesystem path. A conversation references an article by URL. A project references a codebase directory. An annotation references a Figma design. Whenever authoritative state lives elsewhere, the entity becomes a metadata envelope, and stale-reference semantics become unavoidable.
+
+**Derived artifacts are cache entries, not canonical state.**
+
+A thumbnail is a function of the source image. A preview is a function of the source image. If the source changes, they become stale and need regeneration. The source is canonical; the derivatives are cache views. G055 had pure-function derivation (`scale(recipe, 2)` returned a value); G056 has **materialized** derivation (the thumbnail persists as a separate artifact). This introduces the first implicit cache in the Rosetta Stone and therefore the first implicit staleness question.
+
+In the noosphere: every "rendered" artifact is a cache of its source. Rendered project summaries cache YAML frontmatter. Compiled choreography definitions cache their source. Export PDFs cache their notes. G056 doesn't solve cache invalidation — it names the pattern: source identity (content hash) is the invalidation key.
+
+**Identity by content, not by assignment.**
+
+A `content_hash` field turns the image into a content-addressed entity. Two uploads with the same bytes have the same hash and, for dedup purposes, are the same content. This is a different identity model from everything before:
+
+- G048–G055: identity by assignment — `"SKU-001"` is whatever was first assigned that SKU. IDs are external and arbitrary.
+- G056: identity by content — the hash is computed from the bytes. Same bytes, same id.
+
+Git blobs work this way. The vault's conversations could dedup quote-replies by content hash. Any time you want "is this the same stuff?" without comparing all the bytes, you want content addressing. `duplicates()` is the query this enables: group by hash, return hashes with more than one image. The demo found `IMG-001` and `IMG-002` share hash `a1b2c3` — different IDs, same content, flagged automatically.
+
+**Tag queries are set algebra.**
+
+G053's library subjects formed a tree; queries were prefix matches. G056's tags form a flat set; queries are set operations:
+
+```
+with_all_tags({T, B})         = T ∩ B       (intersection)
+with_any_tag({T, B})          = T ∪ B       (union)
+without_tags({T}, {P})        = T \ P       (difference)
+```
+
+Tree queries navigate hierarchy; set queries combine orthogonal axes. Both are needed, and both already exist in the vault. A conversation at `[[The Forge/Temporal/Daily]]` lives in a tree AND has tags `{daily, music-related, urgent}` in a flat set. The two query shapes compose: "all urgent daily notes under The Forge" is a subject-prefix filter followed by an all-tags filter.
+
+InnateScript needs both primitives: `@scope{path: ...}` for tree navigation, `@filter{tags: ...}` for set algebra. Together they form a richer query language than either alone. The demo shows all three set operations working correctly: `travel AND beach → [IMG-001]`, `travel OR forest → [IMG-001, IMG-003, IMG-004]`, `travel BUT NOT private → [IMG-001, IMG-003]`.
+
+**Tags are intrinsic; albums are curated. This distinction is structural.**
+
+An image *is* tagged "sunset" because its content depicts one — the tag is a property of the image itself, auto-inferrable. An image *belongs to* "Summer 2026 Trip" because a human grouped it there — the album membership is not inherent, it is an act of curation.
+
+| | Tags (intrinsic) | Albums (curated) |
+|---|---|---|
+| Origin | Property of the content | Decision by a curator |
+| Auto-inferrable? | Often yes | No — requires intent |
+| Ordering | Set (unordered) | Sequence (curator order) |
+| Removal | Statement about content | Statement about the collection |
+
+Every tag-able entity in the noosphere has this distinction. A conversation's topic tags (intrinsic) vs its appearance in the "Urgent Follow-Ups" queue (curated). A project's domain tags (intrinsic) vs its inclusion in Q3 planning (curated). Muddling the two is a category error: you can't auto-infer curated membership, and you shouldn't require human intent for intrinsic classification. G056 makes the distinction structural — tags live on the image record; albums are their own entity with explicit curator and order. The demo's "Summer Trip" album preserved curator order `[IMG-003, IMG-001]` rather than falling back to alphabetical — the order is part of the curation.
+
+G048 identity → G049 status interaction → G050 scheduled → G051 measured → G052 atomic (conservation) → G053 three-layer + queue + renewal → G054 conjunctive + self-exclusion + search → G055 structure-valued + exact scaling + N-ary conjunction + gap + atomic consumption → G056 *external refs + content-addressed identity + cache views + set-algebra tags + intrinsic-vs-curated distinction*. Nine projects; Classes now models every flavor of entity the noosphere will need to represent reality.
