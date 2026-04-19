@@ -2419,3 +2419,45 @@ Fixed-capacity deque that evicts oldest when full. Queries walk the buffer; no p
 First Rosetta Stone project where **bounded storage** is an explicit design property. Previous projects assumed unbounded growth (Family Tree nodes, Chat Room log, WYSIWYG runs); G075 caps because time-series is "most recent N" semantics. Same pattern: kernel perf ring buffer, syslog rotation, Prometheus TSDB chunks, vault activity log with rolling archive.
 
 G069 → ... → G074 Whiteboard → G075 *counter-to-rate derivation + cadence-as-parameter + average-vs-peak orthogonality + wraparound-as-gap + bounded ring buffer*. Seven Web projects done, nine to go. Web architecture now eight components: model + render + query + robust input + durable state + interactive protocol + spatial data + time-series observation.
+
+---
+
+## G076 — Bookmark Collector and Sorter
+
+**Folders and tags are orthogonal — both first-class.**
+
+Early bookmark systems forced a choice. Netscape's hierarchical folders won the UI war but lost the model war — the same bookmark often belongs to multiple conceptual categories, and a tree can only place it once. Tag-based systems (delicious, pinboard) abandoned hierarchy entirely but users still want a default-location story.
+
+G076 does both. A bookmark has **one folder** (primary filing location) AND **a set of tags** (secondary many-to-many categorisation). Neither is subordinate. First Rosetta Stone project where **two organisational axes coexist without hierarchy between them**. G056 had tags without folders; G064 had hierarchy without tags. G076 is the first with both intentionally.
+
+Parallels: notes have folder path AND wiki-link tags; tasks have project (hierarchy) AND status/labels (flat); agents have team AND capability tags. Every real "stuff organiser" ends up with both.
+
+**URL is the natural key.**
+
+Re-adding a bookmark with an existing URL updates the existing entry, doesn't create a duplicate. URL is the natural key — two bookmarks with the same URL ARE the same bookmark. Re-add is update, not insert.
+
+First Rosetta Stone project where **natural keys** (semantic keys the domain provides) are preferred over **surrogate keys** (numeric ids we assign). Surrogate id exists for reference stability (move/remove/tag); identity is the URL. This distinction matters throughout the vault: notes by path, agents by name, conversations by timestamp+participants. Choosing "what makes two of these the same thing?" is the deepest schema question.
+
+**Sort is a view, never a storage property.**
+
+The collection stores bookmarks in insertion order. No "sorted by title" mode, no re-shuffling on add, no index. Every sort is a **view** — computed on query, consumed by caller, discarded. Storage's natural order stays insertion order.
+
+Multiple callers can request different sorts without fighting over "the order." Adding is O(1) — no sort maintenance. Sort is referentially transparent (same collection, same sort → same result). First Rosetta Stone project where **sort is deliberately decoupled from storage**. G074 Whiteboard had the opposite (insertion order WAS render order). G076 has neither storage order being semantic nor any sort being canonical; every sort is a lens.
+
+**Stable sort** is the right default: ties preserve insertion order. Unstable sort produces different orderings on different runs, breaks tests, confuses users. Every language here provides stable sort primitives (Rust stable by default, Python Timsort, Go sort.SliceStable, CL stable-sort, Lean mergeSort).
+
+**Folder paths as strings, not trees.**
+
+Folders are path-like strings: `/news`, `/dev/languages`, `/personal`. No tree structure, no parent pointers, no folder entities. "Bookmarks in /dev" (recursive) works by prefix-match on `/` boundaries.
+
+**Flat representation of a hierarchical concept** — what every real system uses (filesystem paths, URL paths, CSS selectors, vault wiki-links). Tree is implicit in the string structure, not materialised separately. Contrast G064 Family Tree's explicit graph: there relationships mattered for traversal algorithms; bookmarks don't need those — "what's in this folder" is a prefix query, "move to folder" is a string reassignment. Materialising the tree would be expensive bookkeeping for no benefit.
+
+First Rosetta Stone project where **a hierarchical concept is represented flatly because no hierarchical operation is actually needed**. General lesson: don't materialise structure you don't query.
+
+**Search crosses axes; upsert is soft idempotence.**
+
+`search(query)` matches title, URL, AND tags with one substring query. Doesn't ask "which field?" — searches everywhere. First Rosetta Stone project where **the query crosses schema boundaries** (G064/G067/G071 had precise field-scoped queries); introduces the union-of-fields pattern behind the vault's future full-text search.
+
+Re-add is upsert (keeps id, updates properties) — **soft idempotence**: same identity, possibly different content. First Rosetta Stone project with **upsert semantics by default**. Previous dedup was content-addressed (G056/G068); G076 is upsert at the API level, visible to callers. Production REST APIs often have both (POST = insert-only, PUT = upsert); G076 picks PUT as default because it matches user intuition.
+
+G069 → ... → G075 Bandwidth → G076 *orthogonal multi-axis organisation + natural-key dedup + sort-as-view + flat-string hierarchy + cross-field search + upsert-default semantics*. Eight Web projects done, eight to go. Web is now exactly halfway; the category's architectural vocabulary is complete (model + render + query + robust input + durable state + interactive protocol + spatial data + time-series observation + multi-axis organisation), and remaining projects (password safe, media player widget, MUD-style game, scheduled action, e-card, CMS, template maker, CAPTCHA) are applications combining these components.

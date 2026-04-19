@@ -7,3 +7,4 @@ pub mod file_downloader;
 pub mod telnet;
 pub mod whiteboard;
 pub mod bandwidth_monitor;
+pub mod bookmarks;
