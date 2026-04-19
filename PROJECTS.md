@@ -58,7 +58,7 @@
 - [x] 49. Movie Store
 - [x] 50. Airline / Hotel Reservation System
 - [x] 51. Student Grade Book Application
-- [ ] 52. Bank Account Manager
+- [x] 52. Bank Account Manager
 - [ ] 53. Library Catalog
 - [ ] 54. Patient / Doctor Scheduler
 - [ ] 55. Recipe Creator and Manager

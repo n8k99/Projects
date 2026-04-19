@@ -1297,3 +1297,41 @@ A student who hasn't submitted assignment #3 doesn't have a zero. They have *unk
 This applies throughout the noosphere. If Kathryn made no forex trades today, is today missing data or a zero-P&L day? Depends on expectations. The `missing_as_zero` parameter is not an implementation detail — it is the shape of a question about expectation. When you ask a dashboard for an average, the answer depends on what you meant by "no entry."
 
 G048 identity → G049 interaction (status-valued) → G050 scheduled interaction → G051 measured interaction. Classes is elaborating from "things exist" to "things interact with measurable quality" — each project adds a layer to the noosphere's performance model.
+
+---
+
+## G052 — Bank Account Manager
+
+**The first multi-sided event.**
+
+Every prior project had single-sided events. Inventory movements touched one product; grades touched one student-assignment pair. G052 introduces the double-entry transaction: one operation, *multiple* entries, all landing atomically. A transfer is two entries — `(A, -100)` and `(B, +100)` — that MUST be written together or not at all. Deposits and withdrawals are the degenerate single-entry case where money crosses the bank's boundary.
+
+This is the shape of every coordinated state change. A git commit is a multi-entry transaction: several files modified, all or none. A choreography that updates three vault records atomically is a multi-entry transaction. A transaction in PostgreSQL is literally this. G052 is the Rosetta Stone naming the pattern the noosphere has been using implicitly.
+
+**Conservation as a global invariant.**
+
+Transfer entries sum to zero. Money is conserved *within* the bank; deposits and withdrawals break conservation locally because they cross the system boundary, but internally every redistribution is zero-sum:
+
+```
+∀ tx where tx.kind = transfer: Σ(entries.amount) = 0
+```
+
+This is a ledger-wide invariant, checkable at any time (`ledger_is_balanced` / `ledgerBalanced` / `LedgerIsBalanced` in every implementation). If it ever fails, the ledger is corrupted — a reconstruction bug, a race, a missing entry. The invariant is a detection mechanism, not just a rule.
+
+Generalizes throughout the noosphere: whenever state redistributes within a closed system, the redistribution must sum to zero. Reassigning work between agents conserves total work. Moving a task from backlog to active conserves total tasks. The Bank is canonical because money makes conservation explicit, but the pattern is everywhere a state transition touches more than one entity.
+
+**Balance is still an aggregate — just with multi-entry transactions.**
+
+Same event-sourcing pattern as G048/G049/G050/G051: the transaction log is canonical; balance is the projection onto one account. What makes G052 stronger: a single transaction contributes to *multiple* accounts simultaneously. A transfer adds a `-100` entry to A's projection and a `+100` entry to B's projection. The same log powers both queries. This is how database views work — one source of truth, many derived tables.
+
+**Closure has a numeric precondition; frozen is a meta-policy.**
+
+G052 introduces two kinds of transition gate:
+
+- **Numeric precondition**: `close(account)` requires `balance == 0`. An equality, not an inequality — and aggregates are the predicate subject. "Zero balance" is the general name for "no unresolved obligations." It shows up everywhere: can't archive a project with open tasks, can't close a conversation with unresolved references.
+
+- **Meta-policy gate**: a frozen account refuses new transactions regardless of amount or balance. `status == open` is a *policy condition*, not a *data condition*. Both can fail a `where`; they fail for different reasons and warrant different reactions. Read-only modes, maintenance windows, compliance holds — all meta-policy gates on otherwise-valid data.
+
+InnateScript needs the distinction in its `where` vocabulary: `where balance > 0` is data; `where status == open` is policy. Rejecting a transaction because you can't afford it is different from rejecting it because the account is suspended. The noosphere will encounter both constantly.
+
+G048 identity → G049 status-valued interaction → G050 scheduled interaction → G051 measured interaction → G052 *atomic multi-entity state change with conservation*. Five projects in, the Classes category has laid down the full vocabulary the noosphere uses to model coordinated state.

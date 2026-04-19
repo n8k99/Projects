@@ -4,3 +4,4 @@ pub mod product_inventory;
 pub mod movie_store;
 pub mod reservation_system;
 pub mod grade_book;
+pub mod bank_account;
