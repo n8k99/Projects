@@ -12,3 +12,4 @@ pub mod image_gallery;
 pub mod big_integer;
 pub mod chart_maker;
 pub mod shapes;
+pub mod matrix;

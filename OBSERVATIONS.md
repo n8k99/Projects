@@ -1700,3 +1700,48 @@ The pattern is **smart constructor**: the type allows only valid values because 
 `total_area`, `largest_by_area`, and `sort_by_perimeter` are defined on `list[Shape]`, never on any concrete shape. They are the first Rosetta Stone functions that operate *purely through the interface* — the implementations are invisible to them. This is the signature of well-designed polymorphic code: the caller can't (and shouldn't) know which concrete types are present.
 
 G048 identity → G049 status → G050 scheduled → G051 measured → G052 atomic → G053 three-layer+queue+renewal → G054 conjunctive+search → G055 structured+gap → G056 external-refs+set-algebra → G057 value class → G058 pipeline class → G059 *interface-dispatch + open-vs-closed polymorphism + smart constructors + interface-only collection ops*. Twelve projects; Classes has now delivered every shape of entity (domain entities, value classes, pipelines) and every shape of dispatch (enum match, trait/interface, generic function, resolver) the noosphere will ever need.
+
+---
+
+## G060 — Matrix Class
+
+**Shape is part of the value.**
+
+A Matrix is not just "a grid of floats." It is a **shape + contents**. A 2×3 matrix and a 3×2 matrix have the same six entries but are different values: one represents a linear map from ℝ³ to ℝ², the other from ℝ² to ℝ³. You cannot substitute one for the other.
+
+G057's BigInt had invariants over its representation (canonical form). G060's Matrix has invariants over a *structural property* — `(rows, cols)` — that gates which operations are legal. Two matrices of incompatible shape can't be added. Runtime check in Rust/Go/Python/CL; type error in dependent-typed Lean if taken further. Either way, the *kind of illegality* is structural — the values could be anything and the operation would still be illegal. Shape is first-class.
+
+**Multiplication is non-commutative.**
+
+Every arithmetic operation so far has been commutative: integer add, scalar multiply, set union. G060 introduces an operation where `A × B ≠ B × A` — not just different values, but often different shapes. With A=2×3 and B=3×2: A×B is 2×2, B×A is 3×3. They are not merely unequal; they are objects of different types.
+
+This is qualitatively new. A large fraction of programmers have internalized commutativity as "obvious" because scalar arithmetic taught it. G060 re-teaches: in the real world, order matters for most operations. Function composition is non-commutative. Choreography sequencing is non-commutative. Writing a log entry before acquiring a lock is not the same as the reverse. G060 is the Rosetta Stone's first explicit non-commutative algebra; every pipeline that sequences operations inherits the lesson.
+
+Associativity saves the day. `(AB)C == A(BC)` even though neither equals `BAC`. Associativity is what lets chains of matrices be written without parentheses — the same property that makes function composition chainable. When designing the resolver's `then` combinator in InnateScript, associativity is the right law to preserve, not commutativity.
+
+**Two-sided identity, parameterized by shape — a taste of dependent types.**
+
+Every commutative operation has a unique identity: 0 for addition, 1 for multiplication, ∅ for union. G060 has **two-sided identities parametrized by shape**:
+
+```
+I_n × A == A  (when A is n×anything)
+A × I_m == A  (when A is anything×m)
+```
+
+A different identity for every square size. `I_2` is not a universal neutral element; it's neutral specifically for 2-row or 2-column partners. This is the first taste of dependent types: the type of a value (`I_n`) depends on a runtime parameter (`n`). Lean could encode this at compile time as `identity : (n : Nat) → Matrix n n`. The other languages cannot — the shape parameter lives at runtime.
+
+**Determinant is a partially-defined operation.**
+
+`det(A)` is defined only for square matrices. On a 2×3 matrix, no determinant exists — not "returns zero" or "returns null." It has no meaning.
+
+Every prior operation in the Rosetta Stone was total — defined on every input. G060 introduces the first partial operation: valid on a subset of the domain. Partial operations are load-bearing in real systems. `first()` of an empty list has no meaning. `divide` by zero has no meaning. `max` of an empty set has no meaning. Ignoring partiality produces a large fraction of runtime crashes. G060 is the first project where partiality is *principled* — not an oversight, but a fundamental property of the math — and the error-handling approach (returning `Result<f64>` or raising a typed error) sets the template for every future partial operation in the noosphere.
+
+**Shape inference for the result.**
+
+When you multiply `m×n` by `n×p`, the result is `m×p`. Inner dimensions cancel; outer dimensions survive. The caller doesn't specify the output shape; it's derived from the operands. This is the first project where a value's shape is *computed* rather than *specified*. Every tensor library, every type-inferring compiler does this — G060 is the minimal teaching example.
+
+**Cofactor expansion is O(n!) and we don't care.**
+
+The determinant algorithm here — Laplace/cofactor expansion on the first row — is O(n!). Real libraries use LU decomposition (O(n³)). The Rosetta Stone chooses cofactor for the same reason G057 chose base-10 digits: the algorithm matches the math you learned on paper. Clarity over speed; a teaching corpus earns readability by explicit trade.
+
+G048 identity → ... → G057 value class → G058 pipeline class → G059 polymorphic-interface → G060 *shape-typed value + non-commutative arithmetic + partial operations + shape-parameterized identity + shape inference*. Thirteen projects. Classes has now enumerated every fundamental kind of class the noosphere will need.
