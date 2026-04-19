@@ -15,3 +15,4 @@ pub mod scheduler;
 pub mod ecard;
 pub mod cms;
 pub mod template_maker;
+pub mod captcha;

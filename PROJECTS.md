@@ -94,7 +94,7 @@
 - [x] 81. E-Card Generator
 - [x] 82. Content Management System
 - [x] 83. Template Maker
-- [ ] 84. CAPTCHA Maker
+- [x] 84. CAPTCHA Maker
 
 ## Files
 - [ ] 85. Quiz Maker

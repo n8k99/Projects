@@ -2755,3 +2755,68 @@ First Rosetta Stone project with **structured validation results** rather than s
 `{{_recipient}}` and `{{_sender}}` can be referenced without declaration. Validator skips `_`-prefixed names (they're system-provided). First Rosetta Stone project with **a naming convention as a schema extension mechanism** — same pattern as Python's `__dunder__`, Ruby's `@@class_vars`, HTML's `data-*`. The noosphere's choreography language can reserve `@_ctx`, `@_out`, `@_err` by the same convention.
 
 G069 → ... → G082 CMS → G083 *meta-level tooling + cross-reference validation + design-time samples + issue-kind typing + reserved-name conventions*. Fifteen Web projects done, one to go. Web adds **authoring tools** as the sixteenth component — the shape of every schema editor, template builder, form designer, or content-creation IDE.
+
+---
+
+## G084 — CAPTCHA Maker
+
+**Challenges are ephemeral, single-use, time-bounded.**
+
+G077 had bounded time + bounded attempts for unlock; G082 had scheduled publishing (time bounds on state). G084 narrows: **the challenge IS an ephemeral authentication token**. Once solved, consumed. Once expired, refused. Once attempts exhausted, refused. Only one terminal outcome is success.
+
+First Rosetta Stone project where **the primitive explicitly encodes single-use semantics** — G077's unlock happens many times; G082's publish happens once but the article persists; G084's challenge is like a password-reset token or OTP code: fire once, never again. The shape of every cryptographic nonce, every OAuth authorization code, every email-confirmation link.
+
+**Four kinds of outcome are structurally distinct.**
+
+VerifyResult has six outcomes: Success, WrongAnswer (+remaining), Expired, AlreadySolved, TooManyAttempts, Unknown. Each is a different kind of refusal requiring different UI response (retry makes sense for "wrong" but not "expired"; "already solved" is idempotent-click, not error). Collapsing into boolean accepted/rejected loses information.
+
+First Rosetta Stone project where **the refusal outcome is itself structured data** — G081 had validation errors as enum variants; G084 extends to the per-request verification path. Production APIs converge on this pattern (OAuth returns invalid_grant/invalid_client/access_denied/expired_token).
+
+**Attempt counter is a rate limit.**
+
+`max_attempts` + `attempts_used` is a rate limit at the token level. Infinite-attempts is a brute-force vuln. 3-attempt limit means attacker has 3/(space_size) chance per token. Same pattern as login lockouts, API 429s, password-safe auto-lock (G077, time-based rather than count-based).
+
+First Rosetta Stone project with **dual-bound refusal** — either expiry OR attempt-count triggers refusal independently. How most security tokens work (OAuth: expire by time AND revocable by use-count or explicit revocation).
+
+**Challenge kinds are polymorphic through one generator.**
+
+`issue(kind)` dispatches to kind-specific generator producing (prompt, expected) pair. Four kinds — Math, WordRecall, ReverseString, SequenceCount — produce different challenge types through one API.
+
+First Rosetta Stone project where **challenge generation is dispatched at the construction boundary** based on kind. Matters for accessibility — math excludes non-native speakers, word recall excludes visually impaired, reverse-string excludes dyslexic users; offering multiple kinds lets frontends pick based on accessibility preferences.
+
+**Answer matching is lenient.**
+
+Trim whitespace, lowercase both sides. Typing a CAPTCHA is already user-hostile; nit-picking case/whitespace is worse for no security gain. First Rosetta Stone project where **input normalisation is part of the correctness contract**. G071 forgave malformed HTML; G080 forgave missed schedule windows; G084 forgives trivial input variations. Forgiveness is always **scoped to the specific noise the domain produces**.
+
+**Cleanup is explicit garbage collection.**
+
+`cleanup(now_ms)` removes solved + expired. Without it, the challenge list grows. Calling cleanup periodically (cron-style, using G080) keeps memory bounded. Alternative: auto-cleanup on every verify/issue — simpler but makes hot paths pay scan cost.
+
+First Rosetta Stone project where **garbage collection is explicit and caller-scheduled**. G064/G076 retained indefinitely; G075 auto-evicted (ring buffer). G084 adds the third model: retain until explicit sweep.
+
+**Closes the Web category — sixteen components.**
+
+The Web category's architecture, complete and composable:
+
+1. Structured model (G069)
+2. Render function (G069, G074, G081)
+3. Query language (G071, G076, G082)
+4. Robust input handling (G071, G084)
+5. Durable state (G072)
+6. Interactive protocol (G073)
+7. Spatial data (G074)
+8. Time-series observation (G075)
+9. Multi-axis organisation (G076)
+10. Security primitives (G077)
+11. Tick-driven engines (G078, G082, G084)
+12. Simulation world (G079)
+13. Scheduled execution with history (G080)
+14. Template-data rendering (G081)
+15. Content lifecycle with revision history (G082)
+16. Authoring tools (G083)
+
+G084 is the synthesis: combines time bounds (10), outcome-typed results (3, 16), polymorphic dispatch (via kind), attempt-counter refusal (10), and garbage collection. It doesn't add a new component — it uses every existing one.
+
+**The Web category is done. 16 projects, 16 components.** The noosphere has its full Web-layer vocabulary. Remaining in the milestone: Files (G085–G100), Databases (G101–G113), Graphics (G114–G130) — 46 more projects, each building on these 16 components plus their own domain-specific additions.
+
+G069 → ... → G083 Template Maker → G084 *ephemeral single-use tokens + outcome-typed verification results + dual-bound refusal + polymorphic challenge generation + lenient input normalisation + explicit GC*. **Sixteen Web projects done. Web category closed at 84/130.**
