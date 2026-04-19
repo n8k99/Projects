@@ -57,7 +57,7 @@
 - [x] 48. Product Inventory Project
 - [x] 49. Movie Store
 - [x] 50. Airline / Hotel Reservation System
-- [ ] 51. Student Grade Book Application
+- [x] 51. Student Grade Book Application
 - [ ] 52. Bank Account Manager
 - [ ] 53. Library Catalog
 - [ ] 54. Patient / Doctor Scheduler

@@ -1264,3 +1264,36 @@ Rent/return happened at discrete moments: rent now, return later. A reservation 
 This is the shape of scheduled choreographies. A `@nightly-summary` scheduled for midnight has a future claim on Lena's attention. If it's cancelled at 22:00, it retracts. If it runs and Lena partially executes, "cancel" wouldn't make sense — you'd need a "return partial" or `rollback` semantics. InnateScript needs both: a `cancel` primitive for future choreographies and a `retract` primitive for in-flight ones. G050 surfaces the distinction that G049 didn't need.
 
 G048 → identity. G049 → interaction. G050 → interaction across a future interval with exclusivity constraints. Classes is showing its shape as a progressive elaboration of the same entity grammar.
+
+---
+
+## G051 — Student Grade Book
+
+**The join carries a value, not just a status.**
+
+G049's rental had a status: active or returned. G050's reservation had a status: booked, cancelled, completed. G051's grade has a *number*. The relationship between a student and an assignment is not just "did it happen" — it's "how well did it happen, expressed as a measurement."
+
+The valued join is more important than either endpoint. A student without grades is unscored. An assignment without grades is ungraded. The edge is the primary object; the nodes are just its endpoints. This is the shape of every performance record in the noosphere: the conversation carries the tone, the task completion carries the quality, the forex trade carries the P&L. The *relationship* is where the performance data lives.
+
+**Aggregation lives on the edge.**
+
+Because the join is valued, you can aggregate over it. Student's course average is the weighted mean of their grades in that course. Class average is the mean grade on one assignment across students. Distribution is the histogram of course averages across students. All three aggregations are folds over the grade table, grouped differently. G048 aggregated a single entity's events; G051 aggregates the *edges* between two entity sets. This is the primary analytical operation over a relational model.
+
+**Nested weighted aggregation is the temporal compression chain.**
+
+Course average = `Σ(weight × grade) / Σ(weight)` over assignments. GPA = `Σ(credit × course_gpa_points) / Σ(credit)` over courses. Two levels of weighted mean — the first project where aggregation composes. And it generalizes cleanly:
+
+- Daily pace = weighted average of today's task scores.
+- Weekly pace = credit-weighted average of the seven daily paces.
+- Monthly pace = day-weighted average of the four weekly paces.
+- Quarterly, yearly — same structure, more levels.
+
+G006 (mortgage) introduced the idea of amortized obligation; G051 gives the precise arithmetic. The temporal compression chain is a GPA calculator that runs forever. Every `pace_check` in the noosphere is a course average; every wider-horizon summary is a nested weighted mean over those pace checks.
+
+**Missing is distinct from zero.**
+
+A student who hasn't submitted assignment #3 doesn't have a zero. They have *unknown*. Two policies both matter: `current_average` folds only graded assignments (how are they doing on the work they've done?); `projected_average` treats missing as zero (if nothing else gets submitted, where do they land?). Both queries are valid — they answer different questions. The grade book supports both because absence itself is informational.
+
+This applies throughout the noosphere. If Kathryn made no forex trades today, is today missing data or a zero-P&L day? Depends on expectations. The `missing_as_zero` parameter is not an implementation detail — it is the shape of a question about expectation. When you ask a dashboard for an average, the answer depends on what you meant by "no entry."
+
+G048 identity → G049 interaction (status-valued) → G050 scheduled interaction → G051 measured interaction. Classes is elaborating from "things exist" to "things interact with measurable quality" — each project adds a layer to the noosphere's performance model.
