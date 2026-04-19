@@ -2207,3 +2207,43 @@ Which tab is active is a single `Option<TabId>` on the browser. No per-tab `is_a
 First Rosetta Stone case where the DRY / single-source-of-truth principle is applied to **mutually-exclusive state** — exactly one answer at a time, storing it in one place guarantees consistency. Parallels: filesystem CWD pointer, terminal-focused-window pointer, vault's "current note" as UI-level pointer not note-level property. Cost: every mutation (close, open, switch) must maintain the pointer invariant. G070 implements all three close-and-reactivate cases (next tab if exists, previous if no next, null if empty) because leaving `active` pointing at a closed tab crashes every subsequent operation.
 
 G069 edit-is-render → G070 *scope-as-design-decision + independent per-tab timelines + branching-timeline truncation + orthogonal recovery stacks + pointer-not-state for mutual exclusion*. Two Web projects done (WYSIWYG + Browser), fourteen to go.
+
+---
+
+## G071 — Page Scraper
+
+**Parse is inverse of render, but render is total and parse is not.**
+
+G069's render is a *total function*: every document has one correct rendering, no such thing as an "unrenderable" document. G071's parse is *partial*: not every string is a valid HTML document. The implementation chooses what to do with malformed input.
+
+Two philosophies: **strict** (refuse malformed, produce error) vs **forgiving** (accept anything, produce best interpretation, recover). HTML parsing is the canonical forgiving-parser domain. Real web pages are messy; browsers encounter every malformed input imaginable and users expect something, not a parse error. **Postel's principle**: strict in what you send, liberal in what you accept.
+
+G071 is forgiving. Unknown constructs become text; stray close tags drop; unclosed tags let content escape to parent. First Rosetta Stone project where **recovery is the spec, not an afterthought**. The noosphere will have many such domains: user-typed search queries, external RSS feeds with broken XML, Markdown files with invalid frontmatter, third-party choreographies. All need forgiving parsers.
+
+**Selectors are a domain-specific query language.**
+
+Once the tree exists, querying needs a language. CSS selectors are the natural fit — web developers already know them. G071 implements tag, class, id, combinations, descendant combinator — the subset covering most real scraping.
+
+First Rosetta Stone project with a **domain-specific query language**. Prior projects queried collections through direct method calls (`room.user_count()`, `tree.ancestors(id)`); G071 parses a string into a selector AST then evaluates against the tree. Two parsers — one for HTML, one for selectors — both forgiving in the same way.
+
+DSLs are everywhere in the noosphere: wiki-link paths `[[namespace/note#section]]`, tag queries `#foo -#bar`, search queries. Every DSL has the same shape: parse user string into AST, walk AST against data. G071 is the minimal teaching case.
+
+**Descendant combinator is path-based pattern matching on trees.**
+
+`article p` selects any `p` anywhere inside any `article`, at any depth. The algorithm: walk tree, match first selector element, continue searching descendants with remaining chain. Subtle rule: a matched element's descendants must keep searching (for more matches at deeper levels) AND unmatched elements' descendants must keep searching (so nested structures aren't skipped). Both rules apply simultaneously.
+
+Same algorithm generalises to XPath, JSONPath, vault wiki-link resolution, filesystem glob descent (`src/**/*.ts`), git ref-matching (`refs/heads/feature/*`). G071 presents the minimum viable case; every tree-query-language extends it.
+
+**Text extraction is a different walk with the same tree.**
+
+`text_of(node)` returns the concatenation of text descendants. Ignores attrs, ignores structure except to traverse. A **different projection** of the same tree than `to_html` would be.
+
+First Rosetta Stone case where **the same data structure supports multiple independent traversals for different questions**. G064 Family Tree had this at small scale (ancestors/descendants/siblings all BFS queries); G071 generalises: tree-walk is the universal interface to structured data, each "question" is a specific walk. One tree, many walks — why the vault's note-graph is useful: text-of-note, links-from-note, tags-on-note, notes-within-3-hops are all different walks on one structure.
+
+**Parsing is the first place untrusted input enters the system.**
+
+G069 was trusted; operations produced valid documents by construction. G071 takes arbitrary strings from outside — potentially network, potentially adversarial, potentially just broken. The parser is the first line of defence and must not crash or loop forever.
+
+Safety properties G071 maintains: **termination** (every input produces output in bounded time — loops advance on every iteration, recursion bounded by input size), **memory bound** (output linear in input, no pathological amplification), **no crashes** (mismatched tags, truncated input, unusual UTF-8 don't panic). Production-hardening (rate limiting, depth limits, max attribute size) is orthogonal to the teaching point.
+
+G069 WYSIWYG → G070 Browser → G071 *parse-as-partial-inverse-of-render + forgiving-parser + DSL-selectors + path-pattern-matching + tree-as-multi-query + untrusted-input-defence*. Three Web projects done, thirteen to go. The Web category's recurring theme is emerging: **structured model + render function + query language + robust input handling** — the four components every real document-processing system needs.

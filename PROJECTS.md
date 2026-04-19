@@ -81,7 +81,7 @@
 ## Web
 - [x] 69. WYSIWYG Editor
 - [x] 70. Web Browser with Tabs
-- [ ] 71. Page Scraper
+- [x] 71. Page Scraper
 - [ ] 72. File Downloader
 - [ ] 73. Telnet Application
 - [ ] 74. Online White Board
