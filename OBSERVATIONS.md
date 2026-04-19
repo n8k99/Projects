@@ -2820,3 +2820,27 @@ G084 is the synthesis: combines time bounds (10), outcome-typed results (3, 16),
 **The Web category is done. 16 projects, 16 components.** The noosphere has its full Web-layer vocabulary. Remaining in the milestone: Files (G085–G100), Databases (G101–G113), Graphics (G114–G130) — 46 more projects, each building on these 16 components plus their own domain-specific additions.
 
 G069 → ... → G083 Template Maker → G084 *ephemeral single-use tokens + outcome-typed verification results + dual-bound refusal + polymorphic challenge generation + lenient input normalisation + explicit GC*. **Sixteen Web projects done. Web category closed at 84/130.**
+
+---
+
+## G085 — Quiz Maker (Opens Files)
+
+**Round-trip equivalence is the Files category's contract.**
+
+Every Files project centres on one promise: **what you write, you can read back, unchanged**. Serialise a quiz to text, re-parse that text, get the original quiz. The defining contract of every file format in existence — JSON, CSV, PNG, PDF, Git objects, SQLite.
+
+First Rosetta Stone project where **serialisation and deserialisation are co-defined** — you can't design one without the other, because they must compose to the identity function on valid inputs.
+
+**Line-based text format is the hobbyist default.**
+
+G085 doesn't use JSON or YAML. Invents a simple line-based format (`key: value`, `---` separators). Reasons: no dependency (every language reads lines), human-readable (edit in nano), diffable (each line independent), extensible (add a `key: value`). Cost: no nested structures, no quoting rules. Adequate for a small domain, far cheaper than a JSON parser.
+
+First Rosetta Stone project where **the file format is an explicit design decision** rather than "whatever JSON library is lying around." The vault's note format (Markdown + YAML frontmatter) is similar.
+
+**Polymorphism through tagged structures; scoring is a fold.**
+
+Three question kinds (MC/TF/SA). Each language models tagged unions at its idiomatic level — Rust/Lean enum variants; Python/Go tagged structs; CL keyword-dispatched. The contract is the same: `check_answer(question, answer)` dispatches on kind. Scoring is a **fold over (question, answer) pairs** — kind-agnostic at the outer level, kind-specific inside check_answer.
+
+First Rosetta Stone project where **the parse error is a structured type** the caller can destructure — enum of specific failure modes (BadHeader, MissingField, InvalidIndex, UnknownKind). G071 forgave; G083 returned a list of issues; G085 has a single error path returning structured diagnostics.
+
+G084 closed Web → G085 opens **Files**. The category's theme (round-trip equivalence) will recur in every project — different data shapes, different file formats, same contract. 85/130 complete. 1 of 16 Files done.
