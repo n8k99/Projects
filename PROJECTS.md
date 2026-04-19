@@ -92,7 +92,7 @@
 - [x] 79. Text Based Game Like Utopia
 - [x] 80. Scheduled Auto Login and Action
 - [x] 81. E-Card Generator
-- [ ] 82. Content Management System
+- [x] 82. Content Management System
 - [ ] 83. Template Maker
 - [ ] 84. CAPTCHA Maker
 

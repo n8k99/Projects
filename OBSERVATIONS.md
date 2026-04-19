@@ -2675,3 +2675,43 @@ First Rosetta Stone project where **a design choice actively preserves visible e
 Templates have a `category` for user browsing. Slots belong to individual templates; one template's "age" is not the same as another's. First Rosetta Stone project where **category-instance hierarchy is explicit** — categories like folders/tags (organisational across instances), slots like fields (meaningful only within one record). Mixing them creates the "tag that's really a field" anti-pattern.
 
 G069 → ... → G080 Scheduler → G081 *presentation-as-data + validation-at-creation + materialised-defaults + multi-format rendering + visible-bugs over silent-swallow + category-vs-slot scoping*. Thirteen Web projects done, three to go. Web adds **template-data rendering** as the fourteenth component — the shape of every CMS, every note template, every email merge, every document-generation pipeline.
+
+---
+
+## G082 — Content Management System
+
+**Content has a lifecycle, not a flag.**
+
+Every prior project with stored content used simple states (public/private, active/inactive) or none at all. G082 is the first with a **real lifecycle**: five states — Draft, InReview, Scheduled, Published, Archived — with specific transitions between specific states.
+
+First Rosetta Stone project with **a lifecycle FSM that has more than three states**. G062 two, G073 three-with-terminal, G077 two, G078 three-non-terminal; G082's five capture the phases of editorial work (thinking, reviewing, waiting, live, retired). Every CMS in production — WordPress, Ghost, Contentful, Strapi, the noosphere's future note-publishing flow — has some version of this lifecycle. State names vary; phases don't.
+
+Illegal transitions (publish an archived article, submit an already-published article) return a structured error. Only declared-legal transitions are accepted — **the state table IS the policy**.
+
+**Revisions are append-only.**
+
+Every save appends a new Revision with an incrementing version number. Edits don't overwrite history; they add. `revert_to_revision(v)` restores an old version's body **by creating a NEW revision** with that content — not by rolling back the counter.
+
+This is the **Git model** for content: history is immutable, changes are new commits, reverts are new commits that undo previous ones. Once a revision is written, it's permanent; you can walk back through history and see exactly what the article said at any point.
+
+First Rosetta Stone project where **history is append-only and reverts are additive**. G070 browser had forward-truncation on navigate (reverts lose the forward path); G078 media player had no history. G082 keeps everything. Cost is storage; benefit is perfect auditability.
+
+**Scheduled publish is a deferred transition.**
+
+`schedule_publish(id, at_ms)` puts the article in Scheduled state. Nothing else happens immediately. Later, `tick(now_ms)` transitions any Scheduled article whose time has arrived to Published. This is G080's scheduler pattern applied to state transitions — scheduler lives inside the CMS rather than as separate system because content lifecycle is the CMS's concern.
+
+First Rosetta Stone project where **a state machine's transitions can be time-triggered in addition to user-triggered**. G077 had time-triggered auto-lock (only transition on a timer); G082 has both (submit/approve/archive = user; scheduled publish = time). Mixing is natural once the tick mechanism exists.
+
+**Archived is frozen.**
+
+Once archived, an article cannot be edited. Save, revert — all refused. Unarchive to Draft is allowed (reactivates editing). First Rosetta Stone project with **a non-terminal frozen state** — archived articles aren't dead (can be restored) but while archived they're read-only. Different from G073 Disconnected (terminal) or G077 Locked (inaccessible). Archived is **visible-but-frozen**.
+
+DB parallel: soft-deleted rows with `deleted_at` are visible to admins, editable by no one. Wiki parallel: protected pages are readable but not editable without permission.
+
+**Slug is the natural key; ID is the surrogate.**
+
+Articles have both a numeric id (surrogate) and a slug (natural). Uniqueness enforced on slug. Same pattern as G076 Bookmarks. **Dual keying** because id provides stable references for code (revisions, internal mentions) while slug provides human-friendly identifiers (URLs, navigation).
+
+Production CMSes uniformly do this. Changing a slug is a renaming operation requiring URL rewrites or 301 redirects; the id never changes.
+
+G069 → ... → G081 E-Card → G082 *multi-state lifecycle FSM + append-only revisions + time-triggered transitions + archived-as-frozen + slug-as-natural-key + dimension-scoped queries*. Fourteen Web projects done, two to go. Web adds **content lifecycle with revision history** as the fifteenth component — the shape of every CMS, every versioned document system, every note-publishing flow.
