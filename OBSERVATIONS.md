@@ -2333,3 +2333,49 @@ Every line is recorded as `(line, reply)`. Not a replay mechanism — G073 doesn
 Alice's login does not affect Bob's session. Alice's quit does not terminate Bob's. First Rosetta Stone project where **state isolation across callers is a correctness property**. G067 had similar isolation for chat inboxes but inboxes were symmetric data structures. G073 has asymmetric state (one user's login) and must guarantee independence — a regression letting Alice's login leak into Bob's session is a protocol-level security failure.
 
 G065/G066/G067/G068 taught concurrency primitives; G069/G070/G071/G072 taught document/transfer primitives; G073 is the first *interactive* application — where a remote caller holds a session and issues commands over a line-oriented protocol. Five Web projects done, eleven to go. The Web category's architecture is now **model + render + query + robust input + durable state + interactive protocol** — six components, the foundation of any real application server.
+
+---
+
+## G074 — Online White Board
+
+**Spatial data is a new coordinate system.**
+
+Every prior Rosetta Stone project with "coordinates" had 1D coordinates: byte offsets in text (G069), seconds in a schedule (G065), URLs in a history stack (G070). G074 is the first with **2D spatial coordinates**. Distance is `sqrt((dx)² + (dy)²)`, bounding boxes are `(min_x, min_y, max_x, max_y)`, queries are "near this point" rather than "at this offset."
+
+The jump from 1D to 2D is load-bearing. **1D has a natural total order; 2D does not.** Neither `(3, 5)` nor `(4, 4)` is "before" the other. Everything that assumed total order — sorted storage, binary search, before/after predicates — doesn't generalise. Operations must be redesigned around **nearness**, not order.
+
+First Rosetta Stone project where **order is replaced by proximity** as the organising principle. The noosphere's spatial compositor (per memory `project_spatial_compositor.md`) depends on this primitive: rooms are 2D regions, agents are at positions, queries are "what's nearby." G074 is the minimal case.
+
+**Strokes are first-class entities with identity.**
+
+A stroke isn't a pixel path drawn onto a buffer. It's an entity with id, author, color, thickness, points. You can remove a specific stroke, filter strokes by author, find strokes near a point, render just one stroke.
+
+The **retained-mode** vs **immediate-mode** graphics distinction. Immediate-mode draws into a buffer and loses the structure; retained-mode keeps the structure and renders from it on demand. G074 is retained-mode, which is what makes every interesting operation possible: undo (remove), edit (replace), query (who drew this?), export (render to SVG). Every real drawing app from Illustrator to Figma to whiteboard tools is retained-mode for this reason.
+
+**Z-order is insertion order — storage order is semantic.**
+
+Strokes draw in insertion order. No per-stroke z-index field, no depth calculation — the storage order IS the rendering order. This is the simplest possible z-model and it's what Figma, Sketch, Illustrator use at the layer level. Bring-to-front, send-to-back, move-up are **list rearrangements**, not field mutations.
+
+First Rosetta Stone project where **storage order is semantic**. G067 Chat log order was chronological (meaningful); G070 tab list was UI arbitration (not meaningful to the protocol); G074's stroke order is **rendering-critical** — reorder the list and the image changes. `remove_preserves_z_order_of_remaining` verifies this: removing a middle stroke doesn't renumber; surviving strokes keep their relative order.
+
+**Spatial queries are linear scans (until they aren't).**
+
+`strokes_near(point, radius)` walks every stroke and checks distance. O(n × m) where n = stroke count, m = points per stroke. Fine for hundreds; catastrophic for millions. The production solution is a **spatial index** — quadtree, R-tree, grid hash, k-d tree — answering spatial queries in O(log n) or better.
+
+G074 doesn't implement one; the linear scan is *correct*, and the index is a performance optimisation added only when profiling demands. First Rosetta Stone project where **the naive algorithm and the optimised algorithm have the same interface**. You can swap linear scan for R-tree without changing callers.
+
+Same pattern throughout systems: hash maps over flat arrays (lookup), B-trees over sorted arrays (range), vector indexes over flat arrays (NN-search). The queries are the API; the index is an implementation detail. Protect this property in every geometric API — expose queries, not the index.
+
+**Render is a format projection.**
+
+`to_svg` walks strokes in z-order and emits `<polyline>` tags. Same shape as G069's `to_html`: structured model, walk, emit markup. Content differs; code shape is identical. Other formats (PNG by rasterising, PDF by path commands, LaTeX/TikZ for publishing, ASCII art for terminal) are 20-line walks because the model did the hard work.
+
+First Rosetta Stone project where **the render format is genuinely parameterised**. G069 rendered to HTML only; G074 renders to SVG/PNG/PDF/ASCII with equal ease because the model doesn't care what the output format is.
+
+**Per-author attribution enables collaboration queries.**
+
+Every stroke carries its author. First Rosetta Stone project where **every atom of the data structure carries its provenance**. G067 had author on messages but the chat log was linear; G074 has author on every geometric element, enabling rich collaboration-aware queries (bbox of just-alice's-work, per-author undo, count-by-author).
+
+The noosphere's agent-provenance tracking will use this pattern: every choreography output, vault edit, deliverable carries the agent/user that produced it. "Show me only what Alice's agents produced this week" becomes a filtered walk over provenance-annotated data.
+
+G069 WYSIWYG (1D text model) → G070 Browser → G071 Parser → G072 File Downloader → G073 Telnet → G074 *spatial coordinates + retained-mode entities + z-order-as-storage-order + spatial-index seam + parameterised render + per-atom provenance*. Six Web projects done, ten to go. G074 opens the door to every remaining spatial/visual project in the milestone, particularly Graphics (G114–G130), by establishing the fundamental primitives of 2D entities and spatial queries.
