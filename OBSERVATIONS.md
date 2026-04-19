@@ -1745,3 +1745,54 @@ When you multiply `m×n` by `n×p`, the result is `m×p`. Inner dimensions cance
 The determinant algorithm here — Laplace/cofactor expansion on the first row — is O(n!). Real libraries use LU decomposition (O(n³)). The Rosetta Stone chooses cofactor for the same reason G057 chose base-10 digits: the algorithm matches the math you learned on paper. Clarity over speed; a teaching corpus earns readability by explicit trade.
 
 G048 identity → ... → G057 value class → G058 pipeline class → G059 polymorphic-interface → G060 *shape-typed value + non-commutative arithmetic + partial operations + shape-parameterized identity + shape inference*. Thirteen projects. Classes has now enumerated every fundamental kind of class the noosphere will need.
+
+---
+
+## G061 — Flower Shop Ordering
+
+**The cart is the first intentionally-mutable primary entity.**
+
+Every prior entity was either immutable (value classes like BigInt, Recipe) or mutated only through atomic commits (inventory movements, appointment reschedules). G061's Cart is *designed* to evolve: add flowers, remove, change quantities, apply discounts. A single cart may be modified dozens of times before anyone commits to an order.
+
+This is the first project where the class's design point is *ongoing mutation as the primary operation*. Previous classes treated mutation as the rare operation; G061 treats it as the default. Carts are conversations with yourself: "I want roses — actually, make it six — plus two tulips — hmm, scratch the tulips, add lilies." In the noosphere, this maps directly onto *drafts*: a daily note being written, a project being scoped, a choreography being designed before being executed.
+
+**Build-up/commit separates editing from committing.**
+
+The lifecycle has three distinct stages: Draft (Cart, mutable) → Placed (Order, committed) → Cancelled/Fulfilled (terminal). Only the transition from draft to placed is atomic; everything within draft is freely mutable; nothing within placed or terminal can be modified.
+
+This three-phase lifecycle (edit → commit → finalize) recurs throughout the vault. The Daily Note is edited freely all day (draft), the nightly summary is the commit (placed), the following day's rollup archives it (fulfilled). A conversation has the same shape: messages accumulate, the reply commits, and it's either answered or retracted. G061 makes the pattern explicit.
+
+**Prices are frozen at add-time.**
+
+```
+add_to_cart(cart, "ROSE", 6)   # captures current price: $4.50
+# ... time passes ...
+flower["ROSE"].unit_price = 6.00   # catalog price changes
+checkout(cart)                  # still charges $4.50
+```
+
+The cart line carries the price it had when added, not whatever the flower costs at checkout. The demo verifies this: ROSE's catalog price changes to $6.00 after the cart is built, but the cart's line remains at $4.50. The receipt reflects the frozen price.
+
+This invariant is load-bearing. If price tracked the catalog live, carts would become unpredictable. The freeze is a promise: "you agreed to this price; we'll honor it." Generalizes: the vault will make analogous choices everywhere — some references are live (`@projects.get_current`), some are frozen (`@conversation.original_message`). G061 introduces the explicit snapshot pattern, distinct from live reference.
+
+**Discount rules compose via sum of independent applications.**
+
+A cart may have multiple discount rules, each with its own applicability check. 10% off orders over $30. Free shipping over $40. All can apply simultaneously. The total discount is `Σ rule.discount_cents(subtotal, shipping)` across rules. Some are conditional on subtotal, some are scoped to a specific cost, but all share the interface `(subtotal, shipping) → discount_cents`.
+
+This is the closed-polymorphism version of G059's open interface — a fixed small set of rule types, each with its own dispatch logic. The noosphere composes rules this way constantly: pace-check strategies (daily + weekly + monthly), agent routing filters (priority + capability + timezone), permission checks (user + role + project + resource). G061 is the canonical teaching example.
+
+**Cancellation is reversal — an inverse operation.**
+
+Cancelling a placed order is not "mark it cancelled." It *restores* the inventory that was decremented at checkout. For each line, `stock += line.quantity`. This is the first explicit inverse operation in the Rosetta Stone.
+
+Compare to prior cancellations:
+
+- G050's `cancel` on a reservation just marked status — the interval was future, nothing needed unwinding.
+- G049's `return` on a rental marked the loan complete — a separate lifecycle event, not a reversal.
+- G061's `cancel_order` applies the inverse of checkout's commit — inventory state is explicitly reversed.
+
+G050 cancelled a *promise*; G049 ended a *duration*; G061 reverses a *fact*. When state has been committed, cancellation is inverse-operation, not status-flip.
+
+**Not every commit has a clean inverse.** Sending an email has no true inverse. Publishing a post has no true inverse. Notifying a user has no true inverse. When a system advertises "cancel/undo," it's making a claim about which operations are invertible. G061's inventory model is cleanly reversible because stock decrements commute with increments. Many real operations aren't, and the lifecycle quietly restricts cancellation to `PLACED` states to avoid pretending it can reverse a shipped order — a design lesson that applies to every choreography with side effects.
+
+G048 ... → G060 shape-typed value → G061 *build-up/commit mutable draft + price snapshot + discount composition + inverse-operation cancellation*. Fourteen projects. Classes has gone through the full spectrum from pure value classes (G057) through polymorphic hierarchies (G059), algebraic operations (G060), and now transactional mutable drafts with explicit reversibility.

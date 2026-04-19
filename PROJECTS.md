@@ -66,8 +66,8 @@
 - [x] 57. Handle Large Numbers
 - [x] 58. Chart Making Class / API
 - [x] 59. Shape Area and Perimeter Classes
-- [ ] 60. Matrix Class
-- [ ] 61. Flower Shop Ordering
+- [x] 60. Matrix Class
+- [x] 61. Flower Shop Ordering
 - [ ] 62. Vending Machine
 - [ ] 63. Josephus Problem
 - [ ] 64. Family Tree Creator

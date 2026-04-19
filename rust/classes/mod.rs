@@ -13,3 +13,4 @@ pub mod big_integer;
 pub mod chart_maker;
 pub mod shapes;
 pub mod matrix;
+pub mod flower_shop;
