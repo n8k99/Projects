@@ -89,7 +89,7 @@
 - [x] 76. Bookmark Collector and Sorter
 - [x] 77. Password Safe
 - [x] 78. Media Player Widget
-- [ ] 79. Text Based Game Like Utopia
+- [x] 79. Text Based Game Like Utopia
 - [ ] 80. Scheduled Auto Login and Action
 - [ ] 81. E-Card Generator
 - [ ] 82. Content Management System

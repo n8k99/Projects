@@ -2549,3 +2549,47 @@ Track end → TrackEnded. New track start → TrackStarted. Playlist end → Pla
 First Rosetta Stone project with **event stream as supplement to state query**. G065 had state queries only; G066 had outcomes returned from run. G078 has both: queries for continuous display, events for boundary-triggered reactions.
 
 G069 → ... → G077 Password Safe → G078 *three-state non-terminal FSM + context-dependent transport + tick-as-engine + orthogonal mode dimensions + events-on-boundaries*. Ten Web projects done, six to go. Web adds **tick-driven engines** as the eleventh component — a primitive that will power every simulation, scheduled-task runner, or choreography executor in the noosphere.
+
+---
+
+## G079 — Text Based Game (Utopia-like)
+
+**The world is a graph whose nodes have state.**
+
+G064 had a self-referential graph (family trees); G070 Browser had state bags organised hierarchically; G079 combines them: **rooms form a graph**, and **each room is a state bag**. Exits connect rooms; items live in rooms; enemies stand in rooms; player occupies one room at a time. When the player moves, the world's topology doesn't change — only the player's pointer into it does.
+
+First Rosetta Stone project where **a graph structure IS the simulation world**. Every room is both a node (outgoing edges named by direction) and a container (items and enemies inside). Graph and containers are orthogonal: moving doesn't change room contents; picking up an item doesn't change the graph.
+
+The shape of every MUD, text adventure, dungeon-crawler. Generalises to: Kubernetes pods-on-nodes, DB tables with rows, vault notes with tag-memberships.
+
+**Every command is a turn — user input drives the simulation clock.**
+
+Turn-based: each input advances the world by one tick. Player's action resolves, world reacts (enemies strike), turn counter increments, end-conditions check. First Rosetta Stone project where **user input drives the simulation clock** — unlike G078's media player (self-ticking engine the caller advances on a schedule), G079 ticks on input only.
+
+Both styles have their place. Turn-based games use input-driven ticking; real-time games use self-ticking with input as a separate event stream. Most real systems mix them: vault's daily-note system advances at midnight (self-ticking) but reacts to each agent message as an event (input-driven). G079 picks the simpler pure-turn-based model.
+
+**Verb-noun parsing with aliases.**
+
+First word = verb, rest = argument. Aliases normalise common shorts (`n` → `go north`, `take` → `get`, `l` → `look`). Unknown verbs produce polite errors; empty input is no-op.
+
+First Rosetta Stone project with **human-oriented command parsing at the input boundary**. G073's telnet had a small fixed vocabulary; G079 has a richer one with synonyms and direction shortcuts because the user is typing from memory. Parser is forgiving (G071's pattern) — malformed input is an error message, not a crash.
+
+**Items have kind-specific behaviour behind a uniform API.**
+
+Items have a `kind` (Weapon / Potion / Treasure) and kind-specific fields. `use` dispatches on kind: potion heals, treasure adds gold, weapon equips. First Rosetta Stone project where **one command has polymorphic effects dispatched by item kind** — type-class / trait-dispatch pattern applied to domain objects. A single user-facing command can span multiple internal code paths based on receiver type — and the user doesn't have to know which.
+
+**Win and lose conditions are checked every turn as invariants on state.**
+
+After each turn: health ≤ 0 → Dead; gold ≥ win threshold → Won. Checks run **every turn**, not only after specific actions. Doesn't matter *how* health reached zero — any combination of effects that drops it ends the game.
+
+First Rosetta Stone project where **end conditions are checked as invariants on state, not as side effects of specific actions**. Previous projects had specific operations moving to terminal states (G073 `quit`, G077 auto-lock). G079's terminal states are **derived from state after every turn** — much more robust because it handles combinations the programmer didn't explicitly code.
+
+Analogues: OS process termination (any write to a bad page triggers SIGSEGV), DB consistency checks (any transaction leaving dangling FK is rejected), health-check probes (process goes unhealthy when it stops responding).
+
+**The log is the game's narrative; turns are a logical clock.**
+
+Every action appends to `world.log` — look, movement, combat, enemy retaliations, state changes, all in one append-only list. The log IS the narrative. First Rosetta Stone project where **the log is the primary output medium** — G073 had per-session history; G079's log is world-scoped and universal.
+
+`world.turn` increments on provoking verbs only (movement, take, use, fight); observation verbs (look, stats, inv) don't provoke. First Rosetta Stone project where **a logical clock (turns) is distinct from the wall clock** — some mechanics tick on turns not time (enemy regeneration, poison-over-N-turns, hunger-at-turn-50). Production systems have this for rate limiting (per-request counters), fairness queues (round-robin counters), game-like simulations.
+
+G069 → ... → G078 Media Player → G079 *graph-as-world + input-driven simulation clock + verb-noun parsing + kind-dispatched polymorphic commands + invariant end-conditions + log-as-narrative + logical clock distinct from wall clock*. Eleven Web projects done, five to go. Web adds **simulation world** as the twelfth component — the shape of every game, MUD, choreography executor, or agent training environment.

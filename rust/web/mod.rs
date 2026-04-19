@@ -10,3 +10,4 @@ pub mod bandwidth_monitor;
 pub mod bookmarks;
 pub mod password_safe;
 pub mod media_player;
+pub mod text_game;
