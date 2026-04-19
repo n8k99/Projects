@@ -1796,3 +1796,41 @@ G050 cancelled a *promise*; G049 ended a *duration*; G061 reverses a *fact*. Whe
 **Not every commit has a clean inverse.** Sending an email has no true inverse. Publishing a post has no true inverse. Notifying a user has no true inverse. When a system advertises "cancel/undo," it's making a claim about which operations are invertible. G061's inventory model is cleanly reversible because stock decrements commute with increments. Many real operations aren't, and the lifecycle quietly restricts cancellation to `PLACED` states to avoid pretending it can reverse a shipped order — a design lesson that applies to every choreography with side effects.
 
 G048 ... → G060 shape-typed value → G061 *build-up/commit mutable draft + price snapshot + discount composition + inverse-operation cancellation*. Fourteen projects. Classes has gone through the full spectrum from pure value classes (G057) through polymorphic hierarchies (G059), algebraic operations (G060), and now transactional mutable drafts with explicit reversibility.
+
+---
+
+## G062 — Vending Machine
+
+**Operations gated by state, not (only) by data.**
+
+Every prior Classes project had operations gated by data invariants: sufficient stock, valid triangle, correct shape. G062 introduces a qualitatively new gate — the machine's **state**. `select` in Idle state isn't "insufficient funds"; it's the WRONG OPERATION for the current state. The machine has no coins; asking it to dispense is a category error.
+
+The distinction: data gates say "the numbers don't add up"; state gates say "the system isn't in a posture to do that at all." This is the noosphere's model for any multi-turn interaction. A choreography in `planning` accepts `commit_plan`; in `executing` it accepts `abort` but not `commit_plan`; in `completed` it accepts nothing mutating. A conversation in `awaiting_reply` cannot accept another prompt. Every stateful protocol in the vault is an FSM, and G062 introduces the primitive.
+
+**Transitions are first-class events — and failure doesn't always transition.**
+
+Insert a coin: `Idle → Accepting`. Successful select: `Accepting → Idle`. Refund: `Accepting → Idle`. But **failed** select (insufficient funds, sold out, can't make change) preserves state — the user keeps their coins and can retry, add more, or refund.
+
+That choice is load-bearing. Data-shortage failures leave the user in Accepting with their coins intact. They failed to pick the right thing, but the machine doesn't punish them by dropping coins. The only ways out of Accepting are a valid purchase or an explicit refund. This is a deliberate FSM design choice, and it has noosphere-wide implications: failures preserve state when the caller might recover, transition when the failure is terminal. Being explicit about which is which, for every failure, is the discipline good FSM design demands.
+
+**Change-making is G007 with a new constraint: finite coin pool.**
+
+G007 Change Return assumed unlimited coins. G062 constrains supply to the machine's current inventory (plus the coins just inserted). If the machine needs 15¢ but holds only quarters, no solution exists. The algorithm tries high-denom first, capped at available counts; if a denomination runs out mid-computation, it continues with smaller denoms; if the amount can't be reached at all, the purchase fails and coins refund intact.
+
+This is the Rosetta Stone's first **capacity-constrained** algorithm. The demo's second machine illustrates: no small change loaded, user inserts $1.00 for 30¢ gum, owed 70¢ but only a single dollar coin in the pool. No valid change. Purchase fails. Refund returns the $1.00 exactly.
+
+Capacity-constrained greedy appears throughout the noosphere — token budget for an LLM call (use the fewest, capped at the limit), agent assignment under load (prefer least-loaded, capped at capacity), disk allocation (largest free block first, capped at available). G062 is the minimal teaching example.
+
+**Purchase is multi-entity atomic mutation with bidirectional flow.**
+
+A successful select touches four pieces of state simultaneously: slot inventory decrements, coin inventory loses change coins but gains inserted coins, inserted-coins reset, state transitions. Four coordinated updates — all land or none do.
+
+The new twist versus G052 (transfer) and G061 (checkout): **bidirectional flow within the same entity**. The coin inventory simultaneously *loses* change and *gains* payment. The inventory's composition changes, not just its totals. This generalizes to any exchange system — a forex trade exchanges one currency for another, a work-swap decrements one agent's queue and increments another's. G062 shows the primitive with the clearest possible domain.
+
+**Two-phase settlement: inserted coins are held separate until commit.**
+
+A subtle but important design choice — inserted coins are NOT part of the machine's change-making pool until the purchase commits. During Accepting, they sit in a separate `inserted_coins` table. This matters for the failure case: if a purchase fails and coins refund, the refund returns the exact coins that were inserted (quarters for quarters, dollars for dollars). If inserted coins were merged into inventory immediately, the refund could only return coins from the general pool, which might not match.
+
+Keeping them separate until commit is the first instance of **two-phase settlement** in the Rosetta Stone. Phase 1: insert coins into a holding area. Phase 2: commit (merge into main pool) or refund (return from holding). This is how real payment systems work — holds on credit cards, escrow accounts, pending transactions. G062 makes the pattern concrete.
+
+G048 ... → G060 shape-typed → G061 build-up/commit → G062 *finite state machine + state-gated ops + capacity-constrained greedy + bidirectional atomic flow + two-phase settlement*. Fifteen projects. Only three Classes projects remain (Josephus, Family Tree, and the wildcard choice at the end). Classes has delivered its full vocabulary; the remaining projects are applications, not new primitives.

@@ -68,7 +68,7 @@
 - [x] 59. Shape Area and Perimeter Classes
 - [x] 60. Matrix Class
 - [x] 61. Flower Shop Ordering
-- [ ] 62. Vending Machine
+- [x] 62. Vending Machine
 - [ ] 63. Josephus Problem
 - [ ] 64. Family Tree Creator
 
