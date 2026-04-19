@@ -90,7 +90,7 @@
 - [x] 77. Password Safe
 - [x] 78. Media Player Widget
 - [x] 79. Text Based Game Like Utopia
-- [ ] 80. Scheduled Auto Login and Action
+- [x] 80. Scheduled Auto Login and Action
 - [ ] 81. E-Card Generator
 - [ ] 82. Content Management System
 - [ ] 83. Template Maker

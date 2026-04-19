@@ -2593,3 +2593,43 @@ Every action appends to `world.log` — look, movement, combat, enemy retaliatio
 `world.turn` increments on provoking verbs only (movement, take, use, fight); observation verbs (look, stats, inv) don't provoke. First Rosetta Stone project where **a logical clock (turns) is distinct from the wall clock** — some mechanics tick on turns not time (enemy regeneration, poison-over-N-turns, hunger-at-turn-50). Production systems have this for rate limiting (per-request counters), fairness queues (round-robin counters), game-like simulations.
 
 G069 → ... → G078 Media Player → G079 *graph-as-world + input-driven simulation clock + verb-noun parsing + kind-dispatched polymorphic commands + invariant end-conditions + log-as-narrative + logical clock distinct from wall clock*. Eleven Web projects done, five to go. Web adds **simulation world** as the twelfth component — the shape of every game, MUD, choreography executor, or agent training environment.
+
+---
+
+## G080 — Scheduled Auto Login and Action
+
+**Tasks are data.**
+
+The most important design choice in G080 is that tasks are **data, not code**. A `Task` is a struct (name, schedule enum, action string, credential ref). Serialisable to JSON, reconstructible on restart. Opposite of naive closure-based scheduling which is easy to start but painful to persist, audit, or migrate — can't inspect what's scheduled, can't pause/modify without re-writing the code that created it, can't restart the scheduler and recover.
+
+First Rosetta Stone project where **data-driven scheduling** is explicit. Systemd timers, cron's `/etc/crontab`, Kubernetes CronJobs, Airflow DAGs, the vault's future scheduled-automations — all use this model. Task is a declarative description; executor is separate and pluggable.
+
+**Catch-up policy is "skip missed, not backfill."**
+
+If the scheduler goes offline for an hour and a task was due to fire 30 times, what happens when it comes back?
+
+Two choices: **backfill** (fire 30 times in rapid succession) or **skip-missed** (fire once, reschedule to next natural boundary). G080 picks skip-missed — same as cron. Reason: a thundering herd of 30 simultaneous backups / credential refreshes / API calls is almost never what the user wants.
+
+First Rosetta Stone project where **a visible policy choice about missed work** is the design's core decision. Backfill is correct for some semantics (event replay, idempotent work) and wrong for others (rate-limited APIs, resource-expensive backups). G080 documents the choice and sticks to it. Analogues: systemd's `Persistent=false` vs `Persistent=true`; Kubernetes CronJobs' `startingDeadlineSeconds`. Most production schedulers default to skip-missed because backfill blows up under downtime.
+
+**Schedule is a sum type, not a cron string.**
+
+G080 uses `Schedule` enum with `EveryMs` / `AtMs` / `Daily` variants rather than parsing cron syntax. Less expressive than cron strings but trivially typecheckable and testable. First Rosetta Stone project where **the schedule grammar is an enum, not a string DSL**. Same pattern in the noosphere: represent trigger conditions as a sum type the runtime can exhaustively match, rather than parse YAML strings.
+
+**Disabled tasks are retained, not deleted.**
+
+`set_enabled(id, false)` flips a flag; doesn't remove the task. Re-enabling restores firing. Lets users pause, debug, test without losing metadata. First Rosetta Stone project with **soft-disable** as a first-class state (previous projects had hard state changes: G077 lock/unlock, G078 stop/play; G080 adds present-but-dormant).
+
+**History is per-task, queryable, immutable.**
+
+Every run (succeeded or failed) appends to `history` with task-id, start/finish times, status, message. Diagnostic gold: why did yesterday's backup fail, is this task chronically slow, which tasks fired in the last hour.
+
+First Rosetta Stone project where **execution history is a first-class observability primitive**. G073 had per-session history for one connection; G080 has global execution history across all tasks. The noosphere's future observability will have this exact shape.
+
+**Dispatch function is the extension point.**
+
+Scheduler doesn't know what tasks *do* — only when they fire and that they return (succeeded, message). Actual work happens inside the user-provided `dispatch` function. Same **abstract-transport** pattern as G072 File Downloader: tests use fakes, production plugs in real handlers.
+
+First Rosetta Stone project with **dependency injection at the core execution boundary**. Scheduler is 200 lines of scheduling logic; dispatch function is where the real work lives, and it's a parameter. The split is what makes the scheduler reusable across tasks with wildly different semantics (HTTP polling, vault backups, agent heartbeats, credential refreshes).
+
+G069 → ... → G079 Text Game → G080 *data-driven tasks + skip-missed catch-up + sum-type schedules + soft-disable + per-task history + pluggable dispatch*. Twelve Web projects done, four to go. Web adds **scheduled execution with history** as the thirteenth component — the shape of every automation, every cron-style background job, every scheduled agent action.
