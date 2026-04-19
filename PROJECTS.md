@@ -59,7 +59,7 @@
 - [x] 50. Airline / Hotel Reservation System
 - [x] 51. Student Grade Book Application
 - [x] 52. Bank Account Manager
-- [ ] 53. Library Catalog
+- [x] 53. Library Catalog
 - [ ] 54. Patient / Doctor Scheduler
 - [ ] 55. Recipe Creator and Manager
 - [ ] 56. Image Gallery

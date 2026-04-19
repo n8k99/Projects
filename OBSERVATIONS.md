@@ -1335,3 +1335,35 @@ G052 introduces two kinds of transition gate:
 InnateScript needs the distinction in its `where` vocabulary: `where balance > 0` is data; `where status == open` is policy. Rejecting a transaction because you can't afford it is different from rejecting it because the account is suspended. The noosphere will encounter both constantly.
 
 G048 identity → G049 status-valued interaction → G050 scheduled interaction → G051 measured interaction → G052 *atomic multi-entity state change with conservation*. Five projects in, the Classes category has laid down the full vocabulary the noosphere uses to model coordinated state.
+
+---
+
+## G053 — Library Catalog
+
+**Three layers of identity.**
+
+G048 had one entity type. G049 and G050 had two. G053 has three — title, copy, loan. G049's movie copies were fungible; no one cared which of two Casablanca copies you got. G053's copies have identity because they can be lost, damaged, moved, or withdrawn *individually*. A title with three copies, one lost, two available, is a different catalog record from a title with three available copies.
+
+This three-layer pattern appears throughout the noosphere. A *project* (abstract work), its *phases* (specific instances with their own state), and the *tasks* within each phase (temporal claims on agent attention). A *conversation thread* (abstract channel), its *messages* (specific posts with their own state), and *reactions* (temporal claims on messages). Every rich vault entity is a Title/Copy/Loan triple wearing different labels.
+
+**Subjects are a tree, queried by prefix.**
+
+Dewey Decimal isn't a flat category list — it's a *prefix-closed namespace*. `"500"` is natural sciences; `"512"` is algebra; `"512.5"` is a subfield. A title at `"500.512.5"` sits three levels deep. "Everything in 500" is a prefix query, not an equality lookup.
+
+Same algebra as vault wiki-links. `[[The Forge]]` is a namespace; `[[The Forge/Temporal]]` is a subspace; `[[The Forge/Temporal/Daily Notes]]` is a leaf. The `.` separator in a subject path and the `/` separator in a vault path are informationally identical: both are tree delimiters. Prefix queries over either are the same operation. The temporal calendar itself is a tree (year/quarter/month/week/day) — every temporal query is Dewey with different punctuation.
+
+**Holds are a FIFO queue with a wakeup trigger — and the wakeup is atomic with the trigger event.**
+
+When all copies are out, patrons queue. First-come-first-served. When a copy is returned, the front of the queue wakes up: hold becomes `fulfilled`, attached to the returned copy. This is the first *passive waiting primitive with automatic fulfillment* in the Rosetta Stone. G050's reservations were explicit — someone called `book`. G053's holds sit until state elsewhere (a return) fires the wakeup.
+
+Critically, `return_copy` marks the copy available AND fulfills the next hold in a single atomic step. If those weren't coupled, a race would open a gap where the copy is available but no one has been notified. G052 taught atomic multi-entity updates; G053 uses the pattern to keep queue state consistent with shelf state. Every task queue, email inbox, interrupt handler in the noosphere needs the same coupling.
+
+**Renewal is in-flight mutation of a deadline, and the coordination precondition is the queue.**
+
+G050 had two obligation transitions: cancel (retract future claim) and complete (interval ends). G053 adds a third — renew — where the claim continues but the deadline moves forward. Not rescheduling (both ends move), not cancellation (claim ends). Mid-flight extension.
+
+And the precondition is structural: renewal fails if other patrons have waiting holds on the title. The check isn't on the loan's own invariants — it's on the *state of a separate entity set* (the hold queue). "You can't extend your claim at the expense of a queue behind you" is the general shape of yield-to-waiters, and it prevents the familiar anti-pattern where the current holder keeps renewing indefinitely while newcomers wait.
+
+In the noosphere: a choreography running past its scheduled end can renew if nothing downstream is waiting. If a downstream choreography has a hold on the same agent or resource, renewal blocks. G050 introduced scheduled obligations; G053 introduces the first policy that makes scheduled obligations yield to queues behind them.
+
+G048 identity → G049 interaction (one-off, status-valued, fungible copies) → G050 scheduled interaction (specific resources, intervals) → G051 measured interaction (valued join, aggregation) → G052 atomic multi-entity change (conservation) → G053 *three-layer identity with tree-structured taxonomy, waiting queues, and in-flight deadline mutation gated by queue state*. Six projects, and the Classes category has enumerated most of the primitives the noosphere will ever need.
