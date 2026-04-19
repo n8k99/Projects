@@ -1519,3 +1519,81 @@ An image *is* tagged "sunset" because its content depicts one — the tag is a p
 Every tag-able entity in the noosphere has this distinction. A conversation's topic tags (intrinsic) vs its appearance in the "Urgent Follow-Ups" queue (curated). A project's domain tags (intrinsic) vs its inclusion in Q3 planning (curated). Muddling the two is a category error: you can't auto-infer curated membership, and you shouldn't require human intent for intrinsic classification. G056 makes the distinction structural — tags live on the image record; albums are their own entity with explicit curator and order. The demo's "Summer Trip" album preserved curator order `[IMG-003, IMG-001]` rather than falling back to alphabetical — the order is part of the curation.
 
 G048 identity → G049 status interaction → G050 scheduled → G051 measured → G052 atomic (conservation) → G053 three-layer + queue + renewal → G054 conjunctive + self-exclusion + search → G055 structure-valued + exact scaling + N-ary conjunction + gap + atomic consumption → G056 *external refs + content-addressed identity + cache views + set-algebra tags + intrinsic-vs-curated distinction*. Nine projects; Classes now models every flavor of entity the noosphere will need to represent reality.
+
+---
+
+## G057 — Handle Large Numbers
+
+**The class IS a value, not a container.**
+
+Every prior Classes project modeled a *thing in the world*: a product, a reservation, a grade, a recipe, an image. The entity was a container with domain-specific fields. G057 is qualitatively different — a BigInt doesn't contain anything external. The BigInt *is* its own value. `parse("12345")` is the number twelve thousand three hundred forty-five, not a record about it.
+
+This is the distinction between:
+
+- **Domain entities** — Product, Appointment, Recipe. Shaped by the world they model. Fields are domain vocabulary.
+- **Value classes** — BigInt, Date, Vec2, Color. Shaped by algebra. Fields are representation, not meaning.
+
+Every language has both. The noosphere will have both: a project is a domain entity; a pace score is a value class. A conversation is a domain entity; a token count is a value class. G057 is the Rosetta Stone's first value class and establishes the pattern future numeric/symbolic types will follow.
+
+**Operations are laws, not just methods.**
+
+A BigInt's `add` is not "the function that adds." It must satisfy commutativity:
+
+```
+∀ x, y : add(x, y) == add(y, x)
+```
+
+associativity:
+
+```
+∀ x, y, z : add(add(x, y), z) == add(x, add(y, z))
+```
+
+and `mul` must distribute over `add`:
+
+```
+∀ x, y, z : mul(x, add(y, z)) == add(mul(x, y), mul(x, z))
+```
+
+These are not suggestions. They are the *specification* of what makes the class a correct number system. An implementation with a working `add` method but failing commutativity would be wrong regardless of whether individual cases passed.
+
+Property-based tests are the right shape. `addition_is_commutative` samples two numbers and checks `a + b == b + a`; one such test with a good generator replaces hundreds of example-based tests. Every value class in the noosphere going forward should ship with property tests alongside example tests. This is the first Classes project where the distinction between example and property testing becomes load-bearing.
+
+**Canonical form is a class invariant.**
+
+Multiple representations can encode the same value:
+
+```
+{negative: false, digits: []}        == 0  (canonical)
+{negative: false, digits: [0]}       == 0  (leading zero)
+{negative: true,  digits: []}        == 0  ("negative zero")
+{negative: false, digits: [5, 0, 0]} == 5  (with trailing zeros in storage)
+```
+
+Only one is canonical. All constructors — `from_int`, `parse`, `add`, `sub`, `mul` — MUST produce canonical form. Once canonical form is enforced, structural equality is value equality: two BigInts represent the same number iff their stored representations are identical. Without canonical form, equality requires normalization on every comparison, and the type becomes a bug farm.
+
+Every noosphere value class will have invariants of this shape. A Date must normalize February 30 to March 2. A Duration must not overflow. A Color must clamp channels to [0, 1]. Canonical form is how a value class enforces that it actually represents what it claims.
+
+**Schoolbook algorithms — the first non-trivial algorithm in Classes.**
+
+G048–G056 had essentially no algorithms, only data-shape exercises (sum, filter, group-by, map). G057 is the first Classes project where correctness requires implementing a real algorithm:
+
+- **Addition**: digit + digit + carry, loop over the longer operand.
+- **Subtraction**: digit − digit − borrow, assuming the minuend is larger.
+- **Multiplication**: each digit of one operand times every digit of the other, shifted and summed.
+
+These are the algorithms you learned in elementary school. Writing them clearly in six languages is the point. The Rust `999 * 999 = 998001` runs by literal carry propagation through three digits; the carry chain is visible in the loop. `30! = 265252859812191058636308480000000` requires 30 multiplications, each propagating carries through up to 33 digits.
+
+Performance isn't the point — base-10 limbs are pedagogically clear because every intermediate value matches what a human would write on paper. In production, BigInt uses base 2^32/2^64 limbs and Karatsuba or FFT multiplication. The Rosetta Stone prefers clarity over speed by explicit choice.
+
+**Signed arithmetic is two cases.**
+
+Same-sign addition is magnitude addition. Different-sign addition is magnitude subtraction with the sign of the larger-magnitude operand. Subtraction is `x - y == x + (-y)`. Multiplication XORs the signs and multiplies magnitudes. The sign logic is tiny; the magnitude arithmetic is the real work.
+
+This "same-sign add / different-sign sub with sign-of-larger" is the template for every signed numeric type. G052's bank account already did this implicitly in its transfer logic. G057 makes it explicit and primitive. Every future signed value class in the noosphere (debit/credit, gain/loss, inflow/outflow) uses this case analysis.
+
+**Why it matters: the noosphere needs unboundedness.**
+
+Token counts across a year can exceed 64-bit range. Cumulative P&L across trades can exceed native integer limits. Cryptographic hashes live far outside any machine integer. Any aggregation at scale requires a type that *cannot* silently overflow. BigInt's entire point — the single property that earns it its place — is that addition can always succeed. When the domain assumes unboundedness but the language doesn't provide it, you need a value class to enforce the invariant.
+
+G048 identity → G049 status interaction → G050 scheduled → G051 measured → G052 atomic (conservation) → G053 three-layer + queue + renewal → G054 conjunctive + self-exclusion + search → G055 structured field + scaling + gap + atomic consumption → G056 external refs + content-addressed + set-algebra + intrinsic-vs-curated → G057 *value class + laws + canonical form + schoolbook algorithm + signed case-analysis*. Ten projects. Classes now contains both the noosphere's domain entities (G048–G056) and its first value class (G057); every entity in the vault or the resolver will be one of these two shapes.
