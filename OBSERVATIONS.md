@@ -3336,3 +3336,45 @@ Tiny but illustrative: **internal and export representations can differ**, and t
 First Rosetta Stone project with **explicit coordinate-system translation at export time**.
 
 G096 (character sheets) → G097 *predicate-polymorphism + ray-casting canonical algorithm + z-ordered hit resolution + legacy-standard export target*. Files 13/16. 97/130 complete.
+
+---
+
+## G098 — File Copy Utility
+
+**Copy is three orthogonal concerns.**
+
+Naive `copy_tree(src, dest)` conflates: what to traverse, what to include, how to resolve conflicts, how to report progress. G098 separates: `copy_tree(src, dest, policy, filter) → events`. Each is a first-class parameter or return.
+
+Separation of mechanism from policy — rsync, robocopy, every modern sync tool is organised around it. Mechanism (walk, copy) is fixed; policy (collision behaviour) and filter (inclusion) are configurable.
+
+First Rosetta Stone project where **a single operation takes a policy enum and a filter struct as inputs**. G092 took one rule; G098 takes rule plus filter, and the rule is a named variant of several.
+
+**Overwrite policy is three named cases.**
+
+Every real copy tool has Skip / Overwrite / Rename-with-suffix. G098 models them as an enum; the copy loop branches on the enum when collision is detected. Adding a fourth ("interactive: ask") would be one variant plus a callback.
+
+First Rosetta Stone project where **a user-facing policy decision is explicit data**. G092's rules were action shapes; G098's `Overwrite` is "what to do when the action would conflict". Orthogonal concerns, both reified.
+
+**Filter is a pure predicate.**
+
+`filter.accepts(path) → bool`. Include patterns need ≥1 match; exclude patterns require 0. Substring only, no regex. Applied before the policy check, so filtered items never reach the branch.
+
+First Rosetta Stone project where **a filter is a separate object with its own API**. Previous filters were inline (G094) or embedded (G093). G098's `Filter` is a small struct with one method; it composes with the copier by being passed as argument.
+
+**Events are the replay log.**
+
+Every item produces an event (Copied/Skipped/Renamed/CreatedDir + source + dest + bytes). Event list is returned; caller can sum bytes, count skips, replay, serialise to audit log. **Not print, not callbacks — data.**
+
+Kafka, Git reflog, Postgres WAL, every event-sourced system. G094 captured domain events; G098 captures operation events. Both return data that can be processed, not discarded.
+
+First Rosetta Stone project where **the operation's side effects are captured as a value**.
+
+**Rename-with-suffix cascades.**
+
+If `dest/a.txt` exists and policy is rename, copy goes to `dest/a.txt.1`. If that exists too, `dest/a.txt.2`. `next_available_name(items, base)` loops until a free slot.
+
+Same algorithm every browser uses for downloads (`cover.jpg`, `cover (1).jpg`), every email client for attachments. Convention (`.N`, `(N)`, `-copy`, date-stamp) layers over the same loop.
+
+First Rosetta Stone project with **cascading name resolution**. G092 rejected collisions; G098 resolves them by generating new names.
+
+G097 (image maps) → G098 *policy-as-data + filter-as-predicate + events-as-data + cascading rename resolution*. Files 14/16. 98/130 complete.

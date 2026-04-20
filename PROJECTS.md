@@ -110,7 +110,7 @@
 - [x] 95. Excel Spreadsheet Exporter
 - [x] 96. RPG Character Stat Creator
 - [x] 97. Image Map Generator
-- [ ] 98. File Copy Utility
+- [x] 98. File Copy Utility
 - [ ] 99. Code Snippet Manager
 - [ ] 100. Versioning Manager
 

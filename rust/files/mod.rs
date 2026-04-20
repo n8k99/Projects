@@ -13,3 +13,4 @@ pub mod log_file_maker;
 pub mod excel_exporter;
 pub mod rpg_character;
 pub mod image_map;
+pub mod file_copier;
