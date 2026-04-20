@@ -4323,3 +4323,45 @@ Toggling shuffle rewrites `queue_order` but leaves history alone. Prev after shu
 Lesson: **store identities, derive positions.** The data model has one source of truth (track IDs) and one derived lookup (position in current order).
 
 G117 (stream-player) → G118 *authorial/playback order split + seeded-deterministic shuffle + repeat-as-mode + 3-second prev rule + dual-cursor tick + identity-stable history*. Graphics 5/17. 118/130 complete.
+
+---
+
+## G119 — Bulk Picture Manipulator (Transformation Pipeline + Batch)
+
+**Pipeline is data, not code.**
+
+A pipeline is `list[Op]` — Op is a closed ADT (Resize, Grayscale(method), Rotate90/180/270, FlipH/V, Crop, Brightness(delta), Contrast(factor)). Recipes are values: serializable, comparable, previewable, replayable. Contrast with fluent-chain `.grayscale().rotate(90)` where the "recipe" is code that already ran.
+
+First Rosetta Stone project where **a user-facing workflow is encoded as a data structure**, not as a method chain. G104's macro system had command lists; G119 has transformation lists — but G119's user composes the program via UI.
+
+**Ops are pure.**
+
+`apply_op(img, op) -> Result<Image, OpError>`. No side effects. `apply_pipeline` is just `pipeline.foldl(apply_op)`.
+
+First Rosetta Stone project where **the entire operational surface is `A → Op → Result<A>`** and the result shape matches the input shape, so pipelines compose trivially.
+
+**Dry-run predicts dimensions without pixels.**
+
+Every op has a well-defined effect on `(width, height)`. `dry_run_dims(start, pipeline)` walks the pipeline on metadata only. Bad crops fail at dry-run, not during execution.
+
+First Rosetta Stone project where **metadata effect is computable independently of data effect**. G111 had cycle detection as metadata; G119 has dimension lineage.
+
+**Batch isolates per-image errors.**
+
+`run_batch(images, pipeline) -> [BatchResult]`. One bad image doesn't abort the batch. Each result tagged with index + ok/err.
+
+First Rosetta Stone project where **errors are first-class values in a batch result**, not exceptions that terminate. G098's bulk copier had per-file events; G119 is the same pattern on pure transforms.
+
+**Op order matters.**
+
+`Brightness(50) → Contrast(2.0) ≠ Contrast(2.0) → Brightness(50)`. Contrast pivots around 128; brightness is an additive shift. Tests assert the non-commutativity.
+
+First Rosetta Stone project that **exposes non-commutativity of ops as an asserted property**. G107 had budget variance; G119 has pipeline-order variance.
+
+**Rotations have algebraic identities.**
+
+`Rotate90^4 = id`, `Rotate180^2 = id`, `FlipH^2 = id`, `FlipV^2 = id`. Tests exploit these — any rotation bug shows up as a failed identity check without needing pixel-exact oracles.
+
+First Rosetta Stone project where **algebraic identities serve as self-verifying test oracles**. G096's LCG was tested via determinism; G119's rotates test themselves via identity laws.
+
+G118 (mp3-player) → G119 *pipeline-as-data + pure ops + dry-run dim lineage + per-image batch error isolation + non-commutative op composition + algebraic identity test oracles*. Graphics 6/17. 119/130 complete.

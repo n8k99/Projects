@@ -5,3 +5,4 @@ pub mod mind_mapper;
 pub mod grayscale;
 pub mod stream_player;
 pub mod mp3_player;
+pub mod bulk_picture;

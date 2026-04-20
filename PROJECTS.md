@@ -135,7 +135,7 @@
 - [x] 116. Grayscale Converter
 - [x] 117. Stream Video from Online
 - [x] 118. Mp3 Player
-- [ ] 119. Bulk Picture Manipulator
+- [x] 119. Bulk Picture Manipulator
 - [ ] 120. CD Burning App
 - [ ] 121. YouTube Downloader
 - [ ] 122. Wallpaper Manager
