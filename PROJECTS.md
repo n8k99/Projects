@@ -111,7 +111,7 @@
 - [x] 96. RPG Character Stat Creator
 - [x] 97. Image Map Generator
 - [x] 98. File Copy Utility
-- [ ] 99. Code Snippet Manager
+- [x] 99. Code Snippet Manager
 - [ ] 100. Versioning Manager
 
 ## Databases

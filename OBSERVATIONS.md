@@ -3378,3 +3378,41 @@ Same algorithm every browser uses for downloads (`cover.jpg`, `cover (1).jpg`), 
 First Rosetta Stone project with **cascading name resolution**. G092 rejected collisions; G098 resolves them by generating new names.
 
 G097 (image maps) → G098 *policy-as-data + filter-as-predicate + events-as-data + cascading rename resolution*. Files 14/16. 98/130 complete.
+
+---
+
+## G099 — Code Snippet Manager
+
+**Tab stops are the editor's contract.**
+
+A snippet expansion is two things the editor needs: (1) literal text to insert, (2) cursor positions to visit as user tabs through. Parser must produce both in lockstep; offsets stay correct as defaults substitute in.
+
+First Rosetta Stone project where **the return value is a two-part structured result** matching an external contract (the IDE's snippet protocol). G091 returned pages + lines; G099 returns text + stops. Both are IRs external tools consume.
+
+**`$0` is the final cursor, not a regular stop.**
+
+Non-zero stops (`$1`, `$2`, ...) are ordered positions — user tabs forward. `$0` is the **final resting place** — after exhausting regular stops, cursor lands on `$0` and snippet mode exits.
+
+Universal across every snippet system back to TextMate 1. Sort comparator: non-zero ascending by number; `$0` last regardless of text position.
+
+First Rosetta Stone project where **a convention from an entire software ecosystem is the correctness target**. Getting it wrong doesn't crash — makes snippets feel wrong to anyone who's used any other editor.
+
+**Placeholder syntax has three forms.**
+
+`${N:default}`, `${N}`, `$N` — three variants of the same concept. Parser handles body character-by-character: `$` + `{` → find matching `}`, parse contents; `$` + digits → scan digits, no-default stop; otherwise copy verbatim (including `$` followed by anything else).
+
+First Rosetta Stone project where **the parser handles three variant forms of the same concept** without exploding into three separate parsers. Variants share structure (all produce a TabStop); only presentation differs.
+
+**Duplicate stop numbers mirror edits.**
+
+`${1:name}` twice in the same snippet is not a bug — means "type once, mirror to both". G099 doesn't implement mirroring (UI concern); parser preserves both stops so the editor can group by number.
+
+First Rosetta Stone project where **the model permits logically-duplicate data that downstream code treats specially**. Library doesn't deduplicate; consumer does.
+
+**Library indexes by trigger, language, tag.**
+
+Three query patterns: trigger+language ("what does `for` expand to in Python?"), language only, tag. G099 stores each as sorted list or hash by relevant key. Insertion updates all indexes; queries hit exactly the one that matches.
+
+First Rosetta Stone project where **a small library indexes its contents multiple ways**. G093 indexed music metadata; G099 applies the same pattern to code snippets.
+
+G098 (file copy + events) → G099 *two-part IR (text + stops) + $0-last ordering + three-form placeholder parser + duplicate-preservation for UI mirroring*. Files 15/16. 99/130 complete.
