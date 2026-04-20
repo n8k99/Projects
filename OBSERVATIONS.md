@@ -3064,3 +3064,47 @@ A heading at the bottom of a page with no body below is an **orphan** — ugly t
 First Rosetta Stone project where **visual aesthetics constrain layout logic**. Everything prior had pure-correctness targets; G091's correctness is partly aesthetic, and aesthetics are rules the algorithm must encode.
 
 G090 (compression round-trip) → G091 *flow-layout kernel + word-wrap + rendered-document IR + orphan avoidance as aesthetic-as-code*. Files 7/16. 91/130 complete.
+
+---
+
+## G092 — Bulk Renamer and Organizer
+
+**Preview is the non-destructive surface.**
+
+Every bulk operation has a destructive phase. Once 100 files are renamed, reversing is expensive or impossible. Preview is read-only: same inputs (directory, rule), same output (list of ops), without touching anything. GUI shows preview; user confirms; apply runs.
+
+Not cosmetic. Preview must produce **exactly** what apply will do — same ops, same order, same error conditions. If preview misses a collision apply hits, user trust is destroyed. Preview and apply share logic; apply is "run preview, then mutate".
+
+First Rosetta Stone project where **the same logic executes twice** — once to show, once to do. G073's telnet had commands-with-effects; G084's captcha had single-action verification. G092 explicitly separates "show me what would happen" from "do it", making that separation API-level.
+
+**Undo log = reverse ops.**
+
+Apply returns an undo log — a list of ops that, if applied, restore original state. Structurally identical to input ops with `from`/`to` swapped. To undo: apply the log.
+
+Minimal. Richer undo (history, redo) layers on top. But the primitive covers every real "I meant to rename `.txt` → `.md` but matched my `.tex` files too" scenario.
+
+First Rosetta Stone project where **mutation returns its own inverse**. G077's safe had state changes but no inverse; G082's CMS had revisions-as-history but no undo primitive. G092 makes undo trivial — do, keep the log, apply the log.
+
+**Collision detection happens before any mutation.**
+
+Two rules collapsing distinct filenames into the same target is catastrophic. `{foo, bar}` both → `baz` means one gets silently overwritten in most real filesystems. Preview detects this before any mutation and returns `Collision`.
+
+A second conflict: rename whose target is an existing untouched file. `a.txt → b.txt` when `b.txt` exists and isn't being renamed is also a collision. Preview catches with `ToExists`.
+
+Combined: **preview is a total validator**. If it returns ops, apply is guaranteed to succeed. If it errors, the user gets a specific reason.
+
+First Rosetta Stone project where **validation is a separate data path from execution**. G085's parse errors happened during consumption; G083's template validator was standalone. G092 runs validation in preview, and apply trusts preview's output.
+
+**Atomic batch rename handles circular swaps.**
+
+A batch `{a → b, b → a}` fails if done naively op-by-op: `a → b` leaves both pointing at the same thing; `b → a` fails because `a` was removed.
+
+The atomic pattern:
+1. Remove all `from` names.
+2. Install all `to` names.
+
+Removal first for all ops means circular swaps work. Same pattern SQL uses for swapping two tables.
+
+First Rosetta Stone project where **batch atomicity is explicit**. G068's thumbnails had per-item atomicity; G077 had transactional locking. G092 applies atomicity to batch mutation — batch succeeds entirely or fails entirely; circular deps inside the batch just work.
+
+G091 (flow pagination) → G092 *preview-as-total-validator + apply-as-mutation + undo log from reverse ops + atomic batch for circular swaps*. Files 8/16 — half of Files done. 92/130 complete.

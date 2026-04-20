@@ -104,7 +104,7 @@
 - [x] 89. Transaction Averages
 - [x] 90. Zip File Maker
 - [x] 91. PDF Generator
-- [ ] 92. Bulk Renamer and Organizer
+- [x] 92. Bulk Renamer and Organizer
 - [ ] 93. Mp3 Tagger
 - [ ] 94. Log File Maker
 - [ ] 95. Excel Spreadsheet Exporter

@@ -7,3 +7,4 @@ pub mod sort_file_records;
 pub mod transaction_averages;
 pub mod zip_file_maker;
 pub mod pdf_generator;
+pub mod bulk_renamer;
