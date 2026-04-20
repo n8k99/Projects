@@ -3030,3 +3030,37 @@ This separation is load-bearing. Lightweight operations (list contents, check ex
 First Rosetta Stone project with explicit **manifest-vs-payload split**. Every indexed storage system (databases, S3, Git object store) layers this over raw bytes.
 
 G089 (group-by aggregation) → G090 *byte-level round-trip + self-evaluating compression choice + per-entry method dispatch + manifest/payload split*. Files 6/16. 90/130 complete.
+
+---
+
+## G091 — PDF Generator
+
+**Pagination is flow layout, nothing more.**
+
+The kernel of PDF generation is trivial: start at y=0 on fresh page; for each block, compute height; if it fits, place it at y and advance; if not, emit page and start fresh. Headings may force an early break to avoid orphans.
+
+The fancy parts of PDF (fonts, glyphs, colour spaces, embedded images, annotations, signatures) layer over this kernel. LaTeX is this algorithm with better heuristics. ReportLab is this algorithm with a richer block vocabulary. iText is this algorithm with full binary PDF output.
+
+First Rosetta Stone project where **the domain's apparent complexity reduces to a simple loop**. G070's tab model looked complex, G077's encryption looked complex, G082's CMS looked complex — all reduced to small invariants. G091's pagination reduces to "fit or overflow". Domain complexity often hides a simple kernel.
+
+**Word wrap is the paragraph's own layout.**
+
+A paragraph becomes some number of lines. Start with first word; each subsequent word appends if it fits, otherwise starts a new line. Long unbreakable words overflow the line rather than truncate — a 30-char word on a 10-char line is bad typography but preserves information; truncation silently loses content.
+
+First Rosetta Stone project where **the layout of a leaf block is itself non-trivial**. G083 had substitution but no layout; G081 had rendering but no wrap. G091 delegates `wrap_text(text, width)` → list of lines, then pagination treats each line as unit height. Content-to-lines vs lines-to-pages is a clean separation.
+
+**Rendered document is renderer-independent.**
+
+G091 doesn't emit PDF bytes. It emits **a list of pages**, each page with **a list of placed lines**. That's the input any renderer needs — a PDF renderer turns it into content-stream operators; an HTML renderer turns it into positioned divs; a terminal renderer prints with position markers.
+
+Every publishing pipeline's killer feature. LaTeX's `.aux`, HTML's layout tree, PDF's content stream — all intermediate between source and final bytes. Having them as **data** rather than an output stream means you can serialise, test deterministically, ship to another process, render to multiple targets from one source.
+
+First Rosetta Stone project with an explicit **IR (intermediate representation)**. G082's CMS had revisions as a content-history IR; G091 has pages as a visual-layout IR. Source → IR → output is every modern compiler and renderer.
+
+**Heading orphan avoidance is built-in.**
+
+A heading at the bottom of a page with no body below is an **orphan** — ugly typography. G091 avoids it naively: if a heading needs 2 lines (title + blank below) and only 1 is left, start a new page before placing.
+
+First Rosetta Stone project where **visual aesthetics constrain layout logic**. Everything prior had pure-correctness targets; G091's correctness is partly aesthetic, and aesthetics are rules the algorithm must encode.
+
+G090 (compression round-trip) → G091 *flow-layout kernel + word-wrap + rendered-document IR + orphan avoidance as aesthetic-as-code*. Files 7/16. 91/130 complete.

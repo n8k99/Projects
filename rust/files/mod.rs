@@ -6,3 +6,4 @@ pub mod file_explorer;
 pub mod sort_file_records;
 pub mod transaction_averages;
 pub mod zip_file_maker;
+pub mod pdf_generator;
