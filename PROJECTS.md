@@ -108,7 +108,7 @@
 - [x] 93. Mp3 Tagger
 - [x] 94. Log File Maker
 - [x] 95. Excel Spreadsheet Exporter
-- [ ] 96. RPG Character Stat Creator
+- [x] 96. RPG Character Stat Creator
 - [ ] 97. Image Map Generator
 - [ ] 98. File Copy Utility
 - [ ] 99. Code Snippet Manager

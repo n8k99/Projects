@@ -3244,3 +3244,47 @@ G095 exports CSV because the Rosetta Stone's job is the **calculation model**, n
 First Rosetta Stone project where **export format is chosen for interop breadth over fidelity**. G090's archive carried full payload; G095's CSV is a lossy projection (no formulae, no formatting) because lossiness buys universal readability.
 
 G094 (append-only logs) → G095 *compound-key sparse grid + lazy read-time evaluation + visit-set cycle detection + range-as-notation-sugar + CSV for universal interop*. Files 11/16. 95/130 complete.
+
+---
+
+## G096 — RPG Character Stat Creator
+
+**Class is a template, not a subclass.**
+
+A class (Warrior, Mage, Rogue) is not a separate code path. It's a **multiplier table**: `{Strength → 1.5, Stamina → 1.3}` for Warrior, different for Mage/Rogue. Every character runs through the same `adjusted(stat) = base * multiplier[stat]` — class is which table is active.
+
+The **data-over-dispatch** pattern. OOP would tempt us to make `Warrior` a subclass with `getStrength()` overrides. But adding a new class then means adding code, not data. Rosetta Stone: classes are rows; adding a Bard is adding a row.
+
+First Rosetta Stone project where **class-like behaviour is configuration, not inheritance**. G085 had polymorphic questions via kind tag; G096 applies the same — one function dispatched on config data.
+
+**Derived stats are computed, not stored.**
+
+`max_hp = 10 + stamina*5 + level*10`. Never written to the character. Every read runs the formula. When stamina changes (point spend) or level changes (level up), the next read reflects it automatically.
+
+Exactly G095's lazy-formula model applied to a character sheet. Base stats and level are **state**; derived stats are **derivations**. If someone forgets to update HP after a level-up, nothing breaks — there's no HP to update; it's always current.
+
+First Rosetta Stone project where **lazy derivation is the character-sheet design**. G095 had cells with formulae; G096 has characters with derived getters. Same shape, different domain.
+
+**Seeded RNG makes tests deterministic.**
+
+`Character::roll(name, class, seed)` produces the same character for the same seed. LCG is four lines, identical across languages (same constants, same bit shift). That's what lets all six languages claim "same Rook the Warrior from seed 42".
+
+Real games use system RNG or world-seed RNG. Rosetta Stone needs determinism — every test must hold in every language.
+
+First Rosetta Stone project with **a reproducible RNG as a cross-language contract**. LCG constants (6364136223846793005, 1442695040888963407, shift 33) are the committed values — any language using different constants produces non-matching characters.
+
+**Point budget is an invariant.**
+
+Level up grants 5 points. Points spend on stats with per-class caps. `spend_point(stat, n)` checks budget AND cap. Invariant: `unspent_points ≥ 0`, `base_stat ≤ cap`.
+
+Database-style constraints — defined once, checked on every write. G082's CMS had state-transition rules; G096 applies the same idea to incremental state updates.
+
+First Rosetta Stone project where **the character sheet has database-like invariants** — not just data but legal-change rules.
+
+**Save format round-trips cleanly.**
+
+`name: X\nclass: Y\nlevel: N\n...stat:strength=K\n...` — decomposable into `key: value` atoms without ceremony. Line-based format G085/G086/G088/G093/G094 all picked scales to G096.
+
+First Rosetta Stone project where **the character is a file**. Every real RPG (tabletop, CRPG, MMO) has this as primitive unit — character exists on paper or save file, loadable later.
+
+G095 (spreadsheet model) → G096 *data-over-dispatch classes + lazy derived stats + deterministic seeded RNG + budget-and-cap invariants*. Files 12/16. 96/130 complete.
