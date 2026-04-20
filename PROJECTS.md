@@ -105,7 +105,7 @@
 - [x] 90. Zip File Maker
 - [x] 91. PDF Generator
 - [x] 92. Bulk Renamer and Organizer
-- [ ] 93. Mp3 Tagger
+- [x] 93. Mp3 Tagger
 - [ ] 94. Log File Maker
 - [ ] 95. Excel Spreadsheet Exporter
 - [ ] 96. RPG Character Stat Creator

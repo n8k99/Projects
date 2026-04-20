@@ -3108,3 +3108,42 @@ Removal first for all ops means circular swaps work. Same pattern SQL uses for s
 First Rosetta Stone project where **batch atomicity is explicit**. G068's thumbnails had per-item atomicity; G077 had transactional locking. G092 applies atomicity to batch mutation — batch succeeds entirely or fails entirely; circular deps inside the batch just work.
 
 G091 (flow pagination) → G092 *preview-as-total-validator + apply-as-mutation + undo log from reverse ops + atomic batch for circular swaps*. Files 8/16 — half of Files done. 92/130 complete.
+
+---
+
+## G093 — Mp3 Tagger
+
+**Metadata lives separately from data.**
+
+The tag store doesn't own the files. It owns path → tag. Files exist on disk without tags; tags exist for deleted paths. Intentional — metadata is an independent concern.
+
+This is Git (objects vs refs vs commit messages), iTunes (library database vs bytes), every package manager (manifest vs binary). **Metadata is first-class, not a property of data.**
+
+First Rosetta Stone project where **data and metadata are two layers with independent lifecycles**. G086's launcher had metadata alongside entries; G087 had mtime on nodes. G093 decouples: `TagStore` operates on paths as strings, no requirement they resolve.
+
+**Indexes trade space for query speed.**
+
+10k tagged files with naïve "filter by artist" = 10k compares. An artist index (`HashMap<Artist, Vec<Path>>`) is O(1). Cost: a copy of each (artist, path) edge.
+
+Not every field justifies an index. Artist/album/year are equality-queried — indexes earn their keep. Title is substring-queried — index doesn't help; trigram/suffix-array would but is overkill. Per-field decision.
+
+First Rosetta Stone project where **some operations are fast and some are slow by explicit design**. G087 avoided indexes; G085 optimised uniformly. G093 makes the trade-off visible — "by artist is fast; title substring scans".
+
+**Missing is not empty.**
+
+A field can be `None` (unset) or `Some("")` (explicitly blank). Different: first is "unknown, please fill"; second is "I set it to blank". UI that treats them the same hides information.
+
+Rust `Option<String>`, Python `str | None`, Go `*string`, CL `(or null string)`, Lean `Option String`. Every language models this. `MissingField` query returns paths where field is `None`.
+
+First Rosetta Stone project where **nullability is a first-class data contract**. Previous projects used sentinels (`""`, `-1`) or errors. G093 makes "not set" a valid, queryable state.
+
+**Query is a data structure, not a function.**
+
+One `query(q)` method where `q` is an enum. Every query shape is a variant. This means:
+1. Queries are data — storable, loggable, shippable, serialisable.
+2. New query types add variants, not methods.
+3. Compound queries become natural — future `And`/`Or` can reference other `Query` values recursively (filter AST).
+
+First Rosetta Stone project where **the query is reified**. G088's sort spec was data; G093 extends the same move to filtering — action is a value, not a method call.
+
+G092 (preview/apply/undo) → G093 *metadata as independent layer + selective indexing + missing/empty distinction + reified query AST*. Files 9/16. 93/130 complete.
