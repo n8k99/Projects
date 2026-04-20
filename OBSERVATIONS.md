@@ -3787,3 +3787,53 @@ Synthetic envelopes have `budgeted_cents = 0`, `over_budget = true`, `variance_p
 First Rosetta Stone project where **the output includes entries not present in the input schema**. G094 synthesised group keys from transactions. G107 synthesises *envelopes* when the user's schema didn't cover the data.
 
 G106 (intervals + recurrence) → G107 *per-category envelopes + signed variance + scale-invariant alert thresholds + refund-as-negative-expense + synthetic envelopes for uncategorised*. Databases 7/13. 107/130 complete.
+
+---
+
+## G108 — Address Book
+
+**Deduplication requires canonicalisation.**
+
+`Alice.Foo@Gmail.com` and `alicefoo@gmail.com` route to the same inbox but differ by string equality. Correct address books maintain a **canonical form** — lowercase, trimmed, gmail-dot-stripped, `+tag`-stripped — and compare on that form.
+
+Per field type: email (lowercase + gmail dots + plus-tag + googlemail→gmail), phone (digit-only + US leading-1 dropped). Original preserved for display; canonical powers comparison. iCloud, Google Contacts, Salesforce, Outlook all do this.
+
+First Rosetta Stone project where **the same data has two representations — display form and canonical form — and comparisons always happen on canonical**. G093's tag store did exact match; G108 defines an equivalence relation on strings.
+
+**Duplicate grouping is union-find.**
+
+Contacts can share an email OR a phone. Transitively: A↔B via phone, B↔C via email → A, B, C are one group. Classic **union-find**.
+
+G108 builds reverse indexes per identifier (email→{ids}, phone→{ids}), then for each index entry unions all IDs that share it. Parent pointers with path compression collapse transitive closure in near-linear time.
+
+First Rosetta Stone project that **uses union-find as a primary algorithm**. G097 was point-in-polygon; G108 is union-find — classic algorithms translate cleanly across languages; their cross-language parity is a confidence test.
+
+**Merge is union of fields + longest name.**
+
+Merging produces one contact with: union of emails/phones/tags (deduplicated, sorted), longest non-empty name, earliest creation timestamp, concatenated addresses and notes.
+
+Longest name because duplicates often accumulate richer metadata — one record has the full name, another has just a first name. Preserving the fuller form recovers detail.
+
+First Rosetta Stone project where **merge produces new data from multiple sources** with explicit conflict-resolution rules (longest for name, earliest for timestamp, union for lists, concat for text).
+
+**The original survives canonicalisation.**
+
+G108 stores `emails: ["Alice.Foo@Gmail.com"]` and computes canonical forms on demand. Canonicalisation is **derived**, not stored.
+
+If stored: rule updates (new gmail policy, new phone format) make all records stale. Derived on demand: rule updates are a library deploy, not a database migration.
+
+First Rosetta Stone project where **a computed view is the comparison basis while the source form is the source of truth**.
+
+**Synthetic IDs let merged contacts round-trip.**
+
+Merging 1 and 2 doesn't reuse either ID — merged contact gets a fresh ID (e.g., 47). Sources are deleted. Why: auditability ("47 was merged from 1+2"), reversibility, reference stability for external systems.
+
+First Rosetta Stone project where **merge is a creation operation, not a mutation**. G092 mutated in place; G108 creates fresh records.
+
+**Search goes through the same canonicalisation.**
+
+`search_by_email(needle)` canonicalises the needle and matches against contacts' canonical forms. Same pipeline the duplicate detector uses. Read and write go through the same normaliser — same pattern G100 used for content-addressed tree hashing.
+
+First Rosetta Stone project where **both read-side and write-side go through the same normalisation function**.
+
+G107 (budget envelopes) → G108 *canonical email + phone + union-find transitive grouping + longest-name merge heuristic + synthetic merged IDs + canonicalised search*. Databases 8/13. 108/130 complete.

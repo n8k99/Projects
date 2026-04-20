@@ -7,3 +7,4 @@ pub mod report_generator;
 pub mod backup_script_maker;
 pub mod event_scheduler;
 pub mod budget_tracker;
+pub mod address_book;
