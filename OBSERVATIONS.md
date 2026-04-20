@@ -4143,3 +4143,51 @@ First Rosetta Stone project where **search scope is deliberately narrower than t
 First Rosetta Stone project where **the builder pattern applies to content construction, not just configuration**.
 
 G113 (forum threads) → G114 *bounded navigation state + dual-track content + closed element enum + mode as render parameter + deliberately-narrow search + fluent content builder*. Graphics 1/17. 114/130 complete.
+
+---
+
+## G115 — Mind Mapper
+
+**Polar coordinates are natural for trees.**
+
+Cartesian (x, y) forces choices: left-to-right? top-to-bottom? Both waste space on unbalanced trees. **Polar** sidesteps it: depth → radius, angle → sibling position. Every level a concentric ring; siblings share a wedge recursively subdivided among their children.
+
+Conversion at the leaves: `x = cx + r * cos(angle)`, `y = cy + r * sin(angle)`. Branching structure preserved naturally — an arc divides recursively. Two children split in half; five, in fifths.
+
+First Rosetta Stone project with **polar-to-cartesian coordinate conversion** as its core algorithm. G097's hit testing and G111's ERD used Cartesian; G115 shows why polar wins for trees.
+
+**Tree-of-children vs parent-pointer.**
+
+G113 used parent pointers (flat list, `parent_id` refs). G115 uses the opposite: `children: Vec<MindNode>` — nested.
+
+Why different? Mind maps are **built and edited as trees** — "add child", "collapse subtree", "reorder". Parent pointers make those awkward. Forum threads are **persisted flat** and rebuilt on read because that's how SQL stores them.
+
+First Rosetta Stone project where **the tree representation is driven by dominant operation**. Build-time edits favour nested children; read-time joins favour parent pointers.
+
+**Collapsed state travels with the node.**
+
+Each node has `collapsed: bool`. Layout, traversal, counts all skip its subtree. State is per-node, carried with it — no external "collapsed set" side-channel.
+
+First Rosetta Stone project where **UI state is a field on the data object** rather than an external set. G109 separated library (canonical) from watchlist (per-user); G115 pulls UI state onto the node because there's no multi-user concern.
+
+**Layout emits a flat list of placed nodes.**
+
+Input: nested tree. Output: flat `Vec<LaidOutNode>` with (id, label, color, depth, x, y, parent_id). SVG emitter walks the flat list; doesn't know about trees.
+
+IR separation pattern from G091 (PDF) and G095 (spreadsheet): semantic model is one thing; laid-out positioned IR is another. Same data, two representations, linked by pure transformation.
+
+First Rosetta Stone project where **a tree is flattened into a positioned list** as part of rendering.
+
+**SVG is the first visual format.**
+
+Prior projects rendered text (G091 pagination, G094 logs, G095 CSV, G099 snippets, G111 DOT). G115 emits SVG — XML with `<circle>`, `<line>`, `<text>`. Browser opens output directly.
+
+First Rosetta Stone project where **the output opens in a browser as-is**. G111's DOT needs Graphviz; G115's SVG is self-rendering.
+
+**XML escape is non-optional.**
+
+Labels can contain `&`, `<`, `>`, `"` — XML metacharacters. Without escape, `"A & B"` breaks the SVG. Consistent across six languages.
+
+First Rosetta Stone project where **XML/HTML escape is mandatory preprocessing**. G097's HTML was controlled content; G115's labels come from user input.
+
+G114 (slide nav) → G115 *polar-to-cartesian layout + nested-children tree + per-node collapsed state + tree-to-flat-list transform + SVG emission + XML escape*. Graphics 2/17. 115/130 complete.
