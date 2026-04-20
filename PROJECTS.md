@@ -101,7 +101,7 @@
 - [x] 86. Quick Launcher
 - [x] 87. File Explorer
 - [x] 88. Sort File Records Utility
-- [ ] 89. Transaction Averages
+- [x] 89. Transaction Averages
 - [ ] 90. Zip File Maker
 - [ ] 91. PDF Generator
 - [ ] 92. Bulk Renamer and Organizer

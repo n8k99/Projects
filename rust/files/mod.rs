@@ -4,3 +4,4 @@ pub mod quiz_maker;
 pub mod quick_launcher;
 pub mod file_explorer;
 pub mod sort_file_records;
+pub mod transaction_averages;

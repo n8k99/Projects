@@ -2954,3 +2954,41 @@ Minor but load-bearing. Partial records cluster so the UI can style them; the in
 First Rosetta Stone project where **a default policy for missing data** is part of the contract. G085 returned ParseError; G086 returned LaunchError. G088's choice is different — missing is valid, just orders specially. Sometimes the right answer is to define the behaviour, not error out.
 
 G087 (path resolution + virtual FS) → G088 *uniform tabular records + multi-key sort spec + stable-sort contract + missing-field policy*. Files 4/16. 88/130 complete.
+
+---
+
+## G089 — Transaction Averages
+
+**Group-by is a single-pass fold.**
+
+Naïve aggregation does three passes: extract keys, group rows, aggregate each group. The one-pass version is a single fold: for each record, look up (or create) the group accumulator, observe the value, move on. Finalise each accumulator at the end.
+
+The accumulator has two roles — **running state** (count, sum, min, max updated incrementally) and **finalised output** (mean derived at end). Splitting them is what makes the aggregation single-pass. min/max/sum are monoids, combinable pairwise; mean is not a monoid, but is computable from sum and count at the end.
+
+First Rosetta Stone project where **observation (`observe`) and finalisation (`finalise`) are explicit separate methods** on the same accumulator. G008 summed with a fold; G065 accumulated progress with atomics. G089 formalises the pattern: update-step + finalise-step.
+
+**Output must be sorted, not map-ordered.**
+
+Hash map iteration order is unspecified in most languages (Python is the exception). Tests that depend on it become flaky; diffs show spurious reshuffles. Every `group_by` in G089 **sorts group keys** before emission, at the final step after observation is complete.
+
+Not automatic — a choice. Returning an unsorted hash would be faster; insertion-ordered would be cheaper. But same-input-same-output beats microseconds. Stability is correctness, just like G088's sort.
+
+First Rosetta Stone project where **a deterministic wrapper around a non-deterministic data structure** is the explicit design. Internally fast, externally always sorted — the vault's query layer will use this pattern.
+
+**Integer cents throughout kills float error.**
+
+Financial floats are a classic bug. `0.1 + 0.2 != 0.3`. Summing millions of transactions, each off by fractional cents, produces a visible error. Every transaction processor since the 90s uses integer cents.
+
+G089 uses integer types throughout. Sum is exact. Min/max are exact. Only `mean = sum / count` produces a float, at the reporting step. Downstream code needing exact means computes `(sum, count)` tuples instead.
+
+First Rosetta Stone project with **explicit fixed-point arithmetic for correctness**. G003/G024 converted number bases; G013 approximated pi. G089 is the first where representation matters for *accounting* correctness, not just precision.
+
+**Key function, not key field.**
+
+`group_by` takes a **key function** — a closure that extracts the group key from a record. "Group by category" and "group by month" (YYYY-MM prefix) are the same operation with different extractors.
+
+This is what every functional `groupBy` does, what Python's `itertools.groupby` codifies, what SQL's `GROUP BY expression` matches. Aggregator is fixed; extractor is pluggable. Multi-axis grouping, derived keys, custom bucketing — all expressible as different key functions.
+
+First Rosetta Stone project that **parameterises over a function, not a value**. G008's fold took a combiner; G089's `group_by` takes an extractor. Take-a-function is now table stakes for the library.
+
+G088 (sort spec + stable sort) → G089 *single-pass accumulator + sorted output + integer cents + key-function parameterisation*. Files 5/16. 89/130 complete.
