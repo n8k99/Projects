@@ -3147,3 +3147,49 @@ One `query(q)` method where `q` is an enum. Every query shape is a variant. This
 First Rosetta Stone project where **the query is reified**. G088's sort spec was data; G093 extends the same move to filtering — action is a value, not a method call.
 
 G092 (preview/apply/undo) → G093 *metadata as independent layer + selective indexing + missing/empty distinction + reified query AST*. Files 9/16. 93/130 complete.
+
+---
+
+## G094 — Log File Maker
+
+**Append-only is the simplest write discipline.**
+
+Logger never updates an existing entry. `log()` pushes onto end of active; rotation pops from front. No `edit_entry`, no `delete_entry`. The restriction is the primary property of a log: **once written, never changed**.
+
+Append-only is why logs are auditable. A system that rewrites logs can lie about its past. Linear history: every entry is present (and happened) or rotated (and happened then too). Same discipline as Git commits, Kafka streams, database WALs, blockchain ledgers.
+
+First Rosetta Stone project where the **primary mutation is append-only by design**. G082 had revisions (mutable content with immutable history); G086 updated counters in place. G094 makes the mutation discipline explicit — writes go to end, reads scan, rotation moves to archive never back.
+
+**Level filter at write time, not read time.**
+
+`log()` drops entries below threshold at write time — they never enter the active buffer. Naïve would keep everything and filter at read; wastes memory and exposes debug output to production consumers who shouldn't see it.
+
+Write-time filtering is what `log`, Python's `logging`, Go's `slog`, log4j all do. **Threshold is policy** — operator sets `INFO` in production, `DEBUG` in dev, application forgets about it. No per-call `if log_enabled` boilerplate.
+
+First Rosetta Stone project where **policy decisions happen at capture, not consumption**. G085 was permissive at capture (accept everything); G094 takes the opposite stance for logs.
+
+**Rotation is a ring buffer with an archive.**
+
+Unbounded logs fill disks. Naive "delete when big" loses data. Rotation is the middle ground: active holds recent N entries; overflow moves oldest to archive.
+
+Rosetta Stone G094 keeps archive in memory for testability. Real systems (log4j, journald, logrotate) write to numbered files or compress. Same data structure: fresh ring + growing append-only archive. Queries run against active for speed; compliance audits scan archive.
+
+First Rosetta Stone project with **two-tier storage**: hot (active, small, fast) and cold (archive, growing, scanned rarely). G090 had manifest vs payload but both hot. G094 is the first where recency dictates tier.
+
+**Tab-delimited is the bash-native format.**
+
+Not JSON, not binary, not custom. Tabs separate fields, newlines separate rows. Why: `grep` filters; `awk -F'\t'` projects columns; `sort` just works; `cut -f2` extracts a column. Unix pipe-ready.
+
+Modern systems add JSON for structured logging. But tab-delimited is still every ops person's first tool. G094 picks the format that composes with the universal toolbox.
+
+First Rosetta Stone project where **on-disk format is chosen for tool interop**, not parser convenience. G085's quiz was for human edits; G094's tabs are for `grep | awk | sort`.
+
+**Query results preserve insertion order.**
+
+Every query returns entries in the order logged. Chronology is a contract — users expect time to march forward. A hash-based query could return random order effortlessly; G094 iterates active and filters.
+
+Cheaper than G093's tag store (which sorts). Append-only + no reordering = O(n) queries with zero sort cost.
+
+First Rosetta Stone project where **data-structure ordering is output ordering**. G093 paid for a sort; G094 gets order for free.
+
+G093 (metadata/query layer) → G094 *append-only writes + write-time policy + two-tier rotation + tab-delimited tool-native format + ordering for free*. Files 10/16. 94/130 complete.
