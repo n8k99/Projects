@@ -2880,3 +2880,39 @@ So `text_match("") == 0.5` for every entry: every entry passes the filter, and o
 First Rosetta Stone project where **the ranking function has a documented degenerate case**. No special code path — the same scoring function handles it via a known constant. Every vault search box will follow this convention.
 
 G085 (round-trip equivalence of static data) → G086 *frecency + two-layer ranking + round-trip of mutable usage state + documented empty-query behaviour + structured launch errors*. Files 2/16. 86/130 complete.
+
+---
+
+## G087 — File Explorer
+
+**Path resolution is the filesystem's type checker.**
+
+Every file operation starts with a string the user typed. Turning that string into a location the filesystem understands is the single most important job a file manager does. Get it wrong and the user ends up somewhere unexpected, or — worst case — escapes the root.
+
+`resolve(path)` turns user input into a canonical segment list. Absolute paths start from root, relative from cwd. `.` and empty segments drop, `..` pops one, `..` at root is a no-op. Output is type-correct: a list of bare names with no metacharacters. Every subsequent operation (`cd`, `ls`, `stat`) takes the canonical list, not the raw string.
+
+First Rosetta Stone project where **parsing and semantic analysis are separate phases**. G085 and G086 parsed text into structures in one step; G087 separates `resolve(path) → segments` from `lookup(segments) → node`. That split is exactly what makes root escape impossible — the normaliser catches `..` before lookup runs.
+
+**Virtual filesystem is the right test surface — and the right production abstraction.**
+
+Real disk I/O is slow, nondeterministic, and host-dependent. The Rosetta Stone needs byte-identical behaviour across six languages. So the explorer operates on an in-memory tree, no syscalls.
+
+But the virtual filesystem isn't just for tests — it's the production abstraction. The explorer doesn't know whether its data lives in RAM, on disk, in Postgres, or in vault markdown. Later projects plug in a backend; G087's logic is storage-agnostic.
+
+First Rosetta Stone project where **the data model is an internal tree, not a reflection of the OS**. The vault's file views will all layer over this — what the user sees as a "folder" might be a SQL query, a glob pattern, or a real directory.
+
+**Dirs first, alphabetical second.**
+
+Every file manager ever shipped follows this ordering. Naive alphabetical mixes folders and files and makes listings hard to scan. Dirs-first partitions by kind, then orders within each group.
+
+Two-stage comparator: partition by kind (dir < file), then alphabetical within kind. One pass, O(n log n), stable. Every test across six languages sees the same order.
+
+First Rosetta Stone project with **category-before-alphabetical sort**. G076 used axis-based sorting; G087 uses kind-based grouping. Partition first, order within partitions.
+
+**Recursive size is a fold.**
+
+`total_size(path)` on a directory sums every descendant file's size. For a dir, fold over children; for a file, return size. Two-line recursion, arbitrary tree depth.
+
+First Rosetta Stone project that **recurses over a non-linear structure** via dispatching on node kind. G064 transitive-closure did DAG work; G087 is a pure tree. The pattern — self-recursive function that dispatches on kind — reappears in G089, G097, and throughout Graphics.
+
+G086 (usage state in a file) → G087 *path resolution as type-check + virtual filesystem abstraction + dirs-first listing + recursive fold over tree*. Files 3/16. 87/130 complete.

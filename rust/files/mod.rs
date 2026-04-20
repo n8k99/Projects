@@ -2,3 +2,4 @@
 
 pub mod quiz_maker;
 pub mod quick_launcher;
+pub mod file_explorer;
