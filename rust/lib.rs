@@ -6,3 +6,4 @@ pub mod threading;
 pub mod web;
 pub mod files;
 pub mod databases;
+pub mod graphics;

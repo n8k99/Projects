@@ -130,7 +130,7 @@
 - [x] 113. Web Board / Forum
 
 ## Graphics and Multimedia
-- [ ] 114. Slide Show
+- [x] 114. Slide Show
 - [ ] 115. Mind Mapper
 - [ ] 116. Grayscale Converter
 - [ ] 117. Stream Video from Online

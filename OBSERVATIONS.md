@@ -4095,3 +4095,51 @@ First Rosetta Stone project where **hierarchical integrity is enforced at write 
 G101 query parser → G102 executor → G103 multiset + trades → G104 reports → G105 codegen → G106 intervals + recurrence → G107 envelope budgets → G108 dedup + merge → G109 library/watchlist → G110 chain validation → G111 typed graph + topo → G112 dialect DDL → G113 threaded forum. Thirteen vocabulary items every data-heavy app reaches for. With Files (G085–G100), the backbone of every CRUD-and-query system.
 
 G112 (dialect DDL) → G113 *parent-pointer tree + derived DFS traversal + depth tracking + signed score + log-compressed hot ranking + pinned-first sort override + write-time parent validation*. **Databases 13/13 — CATEGORY CLOSED. 113/130 complete.**
+
+---
+
+## G114 — Slide Show (Opens Graphics)
+
+**Navigation is bounded state.**
+
+Only mutable state: `current_index`. Every action (advance/back/goto) checks bounds before mutation. `advance` at end returns false; `back` at start returns false; `goto(n)` only moves if valid. Index never out of range.
+
+Bounded state machine pattern — same shape under every media player, wizard, paginated UI.
+
+First Rosetta Stone project where **navigation state is explicitly bounded** with return-value signalling. G073's telnet had state transitions via protocol dispatch; G114 has numeric index bounds and success/failure per action.
+
+**Dual-track content separates audience from presenter.**
+
+A slide has **visible** content (what goes on screen) and **notes** (presenter-only on confidence monitor). Stored together; rendered separately by mode.
+
+`render_current(SPEAKER)` → visible + notes. `render_current(AUDIENCE)` → visible only. `render_handout()` → full deck as document. Same data, three views.
+
+First Rosetta Stone project where **the same data structure has multiple render modes** selectively including/excluding parts. G091 was mode-free; G114 takes a `PresentationMode` parameter.
+
+**Slide elements are a closed enum.**
+
+`Heading { text, level }`, `Bullet { text, indent }`, `Image { src, alt }`, `Code { text, language }`, `Spacer { lines }`. Five variants. Adding Video or Math is a new case plus render branch — localised.
+
+Same algebraic-data-type pattern as G085's quiz questions, G091's PDF blocks, G099's tab stops.
+
+First Rosetta Stone project where **slide content is a closed enum of element kinds**, not free-form text or tagged map.
+
+**Presentation mode is an external parameter.**
+
+`render_slide(slide, mode)` takes mode from caller. The slide doesn't know its mode; modes are chosen per render call. Same presentation drives audience projector AND speaker's confidence monitor simultaneously — two render calls, two outputs.
+
+First Rosetta Stone project with **the same content rendered differently in parallel contexts**. G112 rendered one dialect at a time; G114 renders simultaneously for two audiences.
+
+**Search spans title and content, not notes.**
+
+`search(needle)` covers title + visible elements. Notes are **excluded** — they're presenter-meta, not content. Matches how audience-facing search works in real tools: find the slide they saw.
+
+First Rosetta Stone project where **search scope is deliberately narrower than the stored data**.
+
+**Fluent builder keeps slide construction readable.**
+
+`Slide::new("Intro").heading("Welcome", 1).bullet("Agenda", 0).with_notes("...")`. Same pattern as G112. Each call returns self; flags and elements compose linearly.
+
+First Rosetta Stone project where **the builder pattern applies to content construction, not just configuration**.
+
+G113 (forum threads) → G114 *bounded navigation state + dual-track content + closed element enum + mode as render parameter + deliberately-narrow search + fluent content builder*. Graphics 1/17. 114/130 complete.
