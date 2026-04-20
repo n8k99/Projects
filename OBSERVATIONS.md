@@ -3511,3 +3511,59 @@ Exactly how Postgres resolves names at planning, how every ORM validates at quer
 First Rosetta Stone project where **validation is parameterised by external context**. G092 had a directory as context; G101's schema is more abstract. Future Database projects (G102+) will compose over this schema abstraction.
 
 G100 (content-addressed storage) → G101 *recursive-descent parser + AST-as-data + findings-with-severity + schema-parameterised validation*. Databases 1/13. 101/130 complete.
+
+---
+
+## G102 — Remote SQL Tool
+
+**Parser + executor = database.**
+
+G101 built the parser — text into AST. G102 is the executor — AST into rows. Together they form the minimum viable database: SQL string in, result set out.
+
+Splitting lets each phase be tested independently. Parser doesn't need storage; executor doesn't need text. They meet at the AST, which is just data.
+
+First Rosetta Stone project where **two prior projects compose into a complete system**. Future Database projects (G103+) layer over this same AST+executor foundation.
+
+**Typed columns prevent silent corruption.**
+
+Every column has a declared type (Int or Text). INSERT validates: type mismatch → structured error. No silent coercion, no "1" where 1 was meant.
+
+Real databases extend with NUMERIC, DATE, JSON, arrays. The **principle** doesn't change: table declares shape; inserts must match; SELECTs rely on it.
+
+First Rosetta Stone project where **type safety is enforced at the storage boundary**, not just at the language level. G093 had typed Option fields but didn't reject inserts; G102 rejects with `TypeMismatch`.
+
+**Row storage is positional, not keyed.**
+
+Row is a `Vec<Cell>` positioned to match the column list. Column name → position via `column_index(name)`. INSERT provides values in column order; SELECT rewrites to same order.
+
+Positional wins for O(1) index access, compact storage, stable order. Real DBs use positional rows for the same reasons. Column stores (Parquet, Arrow) push further — each column a separate array for columnar scans.
+
+First Rosetta Stone project where **storage layout is chosen explicitly for access pattern**.
+
+**Transactions are a buffer that collapses on commit.**
+
+`begin()` starts a pending-buffer. INSERTs during the txn go to the buffer. `commit()` moves buffer to table rows; `rollback()` discards.
+
+SELECTs inside the txn see both base + pending — the **read-your-own-writes** guarantee every SQL transaction provides. After COMMIT pending becomes normal; after ROLLBACK it vanishes.
+
+Minimalist — no isolation levels, no conflict detection, no logging. But the shape (buffer, commit-or-discard) is the kernel every real transaction system extends. Postgres's WAL, SQLite's journal, Redis's MULTI/EXEC all bolt isolation + durability on top.
+
+First Rosetta Stone project with **atomic rollback of data mutations**. G082 had revisions (append-only); G092 had undo logs (reverse ops). G102 is the first with proper "abandon these changes entirely" semantics.
+
+**SELECT is filter-project-sort-limit in order.**
+
+Executor runs SELECT as a pipeline: scan → filter → sort → project → limit. Sort **before** project because ORDER BY column may not appear in projection (`SELECT name ORDER BY age` is legal).
+
+Real engines push projection before sort when safe — via query planner. G102 doesn't have a planner; canonical ordering is stable.
+
+First Rosetta Stone project where **a multi-stage pipeline has a canonical ordering**. Changing the order breaks queries that sort on non-projected columns.
+
+**Result set is data, not an iterator.**
+
+SELECT returns a `ResultSet` — columns + rows, all in memory. Not a cursor, not a generator. Materialisation is eager.
+
+Real engines stream for large results; trade-off is predictability vs memory. For Rosetta Stone's scale, materialise.
+
+First Rosetta Stone project where **query output is eager, fully-materialised data**. Consistent with G091's rendered documents, G094's event lists, G098's copy events.
+
+G101 (SQL parser + findings) → G102 *executor completing the database + typed columns + positional rows + transactional buffer + filter-sort-project-limit pipeline*. Databases 2/13. 102/130 complete.
