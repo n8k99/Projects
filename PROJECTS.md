@@ -100,7 +100,7 @@
 - [x] 85. Quiz Maker
 - [x] 86. Quick Launcher
 - [x] 87. File Explorer
-- [ ] 88. Sort File Records Utility
+- [x] 88. Sort File Records Utility
 - [ ] 89. Transaction Averages
 - [ ] 90. Zip File Maker
 - [ ] 91. PDF Generator

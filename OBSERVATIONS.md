@@ -2916,3 +2916,41 @@ First Rosetta Stone project with **category-before-alphabetical sort**. G076 use
 First Rosetta Stone project that **recurses over a non-linear structure** via dispatching on node kind. G064 transitive-closure did DAG work; G087 is a pure tree. The pattern — self-recursive function that dispatches on kind — reappears in G089, G097, and throughout Graphics.
 
 G086 (usage state in a file) → G087 *path resolution as type-check + virtual filesystem abstraction + dirs-first listing + recursive fold over tree*. Files 3/16. 87/130 complete.
+
+---
+
+## G088 — Sort File Records Utility
+
+**A file can be a table.**
+
+G085's quiz file was structured blocks; G086's launcher state was entry records with heterogeneous data. G088 is the first project where the file is a **uniform tabular dataset** — every row has the same fields, interpreted the same way. The contract CSV has served for fifty years.
+
+No schema is declared — the parser infers types per field value. Cheap and fragile. Cheap because any language reads delimited lines without a dependency; fragile because embedded commas or quoted strings break it. G088 accepts the fragility: the point is the *abstraction*, not production-ready CSV handling.
+
+First Rosetta Stone project where **each row has a uniform type** rather than a polymorphic kind. G085 had three question kinds dispatched by tag; G088 rows are identical structures. That shift — polymorphic items to uniform rows — is what enables `sort_by(spec)` to work over every row with the same logic.
+
+**Sort spec composes primitives.**
+
+Single-key sort is obvious. Multi-key sort is useful: "age asc, score desc, name asc as final tiebreak". The spec is a list of `(field, order, kind)` tuples; the comparator walks the spec and returns the first non-zero comparison.
+
+This is exactly SQL's `ORDER BY` clause. Composition works because comparison returns -1/0/1 (a total order), composition of total orders is total, and stable sort preserves insertion order on ties so unspecified axes don't reshuffle.
+
+First Rosetta Stone project where **a data structure describes a sort operation**. Previous projects had implicit sort keys (G076's axis constants). G088 makes the sort explicit and configurable — a spec is data, which means it can be stored, passed, serialised.
+
+**Stable sort is the contract, not a convenience.**
+
+A stable sort preserves the relative order of records with equal keys. For a file utility, stability is the difference between "run it twice, get the same file" and "run it twice, get different files". Version control, diffs, audit logs depend on deterministic output.
+
+**Stable sort is correctness**, not an optimisation choice. Each language uses its stable-sort primitive — Rust's `sort_by` is stable, Python's `sort` is stable, Go's `SliceStable`, CL's `stable-sort`, Lean's `mergeSort`. Six idioms, one contract.
+
+First Rosetta Stone project where **determinism of output** is an explicit invariant, not an accidental property.
+
+**Missing fields sort first.**
+
+Real datasets have holes. A record with only two fields when the spec asks for field 3 must still sort — and must not crash. Convention: missing fields sort first in ascending order (last in descending). Equivalent to SQL's `ORDER BY col ASC NULLS FIRST`.
+
+Minor but load-bearing. Partial records cluster so the UI can style them; the invariant "sort is total" never breaks.
+
+First Rosetta Stone project where **a default policy for missing data** is part of the contract. G085 returned ParseError; G086 returned LaunchError. G088's choice is different — missing is valid, just orders specially. Sometimes the right answer is to define the behaviour, not error out.
+
+G087 (path resolution + virtual FS) → G088 *uniform tabular records + multi-key sort spec + stable-sort contract + missing-field policy*. Files 4/16. 88/130 complete.
