@@ -3837,3 +3837,57 @@ First Rosetta Stone project where **merge is a creation operation, not a mutatio
 First Rosetta Stone project where **both read-side and write-side go through the same normalisation function**.
 
 G107 (budget envelopes) → G108 *canonical email + phone + union-find transitive grouping + longest-name merge heuristic + synthetic merged IDs + canonicalised search*. Databases 8/13. 108/130 complete.
+
+---
+
+## G109 — TV Show Tracker
+
+**Library and watchlist are separate concerns.**
+
+A TV tracker has two data stores with different meanings:
+* **Library** — canonical shows/episodes, shared across users. Source of truth for what exists, when it aired, how long it is.
+* **Watchlist** — per-user watched-episode keys. Private. Source of truth for what this person has seen, what's next.
+
+Netflix/Trakt/Plex keep these separate; conflating them (bad CSV exports) breaks when episodes are added or renumbered. G109 models the split explicitly: `Library { shows }` and `Watchlist { watched: Set<EpisodeKey> }`, joined via key type.
+
+First Rosetta Stone project where **shared data and per-user data are distinct types**. G093 mixed metadata and collection; G109 separates canonical knowledge from user-specific state.
+
+**Progress rolls up from leaves.**
+
+Each episode has a binary state (watched/unwatched). Show progress = watched_count / total. Season progress: same restricted to season.
+
+Roll-up is one-directional — episode state is truth, aggregates derive. Changing one flag updates all aggregates on next read. G095's lazy-formula model applied to watch state.
+
+First Rosetta Stone project where **percentage progress is derived, not stored**. Storing risks drift when episodes are added or marked.
+
+**Next-up is first-unwatched-in-order.**
+
+`next_up(show) = first episode in (season, episode) order the user hasn't watched`. Sort by tuple, scan until unwatched, return. Five lines.
+
+Edge cases handled uniformly: out-of-order viewing fills gaps (watched S1E1, S1E3 → next up is S1E2); fully watched returns None; nothing watched returns S1E1.
+
+First Rosetta Stone project where **a UI-critical primitive reduces to one line of search + predicate**. Every "Continue Watching" shelf is one call to this.
+
+**Airing-since is filter + sort.**
+
+"What's new since last week?" — filter episodes by `aired_ms >= since`, sort by aired_ms. Library doesn't track per-user last-checked time; caller passes cutoff. Keeps the library reusable across users.
+
+First Rosetta Stone project where **a library query takes the cutoff from the caller**, not from per-user state.
+
+**EpisodeKey is a compound foreign key across stores.**
+
+Library stores full `Episode` records keyed by `(show_id, season, episode)`. Watchlist stores just the key. "Is this watched?" constructs the key and hash-looks up — no need to pass the whole Episode around.
+
+Same pattern every SQL foreign-key uses: joining table stores key, not row. Denormalising would store title/duration in watchlist too, creating sync burden.
+
+First Rosetta Stone project where **a compound struct is a canonical foreign key** across two stores. G108 compared on compound identifiers but within one store.
+
+**Currently-watching is "started but not finished".**
+
+`currently_watching(library, watchlist)` returns shows where `0 < watched_count < total`. Not-started filtered out (candidates). Finished filtered out (no next-up). Only middle state matters.
+
+The "Continue Watching" row. Every streaming service ships it. G109 makes it a pure function.
+
+First Rosetta Stone project where **a view is defined by a range predicate on a derived quantity**.
+
+G108 (contact dedup) → G109 *library/watchlist split + derived hierarchical progress + first-unwatched-in-order next-up + filter+sort airing-since + compound foreign key across stores + in-progress filter*. Databases 9/13. 109/130 complete.

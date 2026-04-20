@@ -123,7 +123,7 @@
 - [x] 106. Event Scheduler and Calendar
 - [x] 107. Budget Tracker
 - [x] 108. Address Book
-- [ ] 109. TV Show Tracker
+- [x] 109. TV Show Tracker
 - [ ] 110. Travel Planner System
 - [ ] 111. ERD Creator
 - [ ] 112. Database Translation
