@@ -3941,3 +3941,51 @@ Three quantities: **span** (first depart to last arrive), **in-transit** (sum of
 First Rosetta Stone project where **three derived metrics relate via a linear identity**. Same decomposition every trip-planning app ships.
 
 G109 (TV tracker) → G110 *chain-of-edges composition invariant + independent location+time chains + severity-laddered layover warnings + two-layer validator (per-leg + per-pair) + linearly-related span/transit/layover metrics*. Databases 10/13. 110/130 complete.
+
+---
+
+## G111 — ERD Creator
+
+**A schema is a typed directed graph.**
+
+Entities are **nodes**; relationships are **edges** with typed endpoints (which attribute on each side) and a cardinality label. The ERD is a directed graph: `from_entity --(from_attr, to_attr, cardinality)--> to_entity`.
+
+Every schema tool (dbdiagram, drawSQL, SchemaSpy, prisma's ERD generator) treats it this way. Once the graph is explicit, standard graph algorithms apply: reachability, topological sort, cycle detection, dependency closure. G111 runs three of them.
+
+First Rosetta Stone project where **the data model is a general directed graph** (with typed endpoints) rather than a tree, sequence, or map. G100's commit chain was a DAG but linearly structured; G111's ERD can have arbitrary shape.
+
+**Cardinality is enum, not magic string.**
+
+`OneToOne`, `OneToMany`, `ManyToMany` — three values, sealed set. Not "1-1", "1:1", "one_to_one", "1-*" depending on who typed it. Closed enum eliminates a class of bugs and enables exhaustive handling.
+
+First Rosetta Stone project where **a domain term is constrained to a small finite enum** to prevent string-representation drift. G101 did this for severity; G111 for cardinality.
+
+**Topological sort orders dependencies first.**
+
+`topo_sort()` returns entities in dependency-first order. `User` before `Order` before `OrderItem`. Produces valid SQL schema-creation order.
+
+G111 uses **Kahn's algorithm**: start with zero-in-degree nodes, remove them, repeat. If any nodes remain after completion, there's a cycle.
+
+First Rosetta Stone project with **a named graph algorithm as a primary operation**. G097 was ray casting; G108 was union-find; G111 is Kahn's. Each cross-language implementation is a confidence test of the algorithm's definition.
+
+**Cycle detection is DFS with path-membership tracking.**
+
+Recurse down the graph maintaining the set of nodes currently on the stack. If you encounter one, you've found a back-edge (cycle).
+
+Self-references (`Node.parent_id -> Node.id` for tree structures) are deliberately **excluded** — legitimate pattern, not a structural error.
+
+First Rosetta Stone project with **graph-colouring-style DFS** for cycle detection.
+
+**Validation catches structural errors pre-render.**
+
+Before emitting DOT: does every `from_entity`/`to_entity` resolve? Does every `from_attr`/`to_attr` exist on its entity? Rendering a DOT with dangling refs produces a broken diagram.
+
+First Rosetta Stone project where **pre-render validation is a distinct phase**. G105 validated configs before emitting scripts; G111 validates ERDs before emitting DOT.
+
+**DOT export is the canonical visualisation target.**
+
+Graphviz DOT is the de facto format for directed-graph visualisation. Every ERD tool, UML generator, CI graph view, k8s dependency viewer speaks DOT. G111 emits it directly — `digraph`, record-shape nodes, cardinality-mapped arrowhead attributes.
+
+First Rosetta Stone project where **the export target is DOT**. G090 was ZIP; G100 was content-addressed hashing. DOT is the graph analog — text-based, tool-pipeline-friendly serialisation.
+
+G110 (trip chain) → G111 *typed directed graph + closed cardinality enum + Kahn's topological sort + DFS cycle detection + pre-render validation + DOT export*. Databases 11/13. 111/130 complete.

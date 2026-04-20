@@ -125,7 +125,7 @@
 - [x] 108. Address Book
 - [x] 109. TV Show Tracker
 - [x] 110. Travel Planner System
-- [ ] 111. ERD Creator
+- [x] 111. ERD Creator
 - [ ] 112. Database Translation
 - [ ] 113. Web Board / Forum
 

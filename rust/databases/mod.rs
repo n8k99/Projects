@@ -10,3 +10,4 @@ pub mod budget_tracker;
 pub mod address_book;
 pub mod tv_tracker;
 pub mod travel_planner;
+pub mod erd_creator;
