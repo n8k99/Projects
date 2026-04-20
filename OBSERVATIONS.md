@@ -3691,3 +3691,53 @@ First Rosetta Stone project where **deterministic emission is load-bearing** for
 First Rosetta Stone project where **config validation surfaces all errors in one pass**. G085 stopped at first error; G101 and G105 emit everything the checker found.
 
 G104 (kind-tagged reports) → G105 *validate-then-emit code gen + shell-safe quoting + identifier allow-list + deterministic-for-diff + multi-error validation*. Databases 5/13. 105/130 complete.
+
+---
+
+## G106 — Event Scheduler and Calendar
+
+**Half-open intervals are the universal convention.**
+
+An event from 10:00 to 11:00 occupies `[10:00, 11:00)`. ISO-8601, RFC 5545, every calendar API. Adjacent events `[10:00, 11:00)` and `[11:00, 12:00)` don't overlap — their endpoint touches but neither contains 11:00 on both sides.
+
+Inclusive-inclusive `[10, 11]` vs `[11, 12]` would both contain 11 → would "overlap" — nonsensical. Half-open makes the math clean.
+
+First Rosetta Stone project where **the interval convention is a correctness premise**. G079 didn't deal with continuous time; G080 used point-in-time triggers. G106 is the first with range semantics.
+
+**Overlap check is two inequalities.**
+
+`a` and `b` overlap iff `a.start < b.end AND b.start < a.end`. Total, symmetric, no branching on which is earlier.
+
+Naïve checks have bugs — single inequality misses cases; containment check misses partial overlaps. The two-inequality form is the shortest correct form.
+
+First Rosetta Stone project with **a canonical interval algorithm** every language implements identically. G097's point-in-polygon was similar — a classical algorithm worth implementing six times.
+
+**Recurrence is template + expansion.**
+
+Recurring event stores the **first occurrence** plus a **rule** (Daily/Weekly/Monthly). Query range expands rule into concrete occurrences. Template doesn't materialise all futures — many recur forever.
+
+Expansion driven by `[from, to)`: start at first occurrence, advance by step, emit each in window, stop at `to` or optional series-end.
+
+First Rosetta Stone project where **a single template represents an unbounded set**. G082's revisions were concrete; G094 was eager. G106 is the first where **data is generated on demand** from a rule.
+
+**Fast-forward skips irrelevant occurrences.**
+
+Naïve expansion iterates from first occurrence forward. For a daily event 10 years old with query "next week" — 3650+ wasted iterations.
+
+G106 computes how many steps to skip via divmod and adds them in one multiply-and-add. O(1) setup + O(range/step) emission.
+
+First Rosetta Stone project where **an optimisation is load-bearing at scale**. Slower versions are correct but intractable; fast-forward makes daily+1-year-lookback tractable.
+
+**Conflict detection is "any overlap exists".**
+
+Candidate `[new_start, new_end)` conflicts with existing event iff any occurrence overlaps. For recurring, expand into the window and check each. `find_conflicts(start, end)` returns event IDs.
+
+First Rosetta Stone project with **a batch query returning matching identifiers, not details**. G102's SELECT returned rows; G106's conflicts returns IDs — caller looks up details separately.
+
+**Integer milliseconds avoid timezone complexity.**
+
+Time is an `i64` count of milliseconds from an arbitrary epoch. No timezones, no leap seconds, no DST. Arithmetic is integer; comparisons are integer. Caller converts wall-clock to ms outside the engine.
+
+First Rosetta Stone project where **time is explicitly a monotonic integer** — cross-language confidence depends on this, since no language has to agree on timezone database versions.
+
+G105 (code generation) → G106 *half-open intervals + two-inequality overlap + recurrence-as-template-plus-expansion + fast-forward to window + integer-ms time*. Databases 6/13. 106/130 complete.

@@ -120,7 +120,7 @@
 - [x] 103. Card Collector
 - [x] 104. Report Generator
 - [x] 105. Database Backup Script Maker
-- [ ] 106. Event Scheduler and Calendar
+- [x] 106. Event Scheduler and Calendar
 - [ ] 107. Budget Tracker
 - [ ] 108. Address Book
 - [ ] 109. TV Show Tracker
