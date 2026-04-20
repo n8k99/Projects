@@ -4401,3 +4401,47 @@ Between `open_session` and `close_session`, writes land in the current session. 
 First Rosetta Stone project where **a resource has explicit open/close gates** around mutating operations.
 
 G119 (bulk-picture) → G120 *session-aware capacity accounting + FFD bin-packing + ISO 9660 name canonicalization with collision suffix + absorbing-terminal-state FSM + transactional write window*. Graphics 7/17. 120/130 complete.
+
+---
+
+## G121 — YouTube Downloader (Concurrency-Limited Queue + Resumable Downloads)
+
+**Concurrency is a slot count, not threads.**
+
+`max_concurrent: int` is the only parallelism primitive. `tick(ms)` pulls from the pending queue into active slots up to the limit, drains bytes proportionally per active slot, completes when `bytes_done >= bytes_total`. No threads, no async, no mutex — tests are deterministic.
+
+First Rosetta Stone project where **concurrency is simulated via tick-driven slot accounting**. G117 had one stream; G121 has N sharing one bandwidth budget.
+
+**Bandwidth splits equally across active.**
+
+`per_stream_bps = bandwidth_bps / len(active)`. Each tick advances every active download by `(per_stream_bps * ms) / 8000` bytes. When the active set changes, the per-stream rate recomputes for the next tick.
+
+First Rosetta Stone project where **a shared resource is proportionally divided among active consumers each tick**. G107 had whole-value allocation; G121 has continuous proportional division.
+
+**Resumable state persists across failures.**
+
+`bytes_done` lives on the Download, not the attempt. Failure → `Retrying { ready_at_ms }` but `bytes_done` stays. Promotion → `InFlight`, progress resumes from last byte. In-memory model of HTTP Range requests.
+
+First Rosetta Stone project where **partial progress is persistent state across control-flow failures**. G097 had per-card state; G121 has per-transfer byte offsets that survive retry transitions.
+
+**Backoff is a pure function over attempt.**
+
+`backoff_for_attempt(n, policy) = initial_ms * multiplier^(n-1)`. No timers; `retry_scheduled` records `ready_at_ms = elapsed + backoff`, and `tick` promotes Retrying → Pending when `elapsed >= ready_at_ms`. The ready check is a pure comparison.
+
+First Rosetta Stone project where **retry is a scheduled state transition driven by tick comparison**, not a timer or sleep. G094 had time but no retries; G121 introduces time-conditional transitions.
+
+**Format selection is a policy, not a pick.**
+
+`pick_format(formats, policy) -> Format?` where `policy ∈ {MaxQuality, Lowest, BestUnder(cap)}`. User picks *the policy*; system picks *the format*. Swapping policies re-runs the pick without knowing which format was chosen last time.
+
+Same shape as G117's ABR (pure function over measured inputs) but at a different level: ABR picks per segment; format picks once per download.
+
+First Rosetta Stone project where **user intent is captured as a policy value**, not a concrete selection.
+
+**FSM is five states with one self-loop.**
+
+`Pending → InFlight → Retrying → Pending (loop) → Succeeded | Failed`. Retries introduce a bounded self-loop: `attempts < max_attempts` → retry; else terminal Failed.
+
+First Rosetta Stone project with **a self-looping FSM bounded by an attempt counter**. G107 had bounded overruns; G121 has bounded retry cycles.
+
+G120 (cd-burner) → G121 *tick-driven slot concurrency + bandwidth fair-share + resumable-across-failure bytes + pure-function exponential backoff + policy-based format selection + attempt-bounded self-looping FSM*. Graphics 8/17. 121/130 complete.

@@ -7,3 +7,4 @@ pub mod stream_player;
 pub mod mp3_player;
 pub mod bulk_picture;
 pub mod cd_burner;
+pub mod youtube_downloader;
