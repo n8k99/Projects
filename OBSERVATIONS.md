@@ -3462,3 +3462,52 @@ G085 → G086 → G087 → G088 → G089 → G090 → G091 → G092 → G093 →
 Every file-format-adjacent codebase draws on these. The noosphere's vault files, save states, binary assets, backups, git-style history will compose these patterns rather than invent new ones.
 
 G099 (snippet IR) → G100 *content-addressed identity + commit-chain history + canonical cross-language encoding + structural dedup + tree-level diff*. **Files 16/16 — CATEGORY CLOSED. 100/130 complete.**
+
+---
+
+## G101 — SQL Query Analyzer (Opens Databases)
+
+**Parse then analyse is the universal pipeline.**
+
+Every compiler, linter, SQL engine follows the same shape: tokenise → parse → analyse. G101 implements all three. Tokeniser handles keywords, identifiers, numbers, strings, operators, punctuation. Parser is recursive descent — one function per grammar rule. Analyser walks the AST against a schema, emits findings.
+
+First Rosetta Stone project with the full **three-phase pipeline** as explicit stages. G071 did forgiving HTML extraction but not structural parsing; G085 parsed a line-based format but didn't build an AST. G101 is the first where a real grammar produces a typed tree.
+
+**Recursive descent is one function per rule.**
+
+Grammar:
+```
+query ::= 'select' projection 'from' identifier [where] [order_by] [limit]
+```
+
+Becomes `parse_query`, `parse_projection`, `parse_where`, `parse_order_by` — one function per nonterminal. Each consumes tokens from a shared position pointer, returns an AST node or error. No parser generator, no combinators, just functions.
+
+Rosetta Stone commits to this style because it maps directly into every language. Same organisation as Rust's compiler's Pratt parser, Python's `ast` module, every hand-written SQL parser in production.
+
+First Rosetta Stone project where **grammar rules map 1-to-1 to parser functions**.
+
+**AST is data; analysis is a second pass.**
+
+`SqlQuery` struct has no methods for "is this correct?" — pure data. All validation in `analyse(query, schema)`, a separate function. Split is load-bearing: parser errors are syntax ("I don't know what you meant"); analyser errors are semantics ("I understood but it's wrong").
+
+Keeping them separate lets tooling parse without analysing (formatters), analyse without re-parsing (caching), or both. Same AST feeds every use case.
+
+First Rosetta Stone project where **the data structure has no methods that judge itself**. G093's tag store had a query method; G097's shape had `contains`. G101's `SqlQuery` has no methods — analysis is a free function.
+
+**Findings are data, not panics.**
+
+Every analysis issue is a `Finding` — severity + code + message. Multiple findings per query are normal. Severities ladder: Info < Warning < Error. Codes are stable identifiers (`UNKNOWN_TABLE`, `SELECT_STAR`, `LIMIT_WITHOUT_ORDER`) so tooling can filter/suppress specific lints.
+
+Pattern clippy, ESLint, pylint, SQLFluff all use. Output is data the UI renders however it wants.
+
+First Rosetta Stone project where **errors are first-class values with codes and severities**. G085 returned a single `ParseError`; G101 returns a list of `Finding` with severity levels. That shift — from "one fatal error" to "a prioritised list of issues" — is what every production linter does.
+
+**Schema context turns syntax into semantics.**
+
+Without a schema, parser can say `SELECT name FROM users` is well-formed but not whether `users` exists. Schema provides that context — a map from table name to column set. Analyser passes query + schema together; findings like `UNKNOWN_TABLE` only fire when the schema says so.
+
+Exactly how Postgres resolves names at planning, how every ORM validates at query-build, how SQL LSPs provide completion.
+
+First Rosetta Stone project where **validation is parameterised by external context**. G092 had a directory as context; G101's schema is more abstract. Future Database projects (G102+) will compose over this schema abstraction.
+
+G100 (content-addressed storage) → G101 *recursive-descent parser + AST-as-data + findings-with-severity + schema-parameterised validation*. Databases 1/13. 101/130 complete.
