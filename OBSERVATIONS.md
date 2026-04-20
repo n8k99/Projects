@@ -4365,3 +4365,39 @@ First Rosetta Stone project that **exposes non-commutativity of ops as an assert
 First Rosetta Stone project where **algebraic identities serve as self-verifying test oracles**. G096's LCG was tested via determinism; G119's rotates test themselves via identity laws.
 
 G118 (mp3-player) → G119 *pipeline-as-data + pure ops + dry-run dim lineage + per-image batch error isolation + non-commutative op composition + algebraic identity test oracles*. Graphics 6/17. 119/130 complete.
+
+---
+
+## G120 — CD Burning App (Multi-Session Disc + FFD Packing + ISO Names)
+
+**Capacity accounting is session-aware.**
+
+Naive: `remaining = capacity - sum(file_bytes)`. Real: `remaining = capacity - sum(session_total_bytes)` where each session costs leadin (13MB) + leadout (22MB) overhead. A half-full 700MB disc with 5 sessions has burned 175MB on overhead alone.
+
+First Rosetta Stone project where **a container's capacity has metadata-linked overhead that scales with logical units**. G107 had pure sums; G120 adds per-session fixed costs.
+
+**First-fit-decreasing is the right pack.**
+
+Sort files by size descending, place each in the first bin that fits. Within 11/9 of optimal for bin packing. Files that don't fit → `overflow` list.
+
+First Rosetta Stone project using a **named approximation algorithm** where the tradeoff (vs first-fit, best-fit-decreasing, or full-optimal) is a documented choice.
+
+**ISO 9660 8.3 names disambiguate via `~N`.**
+
+Canonicalize (uppercase, alnum+underscore, truncate to 8.3) is lossy → collisions. On collision, truncate stem to `8 - len(suffix)` and append `~N`. `report.txt` (with `REPORT.TXT` taken) → `REPORT~1.TXT`. After `~9`, `~10` consumes 3 chars → `REPOR~10.TXT`.
+
+First Rosetta Stone project where **a name transformation is lossy and collision-driven** with structured disambiguation.
+
+**Finalize is a one-way FSM.**
+
+`Blank → SessionOpen ↔ SessionClosed → Finalized`. Finalized is absorbing — every destructive op checks for it first and refuses. Mirrors physical reality: finalized discs have lead-out written to the outer edge.
+
+First Rosetta Stone project with **an absorbing terminal state** in its FSM. G117's Ended was terminal but implicit; G120's Finalized is explicit and rejected by every op.
+
+**Session-open is a transient write window.**
+
+Between `open_session` and `close_session`, writes land in the current session. Outside that window, writes rejected (`NoOpenSession`). Transactional model: session is a write boundary; `close_session` commits. Opening a second session after closing the first is allowed (until finalize).
+
+First Rosetta Stone project where **a resource has explicit open/close gates** around mutating operations.
+
+G119 (bulk-picture) → G120 *session-aware capacity accounting + FFD bin-packing + ISO 9660 name canonicalization with collision suffix + absorbing-terminal-state FSM + transactional write window*. Graphics 7/17. 120/130 complete.
