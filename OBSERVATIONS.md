@@ -3649,3 +3649,45 @@ First Rosetta Stone project with **label-plus-values row layout**. G091 had rend
 First Rosetta Stone project where **formatting is attached to the column schema**.
 
 G103 (multiset inventory) → G104 *kind-tagged row output + declarative column schema + inline group subtotals + per-column currency formatting*. Databases 4/13. 104/130 complete.
+
+---
+
+## G105 — Database Backup Script Maker
+
+**Code generation is template + validation.**
+
+A generator has two halves: validator rejects malformed configs, emitter turns valid configs into deterministic text. G105 separates them: `validate(spec) → errors` then `emit_script(spec) → script | errors`. Invalid configs never reach the emitter; valid ones produce byte-reproducible output.
+
+First Rosetta Stone project where **the output is code, not data**. G085's quiz text was data; G094's logs were data. G105's bash script is **executable** — runs in a different interpreter, has its own security surface.
+
+**Shell quoting uses single quotes + `'\''` escape.**
+
+Bash single-quoted strings are literal; a single quote cannot appear inside. Canonical workaround: close, emit backslash-escaped quote, reopen. `it's` → `'it'\''s'`.
+
+G105's `shell_quote` does this mechanically. Every shell-script generator must implement it — mistakes here are CVEs.
+
+First Rosetta Stone project where **shell-safe quoting is a security primitive**. G101 handled SQL string literals; G105 handles shell string literals. Different syntax, same class of problem.
+
+**Identifier allow-list beats shell-quoting alone.**
+
+Table names flow into **unquoted** positions (`--table=users`). Shell-quoting the value doesn't prevent SQL syntax injection if the name itself has SQL metacharacters. Instead, G105 validates identifiers up front: must match `[a-zA-Z_][a-zA-Z0-9_]*`.
+
+Defence-in-depth: identifier is shell-quoted (bash sees it literal) AND validated (no SQL metacharacters reach pg_dump). Either layer alone has holes.
+
+First Rosetta Stone project with **an explicit allow-list for user-provided strings that flow into multiple interpreters**.
+
+**Determinism enables diff-and-review.**
+
+`emit_script(spec) == emit_script(spec)` is a hard invariant. Same inputs → same bytes. Enables the ops pattern: version-control config, regenerate script, `diff` old vs new, review what changed.
+
+G105 keeps determinism by sorting table lists, quoting deterministically, and **not embedding timestamps or randoms in the script text** (the `STAMP=$(date ...)` line runs at script-execution time, not emission time — that's the right place).
+
+First Rosetta Stone project where **deterministic emission is load-bearing** for downstream diff review.
+
+**Validation errors are a list.**
+
+`validate(spec)` returns a `Vec<ValidationError>`. Multiple problems surface at once, not "fix one, resubmit, find next". Mirrors G101's `Finding` pattern: errors as data, plural.
+
+First Rosetta Stone project where **config validation surfaces all errors in one pass**. G085 stopped at first error; G101 and G105 emit everything the checker found.
+
+G104 (kind-tagged reports) → G105 *validate-then-emit code gen + shell-safe quoting + identifier allow-list + deterministic-for-diff + multi-error validation*. Databases 5/13. 105/130 complete.

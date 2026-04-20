@@ -119,7 +119,7 @@
 - [x] 102. Remote SQL Tool
 - [x] 103. Card Collector
 - [x] 104. Report Generator
-- [ ] 105. Database Backup Script Maker
+- [x] 105. Database Backup Script Maker
 - [ ] 106. Event Scheduler and Calendar
 - [ ] 107. Budget Tracker
 - [ ] 108. Address Book
