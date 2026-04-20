@@ -3611,3 +3611,41 @@ Same pattern as Amazon SKUs (product + variant), weather data (station + timesta
 First Rosetta Stone project where **a struct is used as a hash-map key**. G088's sort key was a struct but config, not key. G103's `InventoryKey` identifies rows in the multiset.
 
 G102 (executor completing database) → G103 *multiset inventory + multiplicative valuation + set-difference missing list + symmetric trade evaluation + compound hash key*. Databases 3/13. 103/130 complete.
+
+---
+
+## G104 — Report Generator
+
+**Report is a list of kind-tagged rows.**
+
+A report isn't a 2D array. It's a **list of rows**, each carrying a kind (Header/Data/Subtotal/Total). UIs dispatch on kind — bold header, indent data, emphasise subtotal, underline total.
+
+First Rosetta Stone project where **the output format is a sequence of typed rows, not homogeneous data**. G094 had uniform entries; G091 had lines all the same kind. G104's rows each carry semantic role — consumer doesn't guess.
+
+**Column definitions are first-class.**
+
+`ColumnDef` declares name, field, kind (plain/summable), format-cents flag. Engine is fixed; columns are data. Pattern pandas, Excel pivots, Tableau all ship.
+
+First Rosetta Stone project where **the output schema is declarative**. G095's Excel had cells-by-address; G104 has columns-as-objects. Adding a new column is adding a `ColumnDef`, not modifying engine code.
+
+**Subtotals are per-group aggregations emitted inline.**
+
+G104 emits data rows under each group PLUS subtotal row — user sees detail + summary in one pass. SQL's `GROUP BY WITH ROLLUP`, pandas' `.groupby().sum()` with data intact, every accounting ledger.
+
+Subtotals per-group; grand totals across all groups. No grouping → skip subtotals, keep grand total if aggregates exist.
+
+First Rosetta Stone project where **an aggregate is emitted alongside the data it aggregates**. G089's group-by returned only aggregates; G104 preserves source rows AND adds aggregates — hybrid view.
+
+**Grand total label in first cell.**
+
+"TOTAL" anchors the first cell; aggregate columns show summed values; non-aggregate middle cells blank. Spreadsheet convention: label anchors, numbers line up under headers.
+
+First Rosetta Stone project with **label-plus-values row layout**. G091 had rendered lines with no structural roles; G104's cells map 1:1 to columns.
+
+**Currency formatting is a column property.**
+
+`format_cents=true` renders `1500` as `$15.00`. Per-column because some columns are money (revenue) while others are raw counts (qty). Integer stays integer in the record; formatter runs at report-generation time.
+
+First Rosetta Stone project where **formatting is attached to the column schema**.
+
+G103 (multiset inventory) → G104 *kind-tagged row output + declarative column schema + inline group subtotals + per-column currency formatting*. Databases 4/13. 104/130 complete.

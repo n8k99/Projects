@@ -118,7 +118,7 @@
 - [x] 101. SQL Query Analyzer
 - [x] 102. Remote SQL Tool
 - [x] 103. Card Collector
-- [ ] 104. Report Generator
+- [x] 104. Report Generator
 - [ ] 105. Database Backup Script Maker
 - [ ] 106. Event Scheduler and Calendar
 - [ ] 107. Budget Tracker
