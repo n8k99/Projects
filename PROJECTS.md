@@ -133,7 +133,7 @@
 - [x] 114. Slide Show
 - [x] 115. Mind Mapper
 - [x] 116. Grayscale Converter
-- [ ] 117. Stream Video from Online
+- [x] 117. Stream Video from Online
 - [ ] 118. Mp3 Player
 - [ ] 119. Bulk Picture Manipulator
 - [ ] 120. CD Burning App

@@ -4237,3 +4237,47 @@ First Rosetta Stone project where **statistical metrics on pixel data are first-
 First Rosetta Stone project where **empty pixel data has explicit zero/None semantics**.
 
 G115 (mind map) → G116 *row-major pixel buffer + closed-enum conversion strategies + Rec.709 luminosity weights + 256-bin histogram + mean/stddev contrast metrics + graceful empty handling*. Graphics 3/17. 116/130 complete.
+
+---
+
+## G117 — Stream Video from Online
+
+**ABR is a pure function.**
+
+Every HLS/DASH client's quality-selection reduces to: given buffer (ms), bandwidth (bps), and segment sizes per bitrate, pick the highest bitrate whose download fits inside the buffer.
+
+`effective_bw = bandwidth * safety_factor`; `budget_ms = max(buffer_ms, segment_duration_ms)`; chosen = highest bitrate where `download_ms ≤ budget_ms`. Safety factor hedges bandwidth error. Buffer-vs-segment-duration max handles startup.
+
+First Rosetta Stone project where **a pure function over measurable inputs drives a UX-critical choice**. G086's frecency was similar but scalar→scalar; G117's output selects from a set and re-runs per segment.
+
+**Buffer budget has two floors.**
+
+Naive "must fit in buffer" breaks at startup (buffer=0 ⇒ nothing fits). Floor: one segment duration. Ceiling: 2 × target_buffer_ms. ABR bounded from both ends.
+
+First Rosetta Stone project where **a single numeric input is clamped by domain-specific floor and ceiling**.
+
+**Playback is a five-state FSM.**
+
+Idle → Buffering → Playing → (Paused|Buffering|Ended). Transitions driven by buffer thresholds + segment availability. Pause/play user-triggered; everything else computed.
+
+First Rosetta Stone project with **an FSM driven by numeric thresholds + list boundaries**. G073 was command-driven; G117 is level-driven.
+
+**Events are the audit log.**
+
+Every transition, bitrate switch, rebuffer, seek emits a `PlayerEvent`. Tests assert behaviour; telemetry aggregates rebuffer rate; UI animates from events.
+
+First Rosetta Stone project where **an FSM emits an event per transition as first-class output**.
+
+**Multi-bitrate means a per-segment size map.**
+
+Stream has N bitrates; each segment comes in N sizes. `sizes_by_bitrate: {bitrate → bytes}` per segment. VBR-friendly.
+
+First Rosetta Stone project where **the same logical unit has multiple physical representations** selected at query time. G112 had dialect-specific DDL; G117 has bitrate-specific segment bytes.
+
+**Seek clears buffer.**
+
+Seeking invalidates current buffer — bytes in flight are for the wrong playhead. Reset `buffer_ms = 0`, update `played_ms`, transition to Buffering.
+
+First Rosetta Stone project where **a user action invalidates an internal cache** with visible consequences.
+
+G116 (grayscale) → G117 *pure-function ABR + clamped buffer budget + 5-state playback FSM + event log + multi-bitrate segment map + seek-clears-buffer*. Graphics 4/17. 117/130 complete.
