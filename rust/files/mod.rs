@@ -15,3 +15,4 @@ pub mod rpg_character;
 pub mod image_map;
 pub mod file_copier;
 pub mod snippet_manager;
+pub mod versioning_manager;

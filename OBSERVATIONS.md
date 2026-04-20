@@ -3416,3 +3416,49 @@ Three query patterns: trigger+language ("what does `for` expand to in Python?"),
 First Rosetta Stone project where **a small library indexes its contents multiple ways**. G093 indexed music metadata; G099 applies the same pattern to code snippets.
 
 G098 (file copy + events) → G099 *two-part IR (text + stops) + $0-last ordering + three-form placeholder parser + duplicate-preservation for UI mirroring*. Files 15/16. 99/130 complete.
+
+---
+
+## G100 — Versioning Manager (Closes Files)
+
+**Content addressing is the dedupe primitive.**
+
+A blob's identity **is its content hash**. Same bytes → same hash → same blob. Two commits with the same file point to the same blob — no copies. Storage deduplicates automatically; no "check if exists" logic because the hash answered.
+
+Git's object store, IPFS's entire protocol, Nix's package cache, Docker image layers, every system that wants "identical things stored once". G100 reduces it to three tables (blob, tree, commit) keyed by hash.
+
+First Rosetta Stone project where **the identifier is derived from the data**. G093 keyed by external path; G094 by insertion order; G100's objects are keyed by their content hash.
+
+**The commit chain is a linked list of trees.**
+
+Commit has tree hash + parent hash. Walking parent pointers from HEAD reconstructs full history. G100's chain is linear (one parent); real Git is a DAG (merges). Deliberate simplification — the pattern is established; branching/merging is layered on.
+
+First Rosetta Stone project with **a deliberate simplification of a well-known system**. G079 didn't try to be Zork; G094 didn't try to be syslog. G100 picks Git's object-store subset that fits the category.
+
+**Canonical encoding is the cross-language contract.**
+
+For commit hashes to match across six languages, the byte sequence fed to the hash function must match byte-for-byte. Tree entries sorted by filename. Hex lowercase. Newlines `\n`. No trailing spaces. Tab-separated fields.
+
+Every language produces these exact bytes. Test: commit same files, same timestamp, same message in Python and Rust; same commit hash. **Behavioural equivalence at the bit level** — strongest cross-language contract the milestone has.
+
+First Rosetta Stone project where **all six languages must produce identical bytes** from the same input. G085 had textual round-trip within one language; G090 had byte-level within one; G100 requires byte equivalence across six.
+
+**Blob storage is deduplicated by construction.**
+
+Ten files containing `"hello"` in one commit produce one blob, not ten. Committing the same file twice produces zero new blobs. `blob_count()` grows only when truly-new content arrives.
+
+First Rosetta Stone project where **storage efficiency is an emergent property**, not an optimisation. G089 used integer cents for correctness; G100 uses content addressing for dedup. Both cases: choosing the right representation makes the hard problem go away.
+
+**Diff is tree comparison, not byte comparison.**
+
+`diff(from, to)` compares two commits' tree entries. Hash differs → Changed. Name exists in one but not other → Added or Removed. O(n) in tree entries, not O(bytes). Same speedup `git diff --name-status` gets.
+
+First Rosetta Stone project where **a comparison operation exploits content addressing for speed**. Two commits are identical iff their trees hash identically — a single 64-bit compare replaces a full file walk.
+
+**Closing Files: the journey.**
+
+G085 → G086 → G087 → G088 → G089 → G090 → G091 → G092 → G093 → G094 → G095 → G096 → G097 → G098 → G099 → G100. Sixteen patterns: round-trip equivalence, frecency ranking, path resolution, multi-key sort, group-by aggregation, byte compression, flow layout, preview/apply/undo, metadata/data separation, append-only logs, lazy formula evaluation, class templates, ray-cast hit testing, policy-as-data copy, tab-stop IR, content-addressed storage.
+
+Every file-format-adjacent codebase draws on these. The noosphere's vault files, save states, binary assets, backups, git-style history will compose these patterns rather than invent new ones.
+
+G099 (snippet IR) → G100 *content-addressed identity + commit-chain history + canonical cross-language encoding + structural dedup + tree-level diff*. **Files 16/16 — CATEGORY CLOSED. 100/130 complete.**
