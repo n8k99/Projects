@@ -3989,3 +3989,51 @@ Graphviz DOT is the de facto format for directed-graph visualisation. Every ERD 
 First Rosetta Stone project where **the export target is DOT**. G090 was ZIP; G100 was content-addressed hashing. DOT is the graph analog — text-based, tool-pipeline-friendly serialisation.
 
 G110 (trip chain) → G111 *typed directed graph + closed cardinality enum + Kahn's topological sort + DFS cycle detection + pre-render validation + DOT export*. Databases 11/13. 111/130 complete.
+
+---
+
+## G112 — Database Translation
+
+**Abstract types are dialect-neutral.**
+
+A column's *logical* type (`BigInt`, `Boolean`, `Timestamp`, `Varchar(255)`) is the portable part. Its *rendering* is dialect-specific. G112 separates: `ColumnType` is abstract; `render(type, dialect)` emits SQL text.
+
+SQLAlchemy's `Column(Integer)`, Django's `IntegerField`, Diesel's `schema!` macro all store abstract types and emit dialect-specific SQL. G112 strips the pattern to its essence.
+
+First Rosetta Stone project where **a domain type has one abstract representation and multiple rendering targets**. G091's rendered-document IR was similar, but G112 has multiple *render* functions for the same type, selected by dialect.
+
+**Type mapping loses information in some dialects.**
+
+Not every mapping is lossless. Postgres distinguishes SMALLINT/INTEGER/BIGINT (2/4/8 bytes). SQLite collapses all integers to one `INTEGER` (signed 64-bit). Postgres has `BOOLEAN`; SQLite stores 0/1 as `INTEGER`. Postgres has `DATE`/`TIMESTAMP`; SQLite stores both as `TEXT`.
+
+G112 accepts this: logical type expresses intent; renderer does what the dialect supports. Lossiness is explicit per dialect.
+
+First Rosetta Stone project where **the abstract type is richer than some targets** and the renderer does the best-available mapping.
+
+**Auto-increment has three different syntaxes.**
+
+MySQL: `AUTO_INCREMENT`. Postgres: `GENERATED ALWAYS AS IDENTITY`. SQLite: `AUTOINCREMENT` (and only when combined with `PRIMARY KEY` on an `INTEGER` column). A single logical flag produces conditional syntax depending on dialect *and* other column properties.
+
+First Rosetta Stone project where **a logical flag produces a conditional syntax** conditioned on both dialect and related column properties.
+
+**Default values have their own mini-language.**
+
+`DEFAULT NOW()` is MySQL; `DEFAULT CURRENT_TIMESTAMP` is Postgres/SQLite; `DEFAULT 'active'` is everywhere. G112 models defaults as an enum: `Literal(string)` for pass-through; `Now` for the auto-timestamp macro (rendered per dialect).
+
+Reified-operation pattern — the default is data (not a string), so the renderer varies output by dialect.
+
+First Rosetta Stone project where **an operation that looks like a string is modelled as a tagged value**. G101 had token kinds; G112 has default-value kinds.
+
+**Column metadata composes via builder.**
+
+`DbColumn::new("id", Integer).pk().auto_increment()` — each call returns `self` and sets one flag. Multi-flag columns read naturally: `.not_null().unique()`. Fluent-builder pattern from every query library (Diesel, SQLAlchemy, Knex).
+
+First Rosetta Stone project where **the builder pattern is load-bearing for readability**. Without it, columns become positional constructors with eight booleans — unreadable.
+
+**Emission is glue, logic lives in rendering.**
+
+`emit_create_table` is three lines: header, columns joined, footer. All dialect-specific logic in `render_type`/`render_default`/`render_column`. Outer emission is pure glue, same as G105's bash and G111's DOT.
+
+First Rosetta Stone project where **the outer emission function is pure glue** with logic pushed into subordinates — consistent across G105/G111/G112.
+
+G111 (ERD graph) → G112 *abstract type system + dialect-aware rendering + lossy-mapping acceptance + closed auto-increment syntax set + reified default values + fluent builder columns*. Databases 12/13. 112/130 complete.

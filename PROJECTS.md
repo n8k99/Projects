@@ -126,7 +126,7 @@
 - [x] 109. TV Show Tracker
 - [x] 110. Travel Planner System
 - [x] 111. ERD Creator
-- [ ] 112. Database Translation
+- [x] 112. Database Translation
 - [ ] 113. Web Board / Forum
 
 ## Graphics and Multimedia
