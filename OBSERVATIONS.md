@@ -4037,3 +4037,61 @@ First Rosetta Stone project where **the builder pattern is load-bearing for read
 First Rosetta Stone project where **the outer emission function is pure glue** with logic pushed into subordinates — consistent across G105/G111/G112.
 
 G111 (ERD graph) → G112 *abstract type system + dialect-aware rendering + lossy-mapping acceptance + closed auto-increment syntax set + reified default values + fluent builder columns*. Databases 12/13. 112/130 complete.
+
+---
+
+## G113 — Web Board / Forum (Closes Databases)
+
+**Parent-pointer storage, derived tree on read.**
+
+Posts don't store children — each stores `parent_id: Option<u64>`. Top-level posts have `parent_id = None`. Standard SQL way to represent trees: one column that references `posts.id`.
+
+Tree shape **derived on read**: collect posts by thread, DFS from roots, yield `(post, depth)` pairs. No tree stored; only parent pointers. Every forum, email threading (`In-Reply-To`), every Reddit-style system uses this.
+
+First Rosetta Stone project where **a tree structure is implicit in flat data** and rebuilt per query. G087 had explicit nested nodes; G111 stored adjacency directly. G113's tree lives in parent pointers.
+
+**DFS with depth tracking is the tree walk.**
+
+`thread_tree(thread_id)` returns `[(post, depth)]` in DFS order. UI uses depth for indentation. Recursive: push top-level at depth 0, recurse into children at depth+1. Pre-order, stable via `created_ms`.
+
+First Rosetta Stone project where **tree traversal exposes depth as first-class output**. G087 had recursive tree ops but didn't expose depth; G091 had layout depth implicitly. G113 makes depth a value the caller gets.
+
+**Score can go negative.**
+
+Upvotes and downvotes separate. Score = upvotes − downvotes. A post with 3 up, 7 down has score −4. Two-counter pattern: tracking positive and negative separately lets the system compute score *and* confidence.
+
+First Rosetta Stone project where **a derived quantity can be negative** as a deliberate feature. G089/G107 had signed quantities but monotone; G113's score flips based on community reaction.
+
+**Hot score balances score and recency.**
+
+`sign(s) * log10(max(1, |s|)) − age_days * 0.2`.
+
+* `log10` compresses — 10000 upvotes is 2× log-magnitude of 100, not 100×.
+* `sign(s)` preserves direction — downvoted posts sink.
+* Age penalty (0.2 × days) makes recency matter — a week costs 1.4 points regardless of score.
+
+Constants tunable; shape universal. Every "hot" ranking on the internet uses some variant.
+
+First Rosetta Stone project where **log-compression of a metric is a ranking primitive**. G086 used log frecency; G113 log score. Both prevent extremes from dominating; "order of magnitude" becomes the semantic unit.
+
+**Pinned threads ignore sort order.**
+
+User picks NEW/TOP/HOT, but pinned threads always come first. Moderators use pinning for announcements, rules, megathreads.
+
+Implemented as a primary sort key: `(is_pinned ? 0 : 1, sort_metric)`. Pinned always first; within each group the selected metric decides.
+
+First Rosetta Stone project with **a primary sort key independent of user choice**. G088 composed user-specified keys; G113's pinned-first is a hardcoded override.
+
+**Parent must be validated at write time.**
+
+When adding a post: does `thread_id` exist? If `parent_id` set, does the parent exist? Is it in the *same thread*? Without these checks, forums drift into nonsense — replies to nothing, cross-thread replies, orphaned trees.
+
+G113 validates at insert, returning errors before storage. Database-like constraint pattern — FK integrity at the application layer (G102's engine doesn't enforce).
+
+First Rosetta Stone project where **hierarchical integrity is enforced at write time**.
+
+**Closing Databases — thirteen patterns.**
+
+G101 query parser → G102 executor → G103 multiset + trades → G104 reports → G105 codegen → G106 intervals + recurrence → G107 envelope budgets → G108 dedup + merge → G109 library/watchlist → G110 chain validation → G111 typed graph + topo → G112 dialect DDL → G113 threaded forum. Thirteen vocabulary items every data-heavy app reaches for. With Files (G085–G100), the backbone of every CRUD-and-query system.
+
+G112 (dialect DDL) → G113 *parent-pointer tree + derived DFS traversal + depth tracking + signed score + log-compressed hot ranking + pinned-first sort override + write-time parent validation*. **Databases 13/13 — CATEGORY CLOSED. 113/130 complete.**

@@ -127,7 +127,7 @@
 - [x] 110. Travel Planner System
 - [x] 111. ERD Creator
 - [x] 112. Database Translation
-- [ ] 113. Web Board / Forum
+- [x] 113. Web Board / Forum
 
 ## Graphics and Multimedia
 - [ ] 114. Slide Show

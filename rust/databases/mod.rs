@@ -12,3 +12,4 @@ pub mod tv_tracker;
 pub mod travel_planner;
 pub mod erd_creator;
 pub mod db_translator;
+pub mod web_board;
