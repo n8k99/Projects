@@ -4191,3 +4191,49 @@ Labels can contain `&`, `<`, `>`, `"` — XML metacharacters. Without escape, `"
 First Rosetta Stone project where **XML/HTML escape is mandatory preprocessing**. G097's HTML was controlled content; G115's labels come from user input.
 
 G114 (slide nav) → G115 *polar-to-cartesian layout + nested-children tree + per-node collapsed state + tree-to-flat-list transform + SVG emission + XML escape*. Graphics 2/17. 115/130 complete.
+
+---
+
+## G116 — Grayscale Converter
+
+**Pixel buffers are flat row-major vectors.**
+
+2D image stored as 1D `Vec<Rgb>` of length `width * height`, indexed `y * width + x`. Row-major. Cache-friendly (rows contiguous). Every pixel-level library uses this — PIL, OpenCV, Rust's `image`, browser `ImageData`, OpenGL textures.
+
+First Rosetta Stone project with **a 2D grid stored as a flat array**. G087 was nested; G113 hash-keyed. G116 is contiguous positional storage.
+
+**Grayscale is a closed set of named strategies.**
+
+RGB → gray is lossy (3→1). Six strategies: **Luminosity** (Rec.709 perceptual), **Average** (arithmetic mean, visually wrong), **Lightness** (max+min)/2, and single-channel **Red/Green/Blue**.
+
+All data; conversion is one function with a switch. No magic numbers except Rec.709 weights (standardised).
+
+First Rosetta Stone project where **a closed set of named strategies parameterises one conversion function**. G112 did this for DDL emission; G116 for gray conversion.
+
+**Luminosity weights are a standard, not a choice.**
+
+ITU-R BT.709: 0.2126/0.7152/0.0722. Older BT.601 used 0.299/0.587/0.114. G116 picks BT.709 — most common for web/SDR.
+
+Named standard = predictable cross-implementation. All six languages compute identical pixel values.
+
+First Rosetta Stone project with **an external standard as a correctness premise**. G100's FNV-1a was a named algorithm; G116's luminosity is named colour science.
+
+**Histogram is the image's brightness-distribution shape.**
+
+256 bins. Dark images cluster near 0, blown-out near 255, balanced spread. Foundation for auto-levels, histogram equalisation, thresholding.
+
+First Rosetta Stone project where **a derived array is the primary signal** for downstream analysis. G089 aggregated to scalars; G116 aggregates to a distribution.
+
+**Mean and stddev are contrast metrics.**
+
+Mean = overall brightness. Stddev = variance. Uniform image: stddev 0. Checkerboard: stddev ~128. Starting point for auto-contrast.
+
+First Rosetta Stone project where **statistical metrics on pixel data are first-class**.
+
+**Empty images return defined zero metrics.**
+
+0×0 image: mean 0.0, stddev 0.0, dynamic_range None. No crashes. Empty is a valid state.
+
+First Rosetta Stone project where **empty pixel data has explicit zero/None semantics**.
+
+G115 (mind map) → G116 *row-major pixel buffer + closed-enum conversion strategies + Rec.709 luminosity weights + 256-bin histogram + mean/stddev contrast metrics + graceful empty handling*. Graphics 3/17. 116/130 complete.

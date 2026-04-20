@@ -2,3 +2,4 @@
 
 pub mod slide_show;
 pub mod mind_mapper;
+pub mod grayscale;

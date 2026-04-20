@@ -132,7 +132,7 @@
 ## Graphics and Multimedia
 - [x] 114. Slide Show
 - [x] 115. Mind Mapper
-- [ ] 116. Grayscale Converter
+- [x] 116. Grayscale Converter
 - [ ] 117. Stream Video from Online
 - [ ] 118. Mp3 Player
 - [ ] 119. Bulk Picture Manipulator
