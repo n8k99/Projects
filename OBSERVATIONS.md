@@ -2844,3 +2844,39 @@ Three question kinds (MC/TF/SA). Each language models tagged unions at its idiom
 First Rosetta Stone project where **the parse error is a structured type** the caller can destructure — enum of specific failure modes (BadHeader, MissingField, InvalidIndex, UnknownKind). G071 forgave; G083 returned a list of issues; G085 has a single error path returning structured diagnostics.
 
 G084 closed Web → G085 opens **Files**. The category's theme (round-trip equivalence) will recur in every project — different data shapes, different file formats, same contract. 85/130 complete. 1 of 16 Files done.
+
+---
+
+## G086 — Quick Launcher
+
+**Frecency is one number that replaces two.**
+
+Every launcher answers the same question: "when the user types 'fi', show Firefox (500 launches last week) or Files (one launch yesterday)?" Pure frequency says Firefox. Pure recency says Files. Neither alone is right.
+
+Frecency collapses both into a scalar: `log(1 + count) / (1 + age_hours)`. The log tames explosive frequency so a 1000x-launched entry doesn't crush everything. The age denominator decays recency. No weights to tune, no two-number comparison — one number orders them all.
+
+First Rosetta Stone project where **the ranking function is a composition of two scalar sub-scores** rather than a lexicographic tuple comparison. Every vault recommender (recent notes, related articles, completion suggestions) will take this shape.
+
+**Text match dominates; frecency breaks ties.**
+
+Naive launchers rank by pure frecency — then typing "fire" ranks Firefox last if the user has never launched it. Wrong. The user stated intent by typing. Frecency cannot overrule intent.
+
+So text match is the primary score (0..1); frecency is a small bonus (weight 0.1). A perfect name match (1.0) beats any frecency. A prefix tier (0.8) beats a substring tier (0.6) even with boosted frecency. Frecency only reshuffles entries that matched the query equally well.
+
+First Rosetta Stone project with **two-layer ranking** explicit in its structure: layer 1 determines visibility (zero text match → filtered out), layer 2 orders the survivors. Every vault search will follow this: the query decides what's relevant, usage stats decide what's prioritised among relevant results.
+
+**Usage state is a round-trip file too.**
+
+G085 proved that a static quiz serialises round-trip. G086 extends the contract to **mutable accumulated state** — launch_count and last_launched_ms are persisted per entry, reloaded next session, continue accumulating. A launcher that forgets usage between sessions has to re-learn the user daily. One with persistence learns the user once.
+
+First Rosetta Stone project where **the persistent representation carries accumulated state**, not just static configuration. The vault's note-metadata sidecars (last-viewed timestamps, access counts) will use this exact pattern.
+
+**Empty query is a defined case, not an error.**
+
+When the user hasn't typed yet, the launcher should surface everything — sorted by frecency, putting recent/frequent at top. Zero results on empty input is broken UX.
+
+So `text_match("") == 0.5` for every entry: every entry passes the filter, and only frecency orders them. The moment the user types one character, text match reasserts. This is the only state where frecency solely determines rank.
+
+First Rosetta Stone project where **the ranking function has a documented degenerate case**. No special code path — the same scoring function handles it via a known constant. Every vault search box will follow this convention.
+
+G085 (round-trip equivalence of static data) → G086 *frecency + two-layer ranking + round-trip of mutable usage state + documented empty-query behaviour + structured launch errors*. Files 2/16. 86/130 complete.
