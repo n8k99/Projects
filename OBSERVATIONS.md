@@ -3741,3 +3741,49 @@ Time is an `i64` count of milliseconds from an arbitrary epoch. No timezones, no
 First Rosetta Stone project where **time is explicitly a monotonic integer** — cross-language confidence depends on this, since no language has to agree on timezone database versions.
 
 G105 (code generation) → G106 *half-open intervals + two-inequality overlap + recurrence-as-template-plus-expansion + fast-forward to window + integer-ms time*. Databases 6/13. 106/130 complete.
+
+---
+
+## G107 — Budget Tracker
+
+**Envelope budgeting is category → allocation.**
+
+A budget isn't one number — a **set of envelopes**, each with its own allocation. Groceries: $500. Rent: $2000. Each tracks independently; overrunning groceries doesn't affect rent's balance.
+
+YNAB, cash-envelope method, 50/30/20 rule. G107 formalises: `Envelope { category, budgeted_cents, rollover, alert_threshold_pct }`. Budget aggregates envelopes + transaction stream.
+
+First Rosetta Stone project where **a "budget" is structured per-category, not a single scalar**. G089's aggregations *grouped by* category; G107 makes categories also a *specification*.
+
+**Variance = actual − budgeted.**
+
+Signed difference. Positive = overspent; negative = underspent. Variance_pct = variance × 100 / budgeted. Accounting convention: positive variance is bad news for expenses.
+
+Zero-budget envelopes get sentinel variance_pct of -101. UI renders as "∞" or "no budget set" — any ratio over zero base is undefined; the sentinel surfaces that explicitly.
+
+First Rosetta Stone project where **a sentinel value represents "undefined"** in a numeric field.
+
+**Alert thresholds scale with envelope size.**
+
+Not a fixed-dollar line — a **percentage** of the envelope. Rent at 90% ($1800/$2000) alerts; entertainment at 90% ($90/$100) also alerts. Attention scales with exposure.
+
+Each envelope has its own threshold; strict envelopes alert early, predictable envelopes late. Policy is per-envelope, not per-budget.
+
+First Rosetta Stone project where **a scale-invariant threshold replaces an absolute one**. G086's frecency was scale-invariant (log); G107's alert is too (percentage).
+
+**Refunds subtract from spent, not add.**
+
+Refund is positive amount_cents. Computing `spent`: `spent += -amount_cents` handles both — expense (negative) adds to spent; refund (positive) subtracts. Clean, symmetric.
+
+Why not separate refund transactions? Because accounting-wise they offset the original. A $50 refund against a $100 purchase yields $50 spent, not $50 + -$50 = $0 with no record.
+
+First Rosetta Stone project where **a sign flip carries semantic meaning** (positive = money in, negative = money out).
+
+**Uncategorised spending surfaces as synthetic envelope.**
+
+Real data has categories the user never budgeted for. G107's status walks transactions, groups by category, emits a row for every category — **including ones that match no envelope**.
+
+Synthetic envelopes have `budgeted_cents = 0`, `over_budget = true`, `variance_pct = -101`. UI renders them as "?" categories the user should assign or accept as overflow.
+
+First Rosetta Stone project where **the output includes entries not present in the input schema**. G094 synthesised group keys from transactions. G107 synthesises *envelopes* when the user's schema didn't cover the data.
+
+G106 (intervals + recurrence) → G107 *per-category envelopes + signed variance + scale-invariant alert thresholds + refund-as-negative-expense + synthetic envelopes for uncategorised*. Databases 7/13. 107/130 complete.

@@ -121,7 +121,7 @@
 - [x] 104. Report Generator
 - [x] 105. Database Backup Script Maker
 - [x] 106. Event Scheduler and Calendar
-- [ ] 107. Budget Tracker
+- [x] 107. Budget Tracker
 - [ ] 108. Address Book
 - [ ] 109. TV Show Tracker
 - [ ] 110. Travel Planner System
