@@ -2992,3 +2992,41 @@ This is what every functional `groupBy` does, what Python's `itertools.groupby` 
 First Rosetta Stone project that **parameterises over a function, not a value**. G008's fold took a combiner; G089's `group_by` takes an extractor. Take-a-function is now table stakes for the library.
 
 G088 (sort spec + stable sort) → G089 *single-pass accumulator + sorted output + integer cents + key-function parameterisation*. Files 5/16. 89/130 complete.
+
+---
+
+## G090 — Zip File Maker
+
+**Byte-level round-trip is the compression contract.**
+
+G085 proved textual round-trip (quiz → text → quiz). G090 tightens the contract: **every byte** of input must be recoverable from the compressed output. No lossiness, no approximation. A single lost bit corrupts the file.
+
+Stricter than textual round-trip, because binary data includes bytes that mean different things in different encodings. The compressor is indifferent to content — it sees bytes, not characters. Decoder reverses exactly.
+
+First Rosetta Stone project where **the data is bytes, not text**. G085's parser could normalise whitespace; G090's RLE cannot normalise anything, because every byte is semantically load-bearing.
+
+**RLE is the minimal interesting compression.**
+
+Five lines to decode. Visibly reduces repetitive data (`xxxxxxx` → `7 x`). Visibly fails on random data (every byte becomes two bytes).
+
+That third property is the interesting one. RLE is terrible for general-purpose compression — it only helps when input has actual runs. `add_file` runs RLE and compares against raw size, picking whichever is smaller. **The compressor must know when not to compress.**
+
+First Rosetta Stone project where **the algorithm makes a choice based on its own output size**. G053 fizzbuzz, G071 HTML parse had no such choice. `add_file` explicitly branches on "did compression help?". This meta-level — algorithm evaluating itself — recurs in every adaptive system.
+
+**Per-entry method is the archive pattern.**
+
+Real archive formats (ZIP, 7z, tar.gz) don't choose one method for the whole archive. Each entry picks the best method — or no method. A JPEG inside a ZIP is `STORED` because recompression achieves nothing; a text file inside the same ZIP is `DEFLATED`.
+
+G090 adopts this with two methods. Archive header declares per-entry method; decoder dispatches on the tag. Adding LZ77, Huffman, Deflate later is: add the variant, implement encode/decode, update `add_file` to consider it. Archive **structure** doesn't change.
+
+First Rosetta Stone project where **the archive is an extensible dispatch table**. PNG chunks, PDF objects, OCI image layers all use this.
+
+**Archive = manifest + payload.**
+
+Two conceptual parts: **manifest** (what's in it, how stored, size) and **payload** (compressed bytes). `compressed_size` and `compression_ratio` read only the manifest. `extract` reads manifest to find the method, then payload to decode.
+
+This separation is load-bearing. Lightweight operations (list contents, check existence) don't touch payload; payload representation (in-memory bytes, file handles, object-store URLs) can change without breaking manifest API.
+
+First Rosetta Stone project with explicit **manifest-vs-payload split**. Every indexed storage system (databases, S3, Git object store) layers this over raw bytes.
+
+G089 (group-by aggregation) → G090 *byte-level round-trip + self-evaluating compression choice + per-entry method dispatch + manifest/payload split*. Files 6/16. 90/130 complete.

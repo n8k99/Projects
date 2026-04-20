@@ -102,7 +102,7 @@
 - [x] 87. File Explorer
 - [x] 88. Sort File Records Utility
 - [x] 89. Transaction Averages
-- [ ] 90. Zip File Maker
+- [x] 90. Zip File Maker
 - [ ] 91. PDF Generator
 - [ ] 92. Bulk Renamer and Organizer
 - [ ] 93. Mp3 Tagger
