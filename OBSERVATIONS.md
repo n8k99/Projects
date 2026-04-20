@@ -4281,3 +4281,45 @@ Seeking invalidates current buffer — bytes in flight are for the wrong playhea
 First Rosetta Stone project where **a user action invalidates an internal cache** with visible consequences.
 
 G116 (grayscale) → G117 *pure-function ABR + clamped buffer budget + 5-state playback FSM + event log + multi-bitrate segment map + seek-clears-buffer*. Graphics 4/17. 117/130 complete.
+
+---
+
+## G118 — Mp3 Player (Playlist Navigation + Shuffle/Repeat + Position)
+
+**Playlist ≠ queue order.**
+
+Playlist = ordered track IDs (authorial intent). `queue_order` = runtime permutation (shuffle-aware). `queue_position` indexes queue_order, not the playlist. Unshuffle rebuilds queue_order from playlist and re-locates current track.
+
+First Rosetta Stone project where **authorial order and playback order are separate data** with explicit reconciliation. G109 had seasons→episodes; G118 adds a permutation layer between spec and pointer.
+
+**Shuffle is a deterministic permutation.**
+
+Same seed → same shuffle. Fisher-Yates with G096's LCG constants (`6364136223846793005` / `1442695040888963407` / shift `33`). Current track is swapped to position 0 post-shuffle so playback continues seamlessly.
+
+First Rosetta Stone project where **seeded pseudo-random drives UX determinism**, not statistical modeling. G096 used it for stats; G118 uses it for playback order — the seed *is* the shuffle session identity.
+
+**Repeat is a mode, not a state.**
+
+`compute_next` branches on repeat: One → stay; All → `(pos+1) % n`; Off → advance-or-end. Same `tick`/`next` code paths — mode is the only branch. FSM stays at four states (Idle/Playing/Paused/Stopped).
+
+First Rosetta Stone project where **a mode flag modulates transition logic without adding states**. G117 had pure FSM; G118 has narrower FSM with mode-parameterized transitions.
+
+**Prev has a 3-second rule.**
+
+Universal music-app UX: prev within 3s → previous track; prev after 3s → restart current. History stack stores track IDs (not positions), so it survives shuffle toggle — positions are re-derived via `queue_order.index(prev_id)`.
+
+First Rosetta Stone project where **a single button has position-dependent semantics** disambiguated by state.
+
+**Two orthogonal cursors advance on one tick.**
+
+`queue_position` (which track) + `position_ms` (how far in). `tick` drains the latter; when it crosses track duration, the former advances and the latter resets. Both writable for seek-likes; both observable for UI.
+
+First Rosetta Stone project with **two orthogonal cursors advanced by the same tick event**. G117 had a single cursor + fixed-width segments; G118 has variable-duration tracks, so cursors are genuinely independent.
+
+**History survives shuffle toggle.**
+
+Toggling shuffle rewrites `queue_order` but leaves history alone. Prev after shuffle-toggle still works because history holds track IDs (identities), not positions (indices into a mutable list).
+
+Lesson: **store identities, derive positions.** The data model has one source of truth (track IDs) and one derived lookup (position in current order).
+
+G117 (stream-player) → G118 *authorial/playback order split + seeded-deterministic shuffle + repeat-as-mode + 3-second prev rule + dual-cursor tick + identity-stable history*. Graphics 5/17. 118/130 complete.

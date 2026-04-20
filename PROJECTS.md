@@ -134,7 +134,7 @@
 - [x] 115. Mind Mapper
 - [x] 116. Grayscale Converter
 - [x] 117. Stream Video from Online
-- [ ] 118. Mp3 Player
+- [x] 118. Mp3 Player
 - [ ] 119. Bulk Picture Manipulator
 - [ ] 120. CD Burning App
 - [ ] 121. YouTube Downloader
