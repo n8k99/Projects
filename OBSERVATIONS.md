@@ -3288,3 +3288,51 @@ First Rosetta Stone project where **the character sheet has database-like invari
 First Rosetta Stone project where **the character is a file**. Every real RPG (tabletop, CRPG, MMO) has this as primitive unit — character exists on paper or save file, loadable later.
 
 G095 (spreadsheet model) → G096 *data-over-dispatch classes + lazy derived stats + deterministic seeded RNG + budget-and-cap invariants*. Files 12/16. 96/130 complete.
+
+---
+
+## G097 — Image Map Generator
+
+**Hit testing is one method on every shape.**
+
+Every shape answers `contains(x, y) → bool`. Shapes differ in data and test logic; caller sees them as interchangeable. Shape polymorphism via kind tag (Python/Go/CL) or enum variant (Rust/Lean).
+
+G059's polymorphism applied to geometry. G059 had `shape_area(Shape) → f64`; G097 has `contains(Shape, x, y) → bool`. Same pattern: one method, many shapes, dispatched on kind.
+
+First Rosetta Stone project where **the polymorphic method produces a boolean, not a value**. Hit testing is a **predicate**, not a function. That subtle shift — "does this shape claim this point?" — enables composable hit-testing pipelines.
+
+**Point-in-polygon is ray casting.**
+
+Textbook algorithm: shoot horizontal ray from `(x, y)` rightward; count edge crossings; **odd = inside, even = outside**. Works for convex, concave, self-intersecting polygons (even-odd rule).
+
+Each edge `(xi, yi)` to `(xj, yj)` is tested: `(yi > y) != (yj > y)` means the edge spans `y`. Compute x-intersection; if right of `x`, toggle inside.
+
+Same algorithm every GIS library (PostGIS, GEOS), every CAD tool, every SVG renderer uses. First published 1962; unchanged for general polygons.
+
+First Rosetta Stone project with **a named classical algorithm** as the payload. Ray casting is worth implementing six times — cross-language consistency verifies the algorithm's definition, not just our implementation.
+
+**Z-order resolves overlaps.**
+
+Two rects stacked — which does the click land on? Higher `z` wins. `hit_test(x, y)` sorts regions by z descending, returns first containing.
+
+Same model as every UI framework (CSS z-index, tkinter raise/lower, CAD layer stacking). Z is a small integer; bigger = on top. G097 doesn't enforce uniqueness — shared z relies on insertion order via stable sort.
+
+First Rosetta Stone project with **explicit z-ordering as a contract**. G074's whiteboard used z for drawing; G097 applies it to hit testing. Both use stable sort so insertion order breaks z ties deterministically.
+
+**HTML image maps are the simplest output target.**
+
+`<map>` + `<area>` is how you made image parts clickable before CSS/SVG were universal. 25-year-old spec, browser-universal, no dependency to read.
+
+G097 generates `<area shape="rect" coords="0,0,100,100" href="/home" alt="Home">` etc. SVG would be richer but needs scaffolding; CSS would need positioning logic. `<map>` just works.
+
+First Rosetta Stone project where **the export target is an old-but-universal standard** chosen for ubiquity over features.
+
+**Rect coords for HTML differ from internal.**
+
+Internal rect is `(x, y, w, h)`; HTML `<area>` takes `(x1, y1, x2, y2)`. Converter emits `(x, y, x+w, y+h)`. Circles and polygons are unchanged.
+
+Tiny but illustrative: **internal and export representations can differ**, and the exporter mediates. G090 serialised bytes as-is; G094 serialised fields as-is. G097 transforms some fields to match the target format.
+
+First Rosetta Stone project with **explicit coordinate-system translation at export time**.
+
+G096 (character sheets) → G097 *predicate-polymorphism + ray-casting canonical algorithm + z-ordered hit resolution + legacy-standard export target*. Files 13/16. 97/130 complete.

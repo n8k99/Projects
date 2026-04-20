@@ -12,3 +12,4 @@ pub mod mp3_tagger;
 pub mod log_file_maker;
 pub mod excel_exporter;
 pub mod rpg_character;
+pub mod image_map;

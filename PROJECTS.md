@@ -109,7 +109,7 @@
 - [x] 94. Log File Maker
 - [x] 95. Excel Spreadsheet Exporter
 - [x] 96. RPG Character Stat Creator
-- [ ] 97. Image Map Generator
+- [x] 97. Image Map Generator
 - [ ] 98. File Copy Utility
 - [ ] 99. Code Snippet Manager
 - [ ] 100. Versioning Manager
