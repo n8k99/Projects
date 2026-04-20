@@ -124,7 +124,7 @@
 - [x] 107. Budget Tracker
 - [x] 108. Address Book
 - [x] 109. TV Show Tracker
-- [ ] 110. Travel Planner System
+- [x] 110. Travel Planner System
 - [ ] 111. ERD Creator
 - [ ] 112. Database Translation
 - [ ] 113. Web Board / Forum

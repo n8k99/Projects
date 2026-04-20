@@ -3891,3 +3891,53 @@ The "Continue Watching" row. Every streaming service ships it. G109 makes it a p
 First Rosetta Stone project where **a view is defined by a range predicate on a derived quantity**.
 
 G108 (contact dedup) → G109 *library/watchlist split + derived hierarchical progress + first-unwatched-in-order next-up + filter+sort airing-since + compound foreign key across stores + in-progress filter*. Databases 9/13. 109/130 complete.
+
+---
+
+## G110 — Travel Planner System
+
+**An itinerary is a chain of graph edges.**
+
+A leg is an edge in a transportation graph: `origin --(mode, depart_ms → arrive_ms)--> destination`. A trip is a walk along that graph — sequence where each edge's target equals the next edge's source.
+
+G110 validates the chain composition property: **leg[N].destination == leg[N+1].origin**. Any mismatch is a `LocationMismatch` — someone's supposed to teleport. Same invariant `git log --graph` checks when parents don't link, same invariant rail routing uses when a transfer makes no sense.
+
+First Rosetta Stone project where **the data structure is a typed chain** and the invariant is that consecutive elements compose. G106 were independent points; G109 were ordered but independent. G110 is the first where the Nth element *depends* on the N-1st.
+
+**Time chain is a second invariant.**
+
+Beyond location, the temporal chain must be monotone: `leg[N+1].depart_ms >= leg[N].arrive_ms`. Otherwise the traveller is in two places. `TimeConflict` as Error.
+
+Time and location chains are **independent** invariants — a trip can violate either or both. G110 reports both separately so the user can fix independently.
+
+First Rosetta Stone project with **two independent consecutive-element invariants**, each reported separately.
+
+**Tight layovers are warnings, not errors.**
+
+A 15-minute layover is legal (traveller has time) but unwise — missed connections happen. G110 flags gaps below `min_layover_minutes` as Warning, not Error. User may accept the risk.
+
+Zero-minute layover (connecting at instant) is neither TightLayover nor TimeConflict — theoretically legal but physically tight. G110 treats it as acceptable (no issue), matching how airlines model "legal connection time".
+
+First Rosetta Stone project where **a continuum of connection time produces different severity responses** — Error for negative, no-issue for zero, Warning for positive-but-below, no-issue for above.
+
+**Leg duration has its own sanity checks.**
+
+Independent of the chain: `arrive_ms >= depart_ms`. Zero = Warning (teleport); negative = Error (time travel). Per-leg, not per-pair.
+
+First Rosetta Stone project where **the validator has two layers**: per-element (is this leg internally consistent?) and per-pair (do these two legs compose?). Independent, merge into one issue list.
+
+**Layovers are derived from consecutive legs.**
+
+`layovers(trip)` walks pairs, emits `Layover { location, arrive_ms, depart_ms, duration_ms }`. Pure function. UI renders as "3h 45m in SFO" between legs.
+
+Derived not stored: edit a leg's depart time and layover updates on next read. G095's formulae, G109's progress roll-up, same pattern.
+
+First Rosetta Stone project where **per-pair derivations are a distinct view** of the same underlying sequence.
+
+**Trip metrics separate span from transit.**
+
+Three quantities: **span** (first depart to last arrive), **in-transit** (sum of leg durations), **layover** (span − transit). Linear identity. Users care about all three — span for "when am I back?", transit for "how much flying?", layover for "airport time?".
+
+First Rosetta Stone project where **three derived metrics relate via a linear identity**. Same decomposition every trip-planning app ships.
+
+G109 (TV tracker) → G110 *chain-of-edges composition invariant + independent location+time chains + severity-laddered layover warnings + two-layer validator (per-leg + per-pair) + linearly-related span/transit/layover metrics*. Databases 10/13. 110/130 complete.
