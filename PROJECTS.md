@@ -107,7 +107,7 @@
 - [x] 92. Bulk Renamer and Organizer
 - [x] 93. Mp3 Tagger
 - [x] 94. Log File Maker
-- [ ] 95. Excel Spreadsheet Exporter
+- [x] 95. Excel Spreadsheet Exporter
 - [ ] 96. RPG Character Stat Creator
 - [ ] 97. Image Map Generator
 - [ ] 98. File Copy Utility

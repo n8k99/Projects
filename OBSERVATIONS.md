@@ -3193,3 +3193,54 @@ Cheaper than G093's tag store (which sorts). Append-only + no reordering = O(n) 
 First Rosetta Stone project where **data-structure ordering is output ordering**. G093 paid for a sort; G094 gets order for free.
 
 G093 (metadata/query layer) → G094 *append-only writes + write-time policy + two-tier rotation + tab-delimited tool-native format + ordering for free*. Files 10/16. 94/130 complete.
+
+---
+
+## G095 — Excel Spreadsheet Exporter
+
+**The cell address is the primary key.**
+
+Everything keyed by `(row, col)`. Not position in a list, not name, not pointer — coordinates. The address is a compound primary key; every operation uses one (get) or many (range).
+
+This is what makes spreadsheets **forgiving to sparse data**. Most cells empty; sheet stores only non-empty in a hash by `(row, col)`. 1000 filled cells across a million addresses costs 1000 entries.
+
+First Rosetta Stone project where **the primary structure is hash-keyed by a compound address**. G093 used single-string paths. G095's `(Nat, Nat)` tuples enable range queries — `A1:A5` is "all (r, 0) for r in 0..=4", expressible only if the address decomposes cleanly.
+
+**Lazy evaluation is what makes formulae formulae.**
+
+If `=A1+B1` were computed at write, changing `A1` wouldn't update `C1`. So every spreadsheet ever built **stores the formula, not the result**, and re-evaluates on read.
+
+Bigger architectural choice than it looks:
+1. State is minimal — only leaves stored; derived computed.
+2. Updates are cheap — change one cell, downstream updates automatically next read.
+3. Dependencies are implicit — formula text mentions `A1`, reading `C1` consults `A1`; no dependency graph built.
+
+First Rosetta Stone project where **computation happens at query time, not write time**. G089's aggregation was eager (compute when asked, once); G094's filter was eager (at write). G095 evaluates every cell read. Every reactive framework (React, Vue, signals) generalises this move.
+
+**Cycle detection is a visit-set.**
+
+`A1 = B1 + 1`, `B1 = A1 + 1` would loop forever. Standard trick: track cells currently being evaluated; re-entering means cycle.
+
+Each eval pushes its cell onto a set before recursing; pops on return. Set is **per evaluation tree**, not per sheet — two independent `evaluate()` calls each start fresh.
+
+Same algorithm as topological sort, GC mark phases, Prolog occurs-check. G095 makes it load-bearing.
+
+First Rosetta Stone project where **a visit-set prevents infinite recursion**. G087's filesystem had no cycles; G079's room graph could loop but was simple. G095's formulae are cyclic dependency graphs waiting to happen.
+
+**Range expansion is address arithmetic.**
+
+`SUM(A1:A5)` expands into five evaluations. Range parser reads two addresses, computes all `(r, c)` in the bounding box, evaluates each. The key move: **ranges are notation, not a new primitive** — they unroll into the existing cell-evaluation path.
+
+Same way SQL's `IN (1,2,3)` unrolls into three equals; how APL and NumPy treat `a[0:5]` as five slot operations.
+
+First Rosetta Stone project where **notation sugar expands into a uniform operation**. Ranges add no primitives; adding new function names costs nothing — the expansion logic is already there.
+
+**CSV is the universal interop format.**
+
+Excel's native XLSX is a zip of XML + fonts + styles + pivot tables + macros. Multi-year project. CSV is comma-separated values: every program on earth reads it, none of the above features exist.
+
+G095 exports CSV because the Rosetta Stone's job is the **calculation model**, not the presentation format. An XLSX writer layers over a CSV-capable sheet; not the other way around. Quoting rules: fields containing `,`, `"`, or `\n` get wrapped in double quotes with internal `"` doubled. Five lines per language.
+
+First Rosetta Stone project where **export format is chosen for interop breadth over fidelity**. G090's archive carried full payload; G095's CSV is a lossy projection (no formulae, no formatting) because lossiness buys universal readability.
+
+G094 (append-only logs) → G095 *compound-key sparse grid + lazy read-time evaluation + visit-set cycle detection + range-as-notation-sugar + CSV for universal interop*. Files 11/16. 95/130 complete.

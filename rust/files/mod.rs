@@ -10,3 +10,4 @@ pub mod pdf_generator;
 pub mod bulk_renamer;
 pub mod mp3_tagger;
 pub mod log_file_maker;
+pub mod excel_exporter;
