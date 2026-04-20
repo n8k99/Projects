@@ -2,3 +2,4 @@
 
 pub mod sql_query_analyzer;
 pub mod remote_sql_tool;
+pub mod card_collector;

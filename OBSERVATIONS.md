@@ -3567,3 +3567,47 @@ Real engines stream for large results; trade-off is predictability vs memory. Fo
 First Rosetta Stone project where **query output is eager, fully-materialised data**. Consistent with G091's rendered documents, G094's event lists, G098's copy events.
 
 G101 (SQL parser + findings) → G102 *executor completing the database + typed columns + positional rows + transactional buffer + filter-sort-project-limit pipeline*. Databases 2/13. 102/130 complete.
+
+---
+
+## G103 — Card Collector
+
+**Multiset is the right shape for inventory.**
+
+A collection isn't a set — sets don't track duplicates. Isn't a list — lists care about order. It's a **multiset**: map from key to count. `{DPN-001/Mint: 4, DPN-001/Played: 2, DPN-003/NearMint: 1}`.
+
+G103's key is `(card_id, condition)` — same card at different conditions are different inventory entries. `add` increments; `remove` decrements (errors on underflow); key disappears at zero. Pattern every counting app uses: inventory, vote tallies, bag-of-words, Kubernetes replica counts.
+
+First Rosetta Stone project where **the primary data structure is a multiset**. G047 was a map; G093 was a map. G103's `Collection` is the first where the value is explicitly a *count*, not an attribute.
+
+**Valuation composes multipliers.**
+
+`value = base_price × rarity_mult × condition_mult`. Three inputs, one pipeline. New axis (foil, first edition, signed) = new multiplier; formula stays flat.
+
+Exactly how every real pricing system works — TCGplayer, PSA, Beckett. G103 keeps integers throughout (cents), rounds at the final step — preserves G089's integer-cents discipline.
+
+First Rosetta Stone project where **pricing is a multiplicative pipeline**. G096's RPG derived stats were additive; G103's pricing is multiplicative. Both styles appear in real systems; Rosetta Stone shows both.
+
+**Missing list is set difference.**
+
+"What cards do I need?" = `catalogue_ids - owned_ids`. Simple, total, O(n). G103's `missing(catalogue)` iterates the catalogue's sorted IDs, filters out ones owned, returns ordered list.
+
+First Rosetta Stone project where **set difference is a first-class query**. G093's `MissingField` was metadata-level (which fields unset); G103's `missing` is inventory-level (which cards absent). Both operationalise the same set-theoretic primitive.
+
+**Trade bundle is two-sided multiset comparison.**
+
+A trade has `offered` and `asked` — both are bundles of `(card_id, condition, qty)`. Evaluate: sum each side's value; compare against a tolerance.
+
+Three verdicts: Fair (within tolerance), OfferedMore (asker gets better end), AskedMore (offerer gets better end). Diff reported in cents so users can decide whether to accept, renegotiate, or walk.
+
+First Rosetta Stone project with **explicit two-sided comparison and verdict**. G092 had preview/apply for one side; G103's trade evaluation is symmetric — neither side privileged, evaluator just reports the gap.
+
+**Inventory key is a compound type.**
+
+`InventoryKey { card_id, condition }` — two fields needed to uniquely identify a stackable slot. Derives Hash/Eq/Ord so it works as a hash-map key.
+
+Same pattern as Amazon SKUs (product + variant), weather data (station + timestamp), time-series points (metric + tags). Compound key, scalar value.
+
+First Rosetta Stone project where **a struct is used as a hash-map key**. G088's sort key was a struct but config, not key. G103's `InventoryKey` identifies rows in the multiset.
+
+G102 (executor completing database) → G103 *multiset inventory + multiplicative valuation + set-difference missing list + symmetric trade evaluation + compound hash key*. Databases 3/13. 103/130 complete.

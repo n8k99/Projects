@@ -117,7 +117,7 @@
 ## Databases
 - [x] 101. SQL Query Analyzer
 - [x] 102. Remote SQL Tool
-- [ ] 103. Card Collector
+- [x] 103. Card Collector
 - [ ] 104. Report Generator
 - [ ] 105. Database Backup Script Maker
 - [ ] 106. Event Scheduler and Calendar
