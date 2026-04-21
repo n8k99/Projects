@@ -1,0 +1,155 @@
+# G084 — CAPTCHA Maker
+
+*v2. Closes Web category. See `captcha.md` for prose: challenge as
+ephemeral single-use time-bounded token, outcomes structurally
+distinct, attempt counter as rate limit, challenge kinds polymorphic
+through one generator, lenient answer matching, cleanup as caller-
+scheduled garbage collection.*
+
+---
+
+## Choreographic Case: Gated Form Submission
+
+[gated-form-submit @form-session
+    IN ORDER TO
+        issue a math CAPTCHA at session start
+        require a verified challenge before accepting submission
+        and refuse correctly across wrong / expired / exhausted cases
+
+    @svc <- [captcha[new-service
+                       {ttl-ms: 120000, max-attempts: 3}]]
+
+    sync @form-events {
+        start ->
+            @ch <- [captcha[issue {svc: @svc, kind: "Math"}]]
+            [ui[show-challenge
+                 {id: @ch:id, prompt: @ch:prompt}]]
+
+        submit @challenge-id @answer @payload ->
+            @result <- [captcha[verify
+                                  {svc: @svc,
+                                   id: @challenge-id,
+                                   answer: @answer,
+                                   now-ms: [clock[now]]}]]
+            @result:kind
+                where "Success" ->
+                    [form[process {payload: @payload}]]
+                where "WrongAnswer" ->
+                    [ui[show-error
+                         {msg: "incorrect, " +
+                                @result:remaining + " attempts left"}]]
+                where "Expired" ->
+                    [ui[show-error {msg: "session expired; request new"}]]
+                where "AlreadySolved" ->
+                    [form[process {payload: @payload}]]  ;; duplicate click
+                where "TooManyAttempts" ->
+                    [ui[show-error
+                         {msg: "too many tries; request new challenge"}]]
+                where "Unknown" ->
+                    [ui[show-error {msg: "invalid token"}]]
+    }
+
+    every 1 minute
+        [captcha[cleanup {svc: @svc, now-ms: [clock[now]]}]]
+]
+
+---
+
+## Verb Surface
+
+[captcha
+    new-service         {ttl-ms, max-attempts}
+    issue               {svc, kind}                     ;; -> Challenge
+                                                        ;; kinds: Math, WordRecall,
+                                                        ;; ReverseString, SequenceCount
+    verify              {svc, id, answer, now-ms}       ;; -> VerifyResult
+    cleanup             {svc, now-ms}                   ;; remove solved + expired
+    active-count        {svc, now-ms}
+]
+
+---
+
+## Distinctive Innate idiom: dual-bound refusal `where` either bound trips
+
+[captcha[verify {svc: @s, id: @id, answer: @a, now-ms: @now}]
+    IN ORDER TO
+        branch into one of six structurally-distinct outcomes
+        so the UI can guide the user appropriately per failure mode
+
+    @challenge <- @s:challenges at @id
+        where absent                             -> #Unknown
+    @challenge
+        where solved is true                     -> #AlreadySolved
+        where (@now - @challenge:issued-ms)
+              greater than @s:ttl-ms              -> #Expired
+        where @challenge:attempts-used
+              at least @s:max-attempts            -> #TooManyAttempts
+        where answers-match(@challenge:expected, @a)
+            -> mark solved, return #Success
+        otherwise
+            -> increment attempts-used
+            -> #WrongAnswer {remaining: max - used}
+]
+
+Collapsing into accepted/rejected loses the information the UI needs.
+Each outcome triggers a different user action: retry, request-new,
+contact-support, or proceed.
+
+## Distinctive Innate idiom: challenge kinds dispatched at issue time
+
+[captcha[issue {svc: @s, kind: @k}]
+    @k
+        where "Math"
+            -> two random 1..20 operands, operator in {+, -, ×}
+        where "WordRecall"
+            -> "Name a colour"; expected in {"red", "blue", ...}
+        where "ReverseString"
+            -> "Reverse HELLO"; expected "OLLEH"
+        where "SequenceCount"
+            -> "Count 2's in 2,1,2,3,2,4"; expected "3"
+    store expected answer with issued-ms, attempts-used: 0, solved: false
+]
+
+Offering multiple kinds lets the frontend pick per accessibility —
+math excludes non-native speakers, recall excludes some impairments,
+reverse-string excludes some dyslexic users.
+
+## Distinctive Innate idiom: lenient matching `where` trivial variation is OK
+
+[answers-match {expected: @e, user: @u}]
+    trim whitespace from both
+    lowercase both
+    where result equal                          -> true
+    otherwise                                    -> false
+]
+
+Forgiveness scoped to the specific noise the domain produces
+(whitespace + case). Punctuation and numeric locale are NOT
+normalised — "9.5" and "9,5" are legitimately different.
+
+---
+
+## Demo
+
+[demo
+    @svc <- [captcha[new-service
+                       {ttl-ms: 60000, max-attempts: 3}]]
+
+    @ch <- [captcha[issue {svc: @svc, kind: "Math"}]]
+    ;; @ch:prompt -> e.g. "What is 7 + 3?"
+
+    -> [captcha[verify
+                  {svc: @svc, id: @ch:id,
+                   answer: "wrong", now-ms: 1000}]]
+    ;; -> #WrongAnswer {remaining: 2}
+
+    -> [captcha[verify
+                  {svc: @svc, id: @ch:id,
+                   answer: " 10 ", now-ms: 2000}]]
+    ;; -> #Success  (lenient: whitespace trimmed)
+
+    -> [captcha[verify
+                  {svc: @svc, id: @ch:id,
+                   answer: "10", now-ms: 3000}]]
+    ;; -> #AlreadySolved
+]

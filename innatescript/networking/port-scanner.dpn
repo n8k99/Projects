@@ -1,0 +1,102 @@
+# G038 — Port Scanner
+
+*v2. See `port-scanner.md` for prose: systematic boundary exploration,
+three-state result (open/closed/filtered), well-known ports as
+service registry, concurrent probing, scan comparison as temporal
+diff.*
+
+---
+
+## Choreographic Case: Infrastructure Audit
+
+[infra-audit
+    IN ORDER TO
+        scan two hosts concurrently, compare against last scan
+        and emit security signals only when the port surface changed
+
+    concurrent [
+        droplet: @droplet-scan <- [scan {host: "144.126.251.126",
+                                          ports: @common-ports}]
+    |
+        local:   @local-scan   <- [scan {host: "127.0.0.1",
+                                          ports: @common-ports}]
+    ]
+    join
+
+    @droplet-diff <- [scan[compare
+                             {before: @last-droplet,
+                              after:  @droplet-scan}]]
+    @local-diff   <- [scan[compare
+                             {before: @last-local,
+                              after:  @local-scan}]]
+
+    @droplet-diff
+        where newly-opened count is greater than zero
+            -> #unexpected-ports {host: "droplet",
+                                   ports: @droplet-diff:newly-opened}
+        where expected-services (5432, 8080) are missing
+            -> #service-down {host: "droplet",
+                               missing: @droplet-diff:newly-closed}
+]
+
+---
+
+## Verb Surface
+
+[scan
+    new              {host, ports}
+    probe            {host, port, timeout-ms}
+                                             ;; -> open | closed | filtered
+    well-known       {port}                   ;; -> service name | none
+    compare          {before, after}           ;; -> {newly-opened, newly-closed}
+]
+
+---
+
+## Distinctive Innate idiom: three-state result `where` silence means filtered
+
+[scan[probe {host: @h, port: @p, timeout-ms: @t}]
+    IN ORDER TO
+        distinguish between "the port said no" and "the network ate the packet"
+        because a firewall silently dropping is neither open nor closed
+
+    attempt TCP connect to (@h, @p)
+        where replies with SYN-ACK   -> open
+        where replies with RST       -> closed
+        where timeout elapses @t     -> filtered (no reply at all)
+]
+
+G013's structural validation was binary. G038 adds *unknown* as a
+first-class state — the same shape InnateScript's `@reference`
+needs: resolves, explicitly refuses, or hangs. The resolver's
+timeout distinguishes refusal from silence.
+
+## Distinctive Innate idiom: concurrent probe `where` each is independent
+
+[scan[new {host: @h, ports: @ps}]
+    @ps
+        mapped concurrently via [scan[probe {host: @h, port: @p}]]
+        joined into a scan-report
+        ordered by port ascending
+]
+
+The concurrent/join shape is G066's fan-out; the result is an
+aggregate not a list of disconnected outcomes. Each probe is pure
+and independent — no shared state means no coordination cost.
+
+---
+
+## Demo
+
+[demo
+    @before <- [scan[new {host: "127.0.0.1",
+                           ports: [22, 80, 443, 5432, 8080]}]]
+    ;; say 22, 5432 open; 80, 443 closed; 8080 filtered
+
+    [shell[start-service {name: "nginx"}]]   ;; opens 80
+    @after <- [scan[new {host: "127.0.0.1",
+                          ports: [22, 80, 443, 5432, 8080]}]]
+
+    -> [scan[compare {before: @before, after: @after}]]
+    ;; -> {newly-opened: [80], newly-closed: [], unchanged: [22, 5432, 443, 8080]}
+]

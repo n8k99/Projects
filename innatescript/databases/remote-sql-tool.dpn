@@ -1,0 +1,87 @@
+# G077 — Remote SQL Tool
+
+*v2. See `remote-sql-tool.md` for prose: transaction envelope with
+explicit begin/commit/rollback, in-memory relational schema,
+parameterized queries.*
+
+---
+
+## Choreographic Case: Vault Notes Database
+
+[vault-notes-db
+    IN ORDER TO
+        persist and search markdown notes in a relational schema
+        using transactions for write batches
+
+    @conn <- [db[connect]]
+    [db[create-table {conn: @conn, name: "notes",
+                       columns: [{name: "id", type: "int"}
+                                  {name: "title", type: "text"}
+                                  {name: "body", type: "text"}
+                                  {name: "created_at", type: "int"}]}]]
+
+    sync @user-events {
+        save @title @body ->
+            [db[begin {conn: @conn}]]
+            [db[insert {conn: @conn, table: "notes",
+                         values: [[clock[now]], @title, @body, [clock[now]]]}]]
+            [db[commit {conn: @conn}]]
+                || [db[rollback {conn: @conn}]]
+
+        search @query ->
+            @results <- [db[select {conn: @conn,
+                                     query: {table: "notes",
+                                             columns: ["id", "title"],
+                                             where: "body LIKE ?",
+                                             params: ["%" + @query + "%"]}}]]
+            #results @results
+    }
+]
+
+---
+
+## Verb Surface
+
+[db
+    connect
+    create-table    {conn, name, columns}
+    insert          {conn, table, values}       ;; || exec-error
+    begin           {conn}
+    commit          {conn}                       ;; || exec-error
+    rollback        {conn}
+    select          {conn, query}                ;; || exec-error
+]
+
+---
+
+## Distinctive Innate idiom: transaction as begin/commit/|| rollback
+
+[begin]
+    ...writes...
+[commit]
+    || [rollback]
+
+The `||` fulfillment ensures rollback happens on any resistance
+within the transaction body. The v1 try/catch pattern dissolves into
+native fulfillment.
+
+---
+
+## Demo
+
+[demo
+    @conn <- [db[connect]]
+    [db[create-table {conn: @conn, name: "users",
+                       columns: [{name: "id", type: "int"}
+                                  {name: "name", type: "text"}]}]]
+
+    [db[begin {conn: @conn}]]
+    [db[insert {conn: @conn, table: "users", values: [1, "Alice"]}]]
+    [db[insert {conn: @conn, table: "users", values: [2, "Bob"]}]]
+    [db[commit {conn: @conn}]]
+
+    -> [db[select {conn: @conn,
+                    query: {table: "users", columns: ["name"],
+                            where: "id = ?", params: [1]}}]]
+    ;; -> [["Alice"]]
+]

@@ -1,0 +1,91 @@
+# G030 — Text to HTML Generator
+
+*v2. See `text-to-html.md` for prose: format translation as identity
+transformation (content preserved, representation changed), markdown-
+to-HTML is the vault's rendering pipeline, inline formatting as
+pattern-based `@map` over matches.*
+
+---
+
+## Choreographic Case: Vault Rendering Pipeline
+
+[vault-render @note-path
+    IN ORDER TO
+        read a markdown note, translate to HTML
+        and hand the rendered output to whichever consumer requested it
+        so the same content serves authoring (markdown) and display (HTML)
+
+    @text <- [fs[read-string {path: @note-path}]]
+    @html <- [text-to-html {text: @text}]
+
+    concurrent [
+        [ui[quickshell-display {html: @html}]]
+    |
+        [ui[web-publish {path: @note-path, html: @html}]]
+    |
+        [cache[store {path: @note-path, html: @html}]]
+    ]
+    join
+]
+
+---
+
+## Verb Surface
+
+[text-to-html
+    {text}                                   ;; markdown -> HTML
+]
+
+[apply-inline
+    {text}                                    ;; inline transformations only
+]
+
+---
+
+## Distinctive Innate idiom: format translation `where` content is invariant
+
+[text-to-html {text: @t}]
+    IN ORDER TO
+        produce HTML that says exactly what @t says in markdown
+        so the difference is audience (authors vs renderers), not meaning
+
+    parse @t into an intermediate document model
+        where paragraph-break is blank line
+        where heading is line starting with #+ space
+        where list item is line starting with * or -
+        where code block is fence ``` ... ```
+    emit HTML from the model
+        where heading level is count of leading #
+        where lists wrap in <ul>/<ol>
+        where inline formatting applies per match
+]
+
+Same normalise-to-canonical pattern G004 (base) and G010 (unit)
+use at value-level, G030 uses at document-level. The intermediate
+model is the canonical form; markdown and HTML are both projections.
+
+## Distinctive Innate idiom: inline formatting as pattern `where` match applies
+
+[apply-inline {text: @t}]
+    scan @t for each pattern
+        where **text**       -> <strong>text</strong>
+        where *text*          -> <em>text</em>
+        where `text`          -> <code>text</code>
+        where [text](url)     -> <a href="url">text</a>
+    IN ORDER TO
+        treat inline formatting as G032's regex-over-patterns
+        where each pattern is a transformation rule with positional context
+]
+
+---
+
+## Demo
+
+[demo
+    -> [text-to-html
+          {text: "# Heading\n\n**bold** and *italic* words"}]
+    ;; -> "<h1>Heading</h1><p><strong>bold</strong> and <em>italic</em> words</p>"
+
+    -> [apply-inline {text: "a **bold** word"}]
+    ;; -> "a <strong>bold</strong> word"
+]

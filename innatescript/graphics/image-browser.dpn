@@ -1,0 +1,181 @@
+# G124 — Image Browser
+
+*Pilot — real Innate syntax, v2. Prose insights from `image-browser.md`
+still apply. This is the `where`-clause showcase: what I modeled as a
+`FilterPredicate` ADT collapses into native filter constraints.*
+
+---
+
+## Choreographic Case: Vault Image Explorer
+
+[image-browser @images
+    IN ORDER TO
+        let the user walk through a filtered, sorted set of images
+        with a 2D grid cursor, keeping recently-viewed thumbnails warm
+        via an LRU cache
+
+    @grid-cols: 4
+    @thumbnail-capacity: 100
+
+    @visible <- @images
+        where
+            name contains ".jpg" or name contains ".png"
+            and tag has @current-tag
+            and width at least 1024
+        ordered by created descending
+        limited to what fits the 4-column grid at current scroll
+
+    sync @ui-events {
+        left  -> [grid[move {cursor: @cursor, direction: "left"}]]
+        right -> [grid[move {cursor: @cursor, direction: "right"}]]
+        up    -> [grid[move {cursor: @cursor, direction: "up"}]]
+        down  -> [grid[move {cursor: @cursor, direction: "down"}]]
+        home  -> [grid[home {cursor: @cursor}]]
+        end   -> [grid[end  {cursor: @cursor}]]
+        enter -> [viewer[open {image: @selected}]]
+    }
+
+    for @entry in @visible
+        @thumb <- ![lru {cache: @thumbnails, key: @entry:id}]
+                  || [thumb[generate {entry: @entry, size: 128}]]
+        #tile
+            row: @entry:grid-row
+            col: @entry:grid-col
+            data: @thumb
+            highlighted: @entry:id == @selected:id
+
+    @selected <- @visible at-index @cursor:flat-index
+]
+
+---
+
+## Verb Surface (resolver contract)
+
+Split across three namespaces because the browser, grid cursor, and
+LRU cache are independently reusable resolvers:
+
+[image
+    list       {}                              -> [@image]
+    tags       {image}                          -> [@tag]
+    thumbnail  {image, size}                   -> @blob
+]
+
+[grid
+    new        {cols, total}                   -> @cursor
+    move       {cursor, direction}             -> @cursor
+    home       {cursor}                        -> @cursor
+    end        {cursor}                        -> @cursor
+    row-col    {cursor}                        -> @(row, col)
+    flat-index {cursor}                        -> @index
+]
+
+[lru
+    new        {capacity}                       -> @cache
+    get        {cache, key}                     -> @value-or-nil
+    put        {cache, key, value}              -> @evicted-key-or-nil
+    contains   {cache, key}                     -> @bool
+]
+
+---
+
+## The `where` clause replaces the Query ADT
+
+In the v1 spec, I modeled the query language as a struct:
+
+```
+Query { filters: [FilterPredicate], sort_by: SortBy, order: Order }
+with FilterPredicate :: NameContains(s) | TagHas(s) | SizeOver(n) | ...
+```
+
+In real Innate this dissolves into prose the resolver parses:
+
+[image-browser[list @all
+    where
+        name contains ".jpg"
+        and tag has "nature"
+        and size under 5 megabytes
+        and created after [[2026-01-01]]
+    ordered by size ascending
+]
+
+The author writes what they mean. The resolver extracts constraints
+into whatever internal representation it uses. The ADT is now an
+implementation detail of the `image` resolver, not a user-facing vocabulary.
+
+Filter composition is AND-of-predicates — matching the v1 insight —
+but the author never assembles a `Vec<FilterPredicate>`. They write
+`and` between clauses.
+
+---
+
+## Cursor navigation and LRU both benefit from native Innate idioms
+
+**Grid move** as a verb rather than an enum argument:
+
+[grid[move {cursor: @c, direction: "down"}]]
+
+is directional; the resolver handles partial-last-row clamping
+internally. The `Down` variant of a `GridMove` enum becomes a
+string literal.
+
+**LRU cache access** uses fulfillment:
+
+@thumb <- ![lru {cache: @thumbs, key: @entry:id}]
+          || [thumb[generate {entry: @entry, size: 128}]]
+
+Reads as: "try to find the cached thumbnail; if the cache doesn't
+have it, generate it." Cache miss becomes a natural side-effect path;
+cache hit returns without invoking the producer. This is the same
+memoization pattern from v1 but expressed in Innate's idiom of
+`![search] || @fallback` rather than an explicit `(value, miss-bool)`
+tuple return.
+
+---
+
+## Breadcrumb navigation is a stack, but Innate handles paths natively
+
+[image-browser @images
+    IN ORDER TO walk through directory subtrees
+
+    at @user-entered-subdir @name
+        [path[push @name]]
+
+    at @user-pressed-up
+        [path[pop]]
+
+    #current-path -> @path:current   ;; e.g. "/photos/2026"
+]
+
+The stack is held by the `path` resolver. The path string is derived
+via `@path:current`, not stored as a field. This matches the v1 insight
+that "path is a fold" — but the fold lives in the resolver.
+
+---
+
+## Demo
+
+[demo
+    IN ORDER TO exercise filter, sort, navigation, and LRU caching
+
+    @images <- [image[list]]
+    @filtered <- @images
+        where
+            name contains ".jpg"
+            and tag has "nature"
+        ordered by size ascending
+
+    -> @filtered count
+    ;; -> 2      (alpha.jpg, delta.jpg from the v1 5-image demo)
+
+    @c <- [grid[new {cols: 3, total: @filtered count}]]
+    [grid[move {cursor: @c, direction: "right"}]]
+    -> (@filtered at-index @c:flat-index):name
+    ;; -> "delta.jpg"
+
+    @cache <- [lru[new {capacity: 2}]]
+    [lru[put {cache: @cache, key: 1, value: "a"}]]
+    [lru[put {cache: @cache, key: 2, value: "b"}]]
+    [lru[get {cache: @cache, key: 1}]]         ;; refreshes 1 to MRU
+    [lru[put {cache: @cache, key: 3, value: "c"}]]
+    -> @evicted                                 ;; -> 2 (was LRU)
+]

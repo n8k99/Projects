@@ -1,0 +1,122 @@
+# G092 — Bulk Renamer and Organizer
+
+*v2. See `bulk-renamer.md` for prose: preview-then-apply separation,
+undo log as reversed ops, collision detection before any mutation,
+atomic batch rename that handles circular swaps.*
+
+---
+
+## Choreographic Case: Vault Photo Importer
+
+[vault-photo-importer @inbox @destination
+    IN ORDER TO
+        preview a sequence rename before touching any files
+        let the user confirm, apply atomically
+        and save the undo log so the whole batch can be reversed
+
+    @photos <- [fs[ls {path: @inbox}]]
+    @dir    <- [brn[directory {names: @photos mapped to name}]]
+    @rule   <- [brn[sequence {template: "photo_{n}.jpg"}]]
+    @ops    <- [brn[preview {dir: @dir, rule: @rule}]]
+        || -> #rename-blocked @resistance:reason
+
+    [ui[show-preview {ops: @ops}]]
+
+    sync @user-events {
+        confirm ->
+            @undo-log <- [brn[apply {dir: @dir, ops: @ops}]]
+            for @op in @ops
+                [fs[rename
+                     {from: @inbox + "/" + @op:from,
+                      to:   @destination + "/" + @op:to}]]
+            [vault[save
+                    {path: ".vault/last-undo.log",
+                     content: [log[to-text {log: @undo-log}]]}]]
+
+        undo ->
+            @log <- [log[from-text
+                           {text: [vault[read-string
+                                           {path: ".vault/last-undo.log"}]]}]]
+            [brn[undo {dir: @dir, log: @log}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[brn
+    directory       {names}
+    replace         {find, replace}                   ;; Rule
+    prefix          {prefix}                           ;; Rule
+    suffix          {suffix}                           ;; Rule (before ext)
+    sequence        {template}                         ;; Rule ({n} 1-based)
+    preview         {dir, rule}                        ;; || collision | to-exists
+    apply           {dir, ops}                         ;; -> undo-log
+    undo            {dir, log}
+]
+
+---
+
+## Distinctive Innate idiom: preview as total validator `where` collisions exist
+
+[brn[preview {dir: @d, rule: @r}]
+    IN ORDER TO
+        produce exactly the ops apply would run — including same errors
+        so the user's trust in the preview is justified
+
+    @ops <- ops produced by @r against @d:entries
+
+    @ops
+        where two ops share the same target name
+            -> #collision (two sources map to one destination)
+        where op:to exists in @d:entries and is not in @ops:from
+            -> #to-exists (would silently overwrite an untouched file)
+        otherwise
+            -> @ops
+]
+
+If preview returns ops, apply is guaranteed to succeed. If preview
+errors, the user sees the specific reason and can fix the rule before
+anything is touched.
+
+## Distinctive Innate idiom: atomic batch removes all sources `where` before any install
+
+[brn[apply {dir: @d, ops: @ops}]
+    IN ORDER TO
+        execute all @ops atomically so circular swaps (`a→b, b→a`) work
+        and return an undo log that exactly reverses the batch
+
+    phase 1: remove all @ops:from names from @d:entries
+             (captures original state before any install)
+    phase 2: install all @ops:to names in @d:entries
+    emit undo log where each op has from and to swapped
+]
+
+The two-phase shape is why `{a → b, b → a}` succeeds: both `a` and
+`b` are removed before either is re-added. Same discipline SQL table
+swaps use; same discipline any correct batch mutation uses.
+
+---
+
+## Demo
+
+[demo
+    @d <- [brn[directory
+                {names: ["img_01.png", "img_02.png",
+                          "img_03.png", "notes.txt"]}]]
+
+    @rule <- [brn[replace {find: "img_", replace: "photo_"}]]
+    @ops  <- [brn[preview {dir: @d, rule: @rule}]]
+    ;; -> [{img_01.png → photo_01.png}
+    ;;     {img_02.png → photo_02.png}
+    ;;     {img_03.png → photo_03.png}]
+
+    @undo-log <- [brn[apply {dir: @d, ops: @ops}]]
+    -> [brn[directory-names {dir: @d}]]
+    ;; -> [notes.txt, photo_01.png, photo_02.png, photo_03.png]
+
+    [brn[undo {dir: @d, log: @undo-log}]]
+    -> [brn[directory-names {dir: @d}]]
+    ;; -> [img_01.png, img_02.png, img_03.png, notes.txt]
+]

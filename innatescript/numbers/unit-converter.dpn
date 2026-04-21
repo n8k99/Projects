@@ -1,0 +1,87 @@
+# G010 — Unit Converter
+
+*v2. See `unit-converter.md` for prose: agents think in frames,
+conversions happen at boundaries, ratio vs offset conversions differ
+structurally, normalise-to-base as the resolver's generic pattern.*
+
+---
+
+## Choreographic Case: International Shipping Coordination
+
+[international-shipping
+    IN ORDER TO
+        let one warehouse report in km and one carrier quote in miles
+        translate at the boundary without either agent changing its frame
+        and return a unified shipping cost in USD
+
+    concurrent [
+        @warehouse-tokyo{distance-to-port: "nearest"} -> @dist-km
+    |
+        @carrier-us{rate-schedule: "pacific-route"}   -> @rate-per-mile
+    ]
+    join
+
+    @dist-mi <- [convert {value: @dist-km,
+                           from: "km", to: "mi"}]
+    @cost    <- [calc    {expr: "@dist-mi * @rate-per-mile"}]
+
+    @warehouse-tokyo{confirm: "shipping cost is " + @cost + " USD"}
+]
+
+---
+
+## Verb Surface
+
+[convert
+    value           {value, from, to}         ;; ratio or offset, dispatched
+    to-base         {value, from}              ;; -> value in canonical unit
+    from-base       {value, to}                ;; -> value in target unit
+]
+
+---
+
+## Distinctive Innate idiom: offset vs ratio dispatched by `where` unit kind
+
+[convert {value: @v, from: @a, to: @b}]
+    IN ORDER TO
+        select the correct compose rule because ratio and offset
+        conversions do NOT compose the same way
+
+    @a and @b
+        where both are ratio-units (mass, distance, volume, …)
+            -> (@v * ratio-to-base[@a]) / ratio-to-base[@b]
+        where both are offset-units (temperature)
+            -> to-base(@v, @a)  ;; apply offset + scale
+               then from-base(→, @b)  ;; apply inverse-scale + offset
+        otherwise
+            -> #incompatible-units
+]
+
+Ratio conversions chain: km→m→ft is equivalent to km→ft.
+Offset conversions don't: you cannot chain C→F→K by multiplying
+factors. The resolver must know which kind it's dispatching.
+
+## Distinctive Innate idiom: frame translation at `where` boundaries meet
+
+The warehouse thinks in kilometres.
+The carrier thinks in miles.
+Neither needs to know the other's frame.
+The choreography translates at the boundary, once.
+
+---
+
+## Demo
+
+[demo
+    -> [convert {value: 100,  from: "celsius",    to: "fahrenheit"}]
+    ;; -> 212.0
+
+    -> [convert {value: 1,    from: "mi",         to: "km"}]
+    ;; -> 1.609344
+
+    -> [convert {value: 2.5,  from: "kg",         to: "lb"}]
+    ;; -> 5.51156
+
+    -> [convert {value: 1,    from: "gal",        to: "L"}]
+    ;; -> 3.78541
+]

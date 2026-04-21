@@ -1,0 +1,78 @@
+# G004 — Next Prime Number
+
+*v2. See `next-prime.md` for prose: first encounter with streams and
+generators. InnateScript's coordination primitives assume things
+finish; a generator produces until told to stop. The `until` operator
+provides count-bounded or time-bounded stopping.*
+
+---
+
+## Choreographic Case: Collect Primes Until Budget
+
+[collect-primes @budget-count
+    IN ORDER TO
+        pull primes from an unbounded generator
+        stop when @budget-count primes have been collected
+        and hand the finite list to downstream consumers
+
+    @primes <- [] until @budget-count found
+        @next <- [next-prime {after: @primes last or 1}]
+        append @next to @primes
+
+    -> @primes
+]
+
+---
+
+## Verb Surface
+
+[is-prime
+    {n}                                      ;; -> Bool
+]
+
+[next-prime
+    {after}                                   ;; -> next prime > @after
+]
+
+[nth-prime
+    {n}                                       ;; -> nth prime
+]
+
+[primes
+    {count}                                   ;; -> [Int]
+    {up-to}                                    ;; -> [Int]
+]
+
+---
+
+## Distinctive Innate idiom: `until` bounds the unbounded `where` condition fires
+
+[primes-stream]
+    IN ORDER TO
+        produce primes lazily on demand
+        where the consumer picks the stopping condition
+        via `until N found` or `until T ms elapsed`
+
+    successive calls to [next-prime {after: @last}]
+    until the outer choreography says stop
+]
+
+The coordination primitive that makes generators work within a
+language that otherwise assumes everything finishes: the consumer
+declares the stop condition, the producer keeps producing.
+
+---
+
+## Demo
+
+[demo
+    -> [is-prime {n: 17}]        ;; -> true
+    -> [is-prime {n: 18}]        ;; -> false
+    -> [next-prime {after: 17}]  ;; -> 19
+    -> [nth-prime {n: 10}]       ;; -> 29
+    -> [primes {count: 10}]
+    ;; -> [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+
+    -> [primes {up-to: 30}]
+    ;; -> [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+]

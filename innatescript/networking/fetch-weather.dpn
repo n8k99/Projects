@@ -1,0 +1,99 @@
+# G036 — Fetch Current Weather
+
+*v2. See `fetch-weather.md` for prose: first live external fact,
+HTTP as FTP generalised with URLs + JSON, API key as shared secret,
+unit conversion as frame translation, freshness as first-class
+concern.*
+
+---
+
+## Choreographic Case: Weather-Aware Operations
+
+[weather-check @cities
+    IN ORDER TO
+        fetch current weather for several cities concurrently
+        validate that each snapshot is fresh enough to act on
+        and only surface stale reports as resistance rather than silent
+
+    concurrent
+        @reports <- @cities mapped concurrently to
+                     [weather[fetch {city: @c:name,
+                                      country: @c:country}]]
+    join
+
+    @reports
+        where every report:age-minutes is less than 15
+            -> [compose[comparison {reports: @reports}]]
+        otherwise
+            -> #stale-weather {reports: @reports where age too large}
+               (stale weather is worse than bad weather;
+                at least bad weather is true)
+]
+
+---
+
+## Verb Surface
+
+[weather
+    fetch           {city, country}          ;; -> Report | fetch-error
+    compare         {reports}                 ;; -> Comparison
+    convert-temp    {kelvin, to-unit}         ;; "C" | "F" | "K"
+]
+
+---
+
+## Distinctive Innate idiom: store canonical `where` consumer picks the frame
+
+[weather[fetch {city: @c, country: @co}]
+    IN ORDER TO
+        return temperatures in Kelvin (the API's canonical frame)
+        and let every consumer convert into their preferred frame on demand
+        so no unit is baked into the report itself
+
+    HTTP GET api/weather?q=@c,@co with api-key
+        where status is 200
+            -> parse JSON response
+            -> build Report with temp-kelvin (not F, not C)
+            -> record fetched-at-ms for age tracking
+        where status is 401 -> #api-key-rejected
+        where status is 429 -> #rate-limited
+        where timeout        -> #unreachable
+]
+
+Same normalise-to-base pattern G010 introduced: the API is the
+authority, Kelvin is the base unit, every consumer gets a frame-
+translated view via `convert-temp`.
+
+## Distinctive Innate idiom: freshness as a `where` the caller enforces
+
+[@report
+    where age-minutes is less than @freshness-budget
+        -> use in choreography
+    otherwise
+        -> #stale (re-fetch or proceed with known-stale marker)
+]
+
+The resolver does not silently re-fetch. Callers declare the
+freshness budget; the choreography either uses a fresh report or
+explicitly acknowledges a stale one. Same discipline G044's session
+expiry uses.
+
+---
+
+## Demo
+
+[demo
+    concurrent
+        @jax    <- [weather[fetch {city: "Jacksonville", country: "US"}]]
+    |
+        @london <- [weather[fetch {city: "London",       country: "GB"}]]
+    |
+        @tokyo  <- [weather[fetch {city: "Tokyo",        country: "JP"}]]
+    join
+
+    -> [weather[compare {reports: [@jax, @london, @tokyo]}]]
+    ;; -> {warmest: tokyo, coldest: london, wettest: london, ...}
+
+    -> [weather[convert-temp {kelvin: @jax:temp-kelvin, to-unit: "F"}]]
+    ;; -> e.g. 78.3
+]

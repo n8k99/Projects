@@ -1,0 +1,113 @@
+# G126 — MP3 to Wav Converter
+
+*v2. See `mp3-wav-converter.md` for prose: time-axis typed buffer,
+integer-scaled linear resample, two-pass normalize-to-peak, RIFF LE
+serialization, i16 as sole pipeline intermediate.*
+
+---
+
+## Choreographic Case: Vault Audio Archive Export
+
+[audio-export @input-path @output-path @target-rate
+    IN ORDER TO
+        decode an MP3 file into PCM
+        resample to a target rate without floating-point drift
+        normalize to peak and downmix to mono
+        encode as WAV bytes and save to the vault
+
+    @frames <- [mp3[parse-frames {bytes: [vault[load-bytes {path: @input-path}]]}]]
+    @buf    <- [mpw[decode-mp3-to-buffer {frames: @frames}]]
+    @buf    <- [mpw[resample {buffer: @buf, dst-rate: @target-rate}]]
+    @buf    <- [mpw[normalize-to-peak {buffer: @buf, target: 32000}]]
+    @buf    <- [mpw[to-mono {buffer: @buf}]]
+    @wav    <- [mpw[encode-wav {buffer: @buf}]]
+
+    [vault[save-bytes {path: @output-path, data: @wav}]]
+]
+
+---
+
+## Verb Surface
+
+[mpw
+    decode-mp3-to-buffer    {frames}                ;; || no-frames, mixed-formats
+    resample                {buffer, dst-rate}      ;; || sample-rate-zero
+    normalize-to-peak       {buffer, target}
+    to-mono                 {buffer}
+    to-stereo               {buffer}
+    encode-wav              {buffer}
+    decode-wav              {bytes}                  ;; || empty-buffer
+]
+
+---
+
+## Distinctive Innate idiom: integer-scaled trig commitment as `where`
+
+The v1 baked integer-scaled linear interpolation into the resample
+code for cross-language determinism. In Innate, the contract is
+part of the resolver agreement:
+
+[mpw[resample {buffer: @b, dst-rate: @r}
+    where
+        source position = i × src-rate × 1000 / dst-rate
+        and output sample = a + (b - a) × frac / 1000
+            where frac = src-pos mod 1000
+        and all arithmetic is integer (no floats across the boundary)
+        and output is byte-identical across all conforming resolvers
+]
+
+This is not implementation detail — it's the cross-resolver contract.
+A Rust resolver, a Common Lisp resolver, and a Python resolver must
+all produce the same output bytes. The `where` clause documents the
+obligation.
+
+---
+
+## Two-pass normalize as ordered commissions
+
+[mpw[normalize-to-peak {buffer: @b, target: @target}
+    where
+        pass 1 scans for max-abs across all samples
+        and pass 2 scales every sample by target / max-abs
+        and both passes are deterministic over the same input
+]
+
+---
+
+## RIFF byte layout as constraint
+
+[mpw[encode-wav {buffer: @b}
+    where
+        bytes 0-3 are "RIFF"
+        and bytes 4-7 are the 36 + data-size little-endian u32
+        and bytes 8-11 are "WAVE"
+        and "fmt " chunk has 16-byte body with PCM format code 1
+        and "data" chunk size is samples × 2 (16-bit PCM)
+        and all integers are little-endian
+        and chunk sizes exclude the 8-byte chunk header
+]
+
+---
+
+## Demo
+
+[demo
+    @frames <- [
+        {sample-rate: 22050, channels: 2, samples-per-frame: 4,
+         pcm: [100, -100, 200, -200, 400, -400, 800, -800]}
+        {sample-rate: 22050, channels: 2, samples-per-frame: 2,
+         pcm: [-500, 500, -1000, 1000]}
+    ]
+    @buf        <- [mpw[decode-mp3-to-buffer {frames: @frames}]]
+    @resampled  <- [mpw[resample           {buffer: @buf, dst-rate: 44100}]]
+    @normalized <- [mpw[normalize-to-peak  {buffer: @resampled, target: 32000}]]
+    @mono       <- [mpw[to-mono            {buffer: @normalized}]]
+    @wav        <- [mpw[encode-wav         {buffer: @mono}]]
+
+    -> @wav:length                    ;; -> 68
+    -> @wav[0..4]                      ;; -> "RIFF"
+    -> @wav[8..12]                     ;; -> "WAVE"
+
+    @decoded <- [mpw[decode-wav {bytes: @wav}]]
+    -> @decoded:samples == @mono:samples     ;; -> true (byte-identical roundtrip)
+]

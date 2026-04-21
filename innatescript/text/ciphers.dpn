@@ -1,0 +1,96 @@
+# G028 — Vigenere / Vernam / Caesar Ciphers
+
+*v2. See `ciphers.md` for prose: reversible transformation with a
+secret, the no-key to perfect-secrecy spectrum mirrors trust in
+the channel, small key spaces fall to brute force, Vernam shows the
+cost of perfect security.*
+
+---
+
+## Choreographic Case: Private Agent-to-Agent Channel
+
+[private-channel @sender @receiver @key
+    IN ORDER TO
+        carry a private message through a public choreography
+        by encrypting at the sender and decrypting at the receiver
+        with a previously-negotiated shared key
+
+    @plaintext <- @sender{compose-sensitive-report}
+
+    @cipher <- [cipher[encrypt
+                         {alg: "vigenere",
+                          text: @plaintext,
+                          key: @key}]]
+
+    ;; @cipher can pass through any broadcast channel
+    [broadcast[send {to: @receiver, payload: @cipher}]]
+
+    @received <- [@receiver[inbox-drain]] last
+    @plain    <- [cipher[decrypt
+                           {alg: "vigenere",
+                            text: @received,
+                            key: @key}]]
+
+    @plain where equal to @plaintext  -> #channel-verified
+]
+
+---
+
+## Verb Surface
+
+[cipher
+    encrypt            {alg, text, key}           ;; "caesar" | "vigenere" | "vernam"
+    decrypt            {alg, text, key}
+]
+
+---
+
+## Distinctive Innate idiom: key-space spectrum `where` trust decides algorithm
+
+[cipher[encrypt {alg: @a, text: @t, key: @k}]
+    @a
+        where "caesar"
+            -> apply fixed shift (tiny key space — Hello-World encryption)
+        where "vigenere"
+            -> repeat @k cyclically and shift per character (good-enough)
+        where "vernam"
+            -> require @k at least as long as @t, never reused
+               (perfect secrecy; expensive at scale)
+    IN ORDER TO
+        match algorithm to trust level —
+        Caesar catches accidents; Vigenere resists casual attack;
+        Vernam is provably secure but impractical for most channels
+]
+
+Same discipline G044 Remote Login applies to authentication —
+multiple strengths exist and the choreography picks per context.
+
+## Distinctive Innate idiom: reversible `where` decrypt ∘ encrypt = id
+
+[cipher[decrypt {alg: @a, text: [cipher[encrypt {alg: @a, text: @t, key: @k}]],
+                  key: @k}]
+    returns @t exactly
+    IN ORDER TO
+        guarantee the round-trip contract that makes a cipher useful
+        as a communication primitive between agents
+]
+
+G017 Pig Latin was the reversible transformation without a key.
+G028 adds the secret. The round-trip contract is identical; what
+differs is who can reverse it.
+
+---
+
+## Demo
+
+[demo
+    -> [cipher[encrypt {alg: "caesar", text: "HELLO", key: 3}]]
+    ;; -> "KHOOR"
+
+    -> [cipher[decrypt {alg: "caesar", text: "KHOOR", key: 3}]]
+    ;; -> "HELLO"
+
+    -> [cipher[encrypt {alg: "vigenere",
+                          text: "ATTACKATDAWN", key: "LEMON"}]]
+    ;; -> "LXFOPVEFRNHR"
+]

@@ -1,0 +1,181 @@
+# G064 — Family Tree Creator
+
+*Pilot — real Innate syntax, v2. Prose insights from `family-tree.md`
+still apply: self-referential DAG, transitive-closure invariant,
+cost-budgeted BFS, set algebra over computed sets.*
+
+---
+
+## Choreographic Case: Notification of Mutual Connections
+
+[mutual-connection @me @them
+    IN ORDER TO
+        notify @them that they share ancestors with @me
+        but only if the relation is real and not vanishingly distant
+
+    @my-ancestors    <- [people[ancestors {id: @me, max-depth: 4}]]
+    @their-ancestors <- [people[ancestors {id: @them, max-depth: 4}]]
+    @common          <- @my-ancestors ∩ @their-ancestors
+
+    @common
+        where
+            size at least 1
+            and size no more than 20
+        IN ORDER TO
+            avoid notifying on false positives (size 0 = unrelated)
+            avoid notifying on "everyone descends from Charlemagne" noise
+               (size > 20 = shared ancestor too distant to be meaningful)
+
+    [draft
+        to: @them
+        body: [template[mutual-ancestor {common: @common:names}]]
+    ]
+    -> @draft
+]
+
+The choreography is natural because the domain concepts and the code
+concepts are the same: *ancestors*, *common ancestors*, *related-ness
+as a set-size threshold*. The resolver binds `∩` as set intersection
+over entity lists.
+
+---
+
+## The Family Tree as a Named Choreography
+
+A family tree is a self-referential graph. In Innate, the tree itself
+is a named entity — the tree *is* the declaration.
+
+[tree @root
+    type: [[FamilyTree]]
+    persons:  @people-set
+    children: @children-index    ;; maintained reverse of parents
+    next-id:  @next-person-id
+]
+
+[person @id
+    type: [[Person]]
+    name:    @name
+    birth:   @birth?
+    death:   @death?
+    parents: @parent-ids          ;; 0, 1, or 2 @person references
+]
+
+When saved as `tree-smith.dpn`, other choreographies reference the
+Smith family tree as `@tree-smith`. A `person` is always scoped to a
+tree; `@tree-smith:@boughrest-ii` reads as "from the Smith tree, the
+person named boughrest-ii."
+
+---
+
+## Verb Surface
+
+[people
+    new             {}                            -> @tree
+    add             {tree, name, birth?, death?}  -> (@tree, @new-id)
+    set-parents     {tree, child, parents}        -> @tree
+        where
+            no parent of @child may already be a descendant of @child
+            or the commission resists with "would create a cycle"
+
+    ancestors       {id, max-depth?}              -> [@person]
+    descendants     {id, max-depth?}              -> [@person]
+    common-ancestors {a, b}                       -> [@person]
+    siblings        {id}                          -> [@person]
+    cousins         {id, n}                       -> [@person]
+]
+
+The `set-parents` constraint is Innate's native idiom for what the v1
+spec called a "transitive-closure invariant." The resolver checks the
+constraint before committing; violation surfaces as resistance, which
+the surrounding choreography can handle or escalate.
+
+---
+
+## Cycle prevention as resistance
+
+The v1 model threw an exception on cycle; the Innate model emits
+resistance that the caller can catch with fulfillment:
+
+[genealogist-workflow @tree @child @proposed-parents
+    IN ORDER TO record a claimed parent relationship safely
+
+    [people[set-parents {tree: @tree, child: @child, parents: @proposed-parents}]]
+        || [genealogist[resolve-conflict
+                {tree: @tree, child: @child, proposed: @proposed-parents,
+                 reason: "would create a cycle"}]]
+]
+
+If the edge would close a cycle, the resolver emits resistance
+("would create a cycle"). The `||` routes to a human genealogist
+who looks at the claim and decides whether the record is wrong
+(some prior edge is mistaken) or the claim is wrong (the proposed
+parent actually isn't one). This is exactly the shape of real
+genealogy-database data-quality workflows.
+
+---
+
+## Bounded traversal is a `where` clause on distance
+
+The v1 spec modeled `max_depth` as an optional parameter. In Innate,
+the bound is naturally a `where` clause over the walk:
+
+[people[ancestors {id: @me}
+    where
+        generation no more than 4 from @me
+]
+
+For a resolver that does raw BFS, this is equivalent to passing
+`max-depth: 4`. For a resolver with precomputed ancestor sets, this
+is a slice. The `where` clause is opaque to the surface syntax; the
+resolver picks the strategy.
+
+---
+
+## Set algebra is first-class
+
+The v1 spec used `@common <- @my-tree ∩ @their-tree` in the
+choreographic case. The real Innate grammar doesn't define `∩` in the
+base, but resolvers can register operators. A set-algebra resolver
+provides:
+
+- `@a ∩ @b` — intersection
+- `@a ∪ @b` — union
+- `@a - @b` — difference (elements in a not in b)
+- `@a △ @b` — symmetric difference
+
+This is the compositional layer over traversal that the v1 insight
+called out. BFS gives the sets; set algebra composes them.
+
+---
+
+## Demo
+
+[demo
+    IN ORDER TO build a small three-generation tree and query it
+
+    @t <- [people[new]]
+    (@t, @alice) <- [people[add {tree: @t, name: "Alice", birth: 1930}]]
+    (@t, @bob)   <- [people[add {tree: @t, name: "Bob", birth: 1932}]]
+    (@t, @carol) <- [people[add {tree: @t, name: "Carol", birth: 1955}]]
+    (@t, @dave)  <- [people[add {tree: @t, name: "Dave", birth: 1958}]]
+    (@t, @eve)   <- [people[add {tree: @t, name: "Eve", birth: 1985}]]
+
+    [people[set-parents {tree: @t, child: @carol, parents: [@alice, @bob]}]]
+    [people[set-parents {tree: @t, child: @dave,  parents: [@alice, @bob]}]]
+    [people[set-parents {tree: @t, child: @eve,   parents: [@carol]}]]
+
+    -> [people[ancestors {id: @eve}]]
+    ;; -> [@carol, @alice, @bob]
+
+    -> [people[common-ancestors {a: @carol, b: @dave}]]
+    ;; -> [@alice, @bob]     (siblings share both parents)
+
+    -> [people[siblings {id: @carol}]]
+    ;; -> [@dave]
+
+    ;; Cycle prevention: try to make @alice a child of @eve (who is
+    ;; @alice's great-grandchild through @carol). Resistance expected.
+    [people[set-parents {tree: @t, child: @alice, parents: [@eve]}]]
+        || -> "would create a cycle: @alice is already @eve's ancestor"
+    ;; -> "would create a cycle: @alice is already @eve's ancestor"
+]

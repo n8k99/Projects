@@ -1,0 +1,61 @@
+# G001 — Fibonacci Sequence
+
+*v2. See `fibonacci.md` for prose: pure computation resolves natively,
+choreography emerges when agents coordinate around the result.*
+
+---
+
+## Choreographic Case: Growth Projection
+
+[growth-projection @project
+    IN ORDER TO
+        generate a 12-period Fibonacci sequence as a growth model
+        ask two agents to map and validate it in parallel
+        and verify the projection is grounded, not aspirational
+
+    @fib <- [fibonacci {count: 12}]
+
+    concurrent [
+        @kathryn{map @fib to monthly revenue targets for: @project}
+    |
+        @sanjay{validate growth curve against historical data}
+    ]
+    join
+
+    <- @eliana{verify projections are grounded}
+        where projections reflect actual growth trajectory
+        and product of agent assignments reconstructs the whole
+]
+
+---
+
+## Verb Surface
+
+[fibonacci
+    n               {index}                  ;; -> Int
+    count           {count}                   ;; -> [Int]
+    up-to           {limit}                   ;; -> [Int]
+]
+
+---
+
+## Distinctive Innate idiom: pure compute native `where` no coordination needed
+
+[fibonacci {count: @n}]
+    IN ORDER TO
+        return the n-term sequence without involving any agent
+        because the result is deterministic from @n alone
+]
+
+The choreography is what you do WITH the sequence, not computing it.
+InnateScript doesn't compute — it orchestrates computation.
+
+---
+
+## Demo
+
+[demo
+    -> [fibonacci {count: 8}]    ;; -> [0, 1, 1, 2, 3, 5, 8, 13]
+    -> [fibonacci {up-to: 100}]  ;; -> [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+    -> [fibonacci {n: 10}]       ;; -> 55
+]

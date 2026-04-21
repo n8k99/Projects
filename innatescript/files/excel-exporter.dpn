@@ -1,0 +1,120 @@
+# G095 — Excel Spreadsheet Exporter
+
+*v2. See `excel-exporter.md` for prose: sparse (row, col)-addressed
+cells, lazy formula evaluation, per-evaluation visit-set for cycle
+detection, range expansion as notation sugar, CSV as interop export.*
+
+---
+
+## Choreographic Case: Vault Ledger View
+
+[vault-ledger-view @year
+    IN ORDER TO
+        populate a grid from ledger transactions
+        with a SUM formula that tracks edits automatically
+        and export the evaluated grid as CSV on demand
+
+    @sheet <- [xl[new]]
+    @txns  <- [vault[read-ledger {year: @year}]]
+
+    [xl[set-text {sheet: @sheet, addr: "A1", s: "amount (cents)"}]]
+    [xl[set-text {sheet: @sheet, addr: "B1", s: "category"}]]
+    [xl[set-text {sheet: @sheet, addr: "D1", s: "Total:"}]]
+
+    for (@i, @t) in @txns enumerated
+        [xl[set-number {sheet: @sheet,
+                         addr: "A" + (@i + 2),
+                         n: @t:amount-cents}]]
+        [xl[set-text   {sheet: @sheet,
+                         addr: "B" + (@i + 2),
+                         s: @t:category}]]
+
+    [xl[set-formula
+         {sheet: @sheet, addr: "E1",
+          f: "=SUM(A2:A" + (@txns count + 1) + ")"}]]
+
+    [ui[render-grid {sheet: @sheet}]]
+
+    sync @user-events {
+        export ->
+            [vault[save
+                    {path: "exports/ledger-" + @year + ".csv",
+                     content: [xl[to-csv {sheet: @sheet}]]}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[xl
+    new
+    set-number        {sheet, addr, n}
+    set-text          {sheet, addr, s}
+    set-formula       {sheet, addr, f}
+    evaluate          {sheet, addr}                   ;; || cycle | bad-ref
+    to-csv            {sheet}
+    parse-address     {addr}
+    format-address    {row, col}
+]
+
+---
+
+## Distinctive Innate idiom: lazy evaluation `where` formula is stored
+
+[xl[evaluate {sheet: @s, addr: @a}]
+    IN ORDER TO
+        return the current value of @a re-computing every formula
+        so that downstream cells reflect edits automatically
+
+    @cell <- @s:cells at @a
+        where kind is BLANK    -> empty value
+        where kind is NUMBER   -> @cell:number
+        where kind is TEXT     -> @cell:text
+        where kind is FORMULA  -> evaluate @cell:formula recursively
+            where @a is not already in the current visit-set
+                -> push @a, recurse, pop @a on return
+            otherwise
+                -> #cycle detected at @a
+]
+
+The cell stores the formula, not the result. State is minimal: only
+leaf values are stored; derived values recompute every read. Same
+shape every reactive framework (React, signals, spreadsheets) uses.
+
+## Distinctive Innate idiom: range as `where`-all address unroll
+
+[xl[evaluate {sheet: @s, addr: "SUM(A1:A5)"}]
+    IN ORDER TO
+        treat A1:A5 as notation for five independent cell evaluations
+        so a new function (SUM, AVG, MIN, MAX, COUNT) costs nothing
+
+    cells at (r, c) where r in [0, 4] and c = 0
+        each evaluated through the usual path
+        then reduced by the calling function
+]
+
+Ranges do not introduce a new primitive. They unroll into the cell-
+evaluation mechanism that already exists — same way SQL's `IN`
+unrolls into `=` comparisons.
+
+---
+
+## Demo
+
+[demo
+    @s <- [xl[new]]
+    [xl[set-number  {sheet: @s, addr: "A1", n: 10}]]
+    [xl[set-number  {sheet: @s, addr: "A2", n: 20}]]
+    [xl[set-number  {sheet: @s, addr: "A3", n: 30}]]
+    [xl[set-formula {sheet: @s, addr: "B1", f: "=SUM(A1:A3)"}]]
+    [xl[set-formula {sheet: @s, addr: "B2", f: "=AVG(A1:A3)"}]]
+    [xl[set-formula {sheet: @s, addr: "B3", f: "=B1 * 2"}]]
+
+    -> [xl[evaluate {sheet: @s, addr: "B1"}]]   ;; -> 60
+    -> [xl[evaluate {sheet: @s, addr: "B2"}]]   ;; -> 20
+    -> [xl[evaluate {sheet: @s, addr: "B3"}]]   ;; -> 120
+
+    -> [xl[to-csv {sheet: @s}]]
+    ;; -> "10,60\n20,20\n30,120\n"
+]

@@ -1,0 +1,122 @@
+# G045 — Site Checker with Time Scheduling
+
+*v2. See `site-checker.md` for prose: the convergence project (alarm
++ news-ticker + weather + port-scanner + mail-checker), four-state
+health (up/down/degraded/unknown), consecutive failures as confidence
+metric, alerts fire on state transitions not states.*
+
+---
+
+## Choreographic Case: Infrastructure Health Dashboard
+
+[infra-health
+    IN ORDER TO
+        check a dozen endpoints every 5 minutes concurrently
+        classify each into up/down/degraded/unknown
+        and alert only when status actually transitions
+
+    every 5 minutes
+        concurrent [
+            em-site: @em <- [check {url: "https://eckenrodemuziekopname.com",
+                                     expect: 200}]
+        |
+            wiki:    @wk <- [check {url: "https://wiki.eckenrodemuziekopname.com",
+                                     expect: 200}]
+        |
+            api:     @api <- [check {url: "http://144.126.251.126:8080/health",
+                                      expect: 200}]
+        |
+            db:      @db  <- [check-tcp {host: "144.126.251.126", port: 5432}]
+        ]
+        join
+
+        @dashboard <- [compose {sites: [@em, @wk, @api, @db]}]
+
+        for @s in @dashboard:sites
+            @prev <- [history[last-status {site: @s:url}]]
+            @s:status
+                where not equal to @prev
+                    -> [alert[dispatch
+                                {to: "nathan",
+                                 channel: "urgent",
+                                 message: @s:url + ": " +
+                                           @prev + " -> " + @s:status}]]
+
+        [history[append
+                  {sites: @dashboard:sites,
+                   ts: [clock[now]]}]]
+]
+
+---
+
+## Verb Surface
+
+[check
+    http            {url, expect, timeout-ms}    ;; -> Status
+    tcp             {host, port, timeout-ms}      ;; -> Status
+    compose         {sites}                        ;; Dashboard
+]
+
+[history
+    append          {sites, ts}
+    last-status     {site}
+    consecutive-failures {site}
+]
+
+---
+
+## Distinctive Innate idiom: four-state health `where` speed matters too
+
+[check[http {url: @u, expect: @exp, timeout-ms: @t}]
+    IN ORDER TO
+        decide up/down/degraded/unknown by combining correctness and timing
+        because a slow response is different from no response
+
+    attempt HTTP GET @u with timeout @t
+        where status is @exp
+          and elapsed less than @t / 2              -> up
+        where status is @exp
+          and elapsed between @t / 2 and @t         -> degraded
+        where status is not @exp                    -> down
+        where timeout fires                          -> down
+        where no attempt yet                         -> unknown
+]
+
+G038's port scanner had three states; G045 adds *degraded* — the
+site responds but not well enough. Choreographies need to score
+both success AND quality.
+
+## Distinctive Innate idiom: alert on transition `where` status changed
+
+[alert[should-fire
+        {site: @s, prev: @prev, current: @cur, consecutive: @n}]
+    where @cur is not equal to @prev
+        -> fire (state transition is the signal)
+    where @cur is "down" and @n is at least 3
+        -> fire (confidence threshold reached)
+    otherwise
+        -> no-op (steady state; one-off failures are noise)
+]
+
+One failure is noise; three is a pattern. The consecutive counter is
+a confidence metric — the same discipline NTP uses over multiple
+samples. Alerts fire on the EDGE, not the state.
+
+---
+
+## Demo
+
+[demo
+    @s <- [check[http
+                   {url: "http://127.0.0.1:8080/health",
+                    expect: 200, timeout-ms: 2000}]]
+    -> @s:status        ;; -> "up" | "degraded" | "down"
+
+    [history[append {sites: [@s], ts: 1000}]]
+    [history[append {sites: [{url: @s:url, status: "down"}],
+                      ts: 2000}]]
+    -> [alert[should-fire
+                {site: @s:url, prev: "up", current: "down",
+                 consecutive: 1}]]
+    ;; -> true (transition up→down, fire regardless of consecutive)
+]

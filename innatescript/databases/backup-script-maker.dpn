@@ -1,0 +1,73 @@
+# G112 — Backup Script Maker
+
+*v2. See `backup-script-maker.md` for prose: shell-safe quoting, validation
+before emit, YAML spec as data shape, dialect-specific DDL via resolver.*
+
+---
+
+## Choreographic Case: Vault Scheduled Backups
+
+[scheduled-backups @config-glob
+    IN ORDER TO
+        read backup config yaml, validate, emit a shell script
+        install a cron entry, and surface errors without writing bad scripts
+
+    @configs <- [vault[read-configs {glob: @config-glob}]]
+
+    for @config in @configs
+        @spec <- [bsm[spec-from-yaml {yaml: @config:content}]]
+        @result <- [bsm[emit-script {spec: @spec}]]
+
+        @result
+            where errors is empty
+            IN ORDER TO
+                write the script to disk with mode 0755
+                and install a 2am daily cron entry
+            [vault[save {path: "backup-scripts/" + @spec:database + ".sh",
+                          content: @result:script, mode: 0755}]]
+            [cron[install {schedule: "0 2 * * *",
+                            script: "backup-scripts/" + @spec:database + ".sh"}]]
+            || [ui[show-errors {config: @config:path,
+                                 errors: @result:errors}]]
+]
+
+---
+
+## Verb Surface
+
+[bsm
+    spec              {database}              ;; with defaults
+    spec-from-yaml    {yaml}
+    validate          {spec}                   ;; -> [validation-error]
+    shell-quote       {str}
+    emit-script       {spec}                   ;; || validation-errors
+]
+
+---
+
+## Distinctive Innate idiom: shell-quote as safety discipline
+
+[bsm[shell-quote {str: @s}
+    where
+        result is single-quoted
+        and embedded single quotes are escaped as '\''
+        so that no shell metacharacter is ever interpreted
+]
+
+Every path and value from config flows through `shell-quote` before
+concatenation into the script. The v1 insight "never concatenate raw
+strings into shell scripts" becomes a `where`-documented invariant.
+
+---
+
+## Demo
+
+[demo
+    @spec <- [bsm[spec-from-yaml
+                    {yaml: "database: projects\nhost: 127.0.0.1\nport: 5432\n"}]]
+    -> [bsm[validate {spec: @spec}]]        ;; -> []
+
+    @script <- [bsm[emit-script {spec: @spec}]]
+    -> @script:script contains "pg_dump"     ;; -> true
+    -> @script:script contains "'projects'"  ;; -> true (shell-quoted)
+]

@@ -1,0 +1,125 @@
+# G066 — Download Manager
+
+*v2. See `download-manager.md` for prose: queue as rendezvous, pull
+scheduling for emergent load balancing, worker count as resource
+cap, fan-out + fan-in (map-reduce shape), per-job transactions for
+failure isolation, batch-scope cancellation.*
+
+---
+
+## Choreographic Case: Parallel Vault Reindex
+
+[reindex-vault @worker-count
+    IN ORDER TO
+        enqueue every vault note for re-parse and upsert
+        and run a worker pool that isolates per-note failures
+        so one malformed note doesn't abort the whole reindex
+
+    @notes <- [vault[all-notes]]
+    @mgr   <- [download[manager {worker-count: @worker-count}]]
+
+    for @note in @notes
+        [download[enqueue
+                    {manager: @mgr,
+                     job: {url: "file://" + @note:path,
+                            expected-bytes: @note:size}}]]
+
+    @results <- [download[run-with
+                            {manager: @mgr,
+                             simulate: [note[reparse-and-upsert]]}]]
+
+    @ok     <- @results where status is "completed"
+    @failed <- @results where status is "failed"
+
+    [log[write
+          {level: "info",
+           message: "reindex: " + count(@ok) + " ok, " +
+                     count(@failed) + " failed"}]]
+
+    for @r in @failed
+        [log[write
+              {level: "warn",
+               url: @r:url, error: @r:error}]]
+]
+
+---
+
+## Verb Surface
+
+[download
+    manager         {worker-count}
+    enqueue         {manager, job}
+    run-with        {manager, simulate}            ;; -> [Result]
+    cancel          {manager}                       ;; batch-scoped
+    queue-length    {manager}
+]
+
+---
+
+## Distinctive Innate idiom: pull schedules balance `where` worker is idle
+
+[download[run-with {manager: @m, simulate: @sim}]
+    IN ORDER TO
+        let every worker pull its next job whenever it finishes the current
+        so slow jobs do not block idle workers and load balances emergently
+
+    spawn @m:worker-count workers, each running:
+        loop
+            @job <- [queue[pop {queue: @m:queue}]]
+                || -> break (queue empty and closed)
+            @m
+                where is-cancelled is true -> emit Cancelled outcome, break
+            @out <- [@sim {job: @job}]
+                catching any resistance -> emit Failed outcome with reason
+            append @out to shared results (protected by results-lock)
+    join all workers
+    return results
+]
+
+Idle workers take work; busy workers don't. No dispatcher guesses
+cost. Push scheduling requires predicting job size and worker load;
+pull punts the whole problem to workers and wins.
+
+## Distinctive Innate idiom: per-job transaction `where` failure is isolated
+
+[worker loop
+    @job wrapped in try/catch
+        where simulate succeeds  -> emit Completed {outcome}
+        where simulate resists   -> emit Failed {reason} — continue to next job
+        where @m:is-cancelled    -> emit Cancelled — break loop
+]
+
+Partial failure is a first-class outcome co-equal with success.
+G065's cancellation was fatal; G066 promotes failure to per-job,
+making "9997 of 10000 succeeded" the natural reporting shape.
+
+---
+
+## Demo
+
+[demo
+    @mgr <- [download[manager {worker-count: 4}]]
+    for @i in [1..16]
+        [download[enqueue
+                    {manager: @mgr,
+                     job: {url: "http://example/" + @i}}]]
+
+    @results <- [download[run-with
+                            {manager: @mgr,
+                             simulate: @fake-download}]]
+
+    -> count(@results)                               ;; -> 16
+    -> @results where status is "completed" count    ;; -> 16 (happy path)
+
+    @mgr2 <- [download[manager {worker-count: 4}]]
+    for @i in [1..100]
+        [download[enqueue {manager: @mgr2, job: {url: "..."}}]]
+    concurrent [
+        @r <- [download[run-with
+                          {manager: @mgr2, simulate: @slow-download}]]
+    |
+        wait 50 ms
+        [download[cancel {manager: @mgr2}]]
+    ]
+    -> @r where status is "cancelled" count > 0      ;; -> true
+]

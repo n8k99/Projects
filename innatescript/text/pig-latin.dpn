@@ -1,0 +1,83 @@
+# G017 — Pig Latin
+
+*v2. See `pig-latin.md` for prose: transformation rule applied per-word
+via `@map`, pattern matching on content structure (vowel vs consonant
+start), reversible cipher, capitalization as presentation separate
+from content.*
+
+---
+
+## Choreographic Case: Content Transformation Pipeline
+
+[transform-document @document @ruleset
+    IN ORDER TO
+        apply a rule-based transformation per-word
+        preserving presentation (capitalisation, trailing punctuation)
+        while the content itself is rewritten
+
+    @words <- [tokenise {text: @document}]
+    @transformed <- @words mapped to
+        [pig-latin-word {word: @w, ruleset: @ruleset}]
+    @result <- @transformed joined with spaces
+    -> @result
+]
+
+---
+
+## Verb Surface
+
+[pig-latin
+    {text}                                   ;; -> transformed text
+]
+
+[pig-latin-word
+    {word, ruleset}                           ;; -> transformed single word
+]
+
+---
+
+## Distinctive Innate idiom: pattern match `where` first letter is vowel or consonant
+
+[pig-latin-word {word: @w, ruleset: @r}]
+    IN ORDER TO
+        apply one of two branches based on the word's opening sound
+        while preserving capitalisation and trailing punctuation
+        so the presentation layer is transferred, not recomputed
+
+    @stripped <- strip trailing punctuation from @w
+    @was-capitalised <- first letter of @stripped:text is uppercase
+    @lowered <- @stripped:text lowercased
+
+    @transformed <-
+        @lowered
+            where first letter is vowel
+                -> @lowered + "yay"
+            otherwise
+                @cluster <- take-while consonant from @lowered
+                @rest    <- drop @cluster-length from @lowered
+                -> @rest + @cluster + "ay"
+
+    @final <- @transformed
+        where @was-capitalised -> capitalise first letter
+        otherwise               -> as-is
+
+    return @final + @stripped:trailing-punctuation
+]
+
+Content and presentation are separate concerns. The rule rewrites
+content; the choreography coordinates both — preserving
+capitalisation, capturing trailing punctuation, transferring each
+to the new position.
+
+---
+
+## Demo
+
+[demo
+    -> [pig-latin {text: "Hello World"}]
+    ;; -> "Ellohay Orldway"
+
+    -> [pig-latin {text: "Eat apples!"}]
+    ;; -> "Eatyay applesyay!"
+    ;; (vowel-start: +yay; consonant-start: move cluster + ay)
+]

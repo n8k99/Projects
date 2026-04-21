@@ -1,0 +1,116 @@
+# G037 — P2P File Sharing App
+
+*v2. See `p2p-file-sharing.md` for prose: first symmetric topology
+(every peer is both client and server), discovery as gossip bootstrap,
+catalogs as distributed indexes, chunked transfer as progressive
+verification, content addressing decouples identity from location.*
+
+---
+
+## Choreographic Case: Distributed Knowledge Assembly
+
+[research-brief @peers @query
+    IN ORDER TO
+        query each peer's local catalog concurrently
+        download the best match from each via chunked transfer
+        and assemble a composite brief once every transfer verifies
+
+    concurrent
+        @results <- @peers mapped concurrently to
+                     [peer[catalog
+                             {peer: @p, query: @query}]]
+    join
+
+    @transfers <- for @r in @results
+        @content <- [peer[request-file
+                            {from: @r:peer, hash: @r:best-match-hash}]]
+            || -> #transfer-failed @r
+        @content
+
+    @transfers
+        where every transfer verified is true
+            -> [compose {brief: @transfers}]
+        otherwise
+            -> #partial-brief {available: @transfers,
+                                missing: failed}
+]
+
+---
+
+## Verb Surface
+
+[peer
+    new              {bootstrap-peers}
+    discover         {peer}                      ;; gossip over neighbours
+    publish-file     {peer, content}              ;; -> hash
+    catalog          {peer, query}                 ;; local index only
+    request-file     {from, hash}                  ;; chunked, verified
+    chunk-hash       {content, offset, size}
+]
+
+---
+
+## Distinctive Innate idiom: content hash `where` identity is location-independent
+
+[peer[publish-file {peer: @p, content: @bytes}]
+    @hash <- [hash[sha256 {bytes: @bytes}]]
+    register (@hash → @bytes) in @p:local-store
+    register @hash in @p:local-catalog
+    return @hash
+    IN ORDER TO
+        make @hash usable as the file's identity across any peer
+        so "file X" is fetchable from anyone who happens to have it
+        not only from the peer who first published it
+]
+
+Same discipline G068 (thumbnail dedup), G100 (version store), and
+every hash-indexed system uses — the file doesn't "live on Alice's
+machine." It lives everywhere its hash does.
+
+## Distinctive Innate idiom: chunked verify `where` each chunk is trusted separately
+
+[peer[request-file {from: @src, hash: @h}]
+    IN ORDER TO
+        transfer @h in fixed-size chunks, verifying each independently
+        so a corrupt chunk is re-requested without losing the whole file
+
+    @manifest <- [@src[get-manifest {hash: @h}]]   ;; [chunk-hash, size]
+    accumulate <- empty
+
+    for @chunk-spec in @manifest:chunks
+        @chunk <- [@src[get-chunk {hash: @chunk-spec:hash}]]
+            where [hash[sha256 {bytes: @chunk}]] is equal to @chunk-spec:hash
+                -> append @chunk to accumulate
+            otherwise
+                -> re-request this chunk (partial progress preserved)
+
+    @assembled <- accumulate concatenated
+    where [hash[sha256 {bytes: @assembled}]] is equal to @h
+        -> return @assembled (file-level verification passed)
+    otherwise
+        -> #file-integrity-failed
+]
+
+Chunk is the atomic unit of trust. A corrupt chunk 7 of 10 means
+re-request chunk 7 only. Same discipline large choreographies need:
+if step 7 fails, re-execute step 7, not the whole dance.
+
+---
+
+## Demo
+
+[demo
+    @alice <- [peer[new {bootstrap-peers: []}]]
+    @bob   <- [peer[new {bootstrap-peers: [@alice]}]]
+    @carol <- [peer[new {bootstrap-peers: [@bob]}]]
+
+    [peer[discover {peer: @carol}]]
+    ;; carol learns about alice through bob's gossip
+
+    @hash <- [peer[publish-file
+                     {peer: @alice,
+                      content: "vault research notes"}]]
+
+    -> [peer[request-file {from: @alice, hash: @hash}]]
+    ;; -> "vault research notes"  — chunked, each chunk verified
+]

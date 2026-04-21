@@ -1,0 +1,81 @@
+# G055 — Product Inventory
+
+*v2. See `product-inventory.md` for prose: movement log (receive/sell),
+derived quantity from sum of movements, restock threshold, category views.*
+
+---
+
+## Choreographic Case: Monthly Stock Audit
+
+[monthly-stock-audit @month-end @monthly-budget
+    IN ORDER TO
+        verify low-stock products are flagged
+        confirm restock budget covers needed purchases
+        and report the month's inventory valuation
+
+    @inventory <- [inventory[load {as-of: @month-end}]]
+    @needed    <- [inventory[restock-needed]]
+    @valuation <- [inventory[total-value]]
+
+    concurrent [
+        <- @sarah{verify low-stock skus: @needed:skus}
+        <- @kathryn{allocate restock cost against budget: @monthly-budget}
+    ]
+    join
+
+    where
+        every low-stock sku is accounted for
+        and kathryn approved the budget allocation
+        and valuation is positive
+        || -> #audit-open @resistance:reason
+]
+
+---
+
+## Verb Surface
+
+[inventory
+    new
+    add-product      {product}
+    receive          {sku, qty}
+    sell             {sku, qty}              ;; || insufficient-stock
+    quantity         {sku}
+    history          {sku}
+    total-value
+    restock-needed
+    by-category      {category}
+    load             {as-of}
+]
+
+---
+
+## Distinctive Innate idiom: quantity as derived from movement log
+
+[inventory[quantity {sku: @sku}
+    where
+        result equals sum of receives minus sum of sells for @sku
+        computed from the append-only movement log
+        no separate quantity field to get out of sync
+]
+
+---
+
+## Demo
+
+[demo
+    @inv <- [inventory[new]]
+    [inventory[add-product {product: {sku: "WIDGET-A", name: "Widget A",
+                                        category: "widgets", price: 499,
+                                        restock-threshold: 10}}]]
+
+    [inventory[receive {sku: "WIDGET-A", qty: 50}]]
+    [inventory[sell    {sku: "WIDGET-A", qty: 12}]]
+    -> [inventory[quantity {sku: "WIDGET-A"}]]     ;; -> 38
+
+    [inventory[sell {sku: "WIDGET-A", qty: 30}]]
+    -> [inventory[quantity {sku: "WIDGET-A"}]]     ;; -> 8 (below threshold)
+    -> [inventory[restock-needed]]:count            ;; -> 1
+
+    [inventory[sell {sku: "WIDGET-A", qty: 100}]]
+        || -> "insufficient-stock"
+]

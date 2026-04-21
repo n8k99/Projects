@@ -1,0 +1,146 @@
+# G113 — Web Board / Forum
+
+*v2. See `web-board.md` for prose: parent-pointer tree with derived DFS
+walk, signed score from two counters, Reddit-style hot formula,
+pinned-first as primary sort override, write-time parent validation.*
+
+---
+
+## Choreographic Case: Vault Discussion Board
+
+[vault-discussion-board @board-path
+    IN ORDER TO
+        render a forum front page sorted by hot score
+        open threads as depth-indented reply trees
+        and accept new replies with parent validation
+
+    @board <- [wb[load {path: @board-path}]]
+
+    sync @user-events {
+        visit-front-page ->
+            @threads <- [wb[list-threads
+                              {board: @board, sort: "hot",
+                               now-ms: [clock[now]]}]]
+            [ui[render-thread-list {threads: @threads}]]
+
+        open-thread @thread-id ->
+            @tree <- [wb[thread-tree
+                           {board: @board, thread-id: @thread-id}]]
+            [ui[render-tree {tree: @tree}]]
+
+        reply @parent-id @body ->
+            @parent <- [wb[get-post {board: @board, id: @parent-id}]]
+            [wb[add-post
+                 {board: @board,
+                  post: {thread-id: @parent:thread-id,
+                         parent-id: @parent-id,
+                         author: @user, body: @body,
+                         created-ms: [clock[now]],
+                         upvotes: 0, downvotes: 0}}]]
+                || -> #invalid-parent @resistance:reason
+    }
+]
+
+---
+
+## Verb Surface
+
+[wb
+    new
+    load                  {path}
+    add-thread            {board, thread}
+    add-post              {board, post}                 ;; || invalid-parent
+    get-post              {board, id}                   ;; || not-found
+    post-score            {post}                         ;; -> Int (signed)
+    hot-score             {post, now-ms}                 ;; -> Float
+    thread-tree           {board, thread-id}             ;; -> [PostWithDepth]
+    top-level-posts       {board, thread-id}
+    children-of           {board, post-id}
+    list-threads          {board, sort, now-ms}
+    post-count            {board, thread-id}
+]
+
+---
+
+## Distinctive Innate idiom: parent integrity as `where` at write time
+
+[wb[add-post {board: @b, post: @p}]
+    IN ORDER TO
+        accept the post only when it fits the board's tree invariants
+        so hierarchical data can never drift into nonsense
+
+    @p
+        where thread-id exists in @b:threads
+        and parent-id
+            (is none when this is a top-level post
+             or references a post that exists in @b:posts
+             and belongs to @p:thread-id)
+        || -> #invalid-parent @p
+]
+
+Top-level posts are marked by `parent-id: none`, not `parent-id: 0`
+or self-reference — `none` is the unambiguous root marker and the
+distinction matters when re-serialising the flat store.
+
+## Distinctive Innate idiom: sort order as `where` with pinned override
+
+[wb[list-threads {board: @b, sort: @sort, now-ms: @now}]
+    IN ORDER TO
+        produce a thread list where moderator-pinned entries sit on top
+        and all remaining entries follow the user's chosen sort
+
+    @b:threads
+        ordered by
+            pinned descending,
+            @sort is "new" ? created-ms descending :
+            @sort is "top" ? [wb[post-score]] of top post descending :
+            @sort is "hot" ? [wb[hot-score {post, now-ms: @now}]] descending
+]
+
+`pinned descending` is always the primary sort — the user's choice
+only orders within each pinned/unpinned block.
+
+## Distinctive Innate idiom: DFS walk emits depth as first-class output
+
+[wb[thread-tree {board: @b, thread-id: @t}]
+    @b:posts
+        where thread-id is @t
+        depth-first from roots (parent-id is none)
+        ordered within each level by created-ms ascending
+        yielding each post with its depth
+]
+
+Rendering indentation becomes one map: `[indent depth][body]`. No
+second pass to re-walk the tree, no layout bookkeeping in the UI.
+
+---
+
+## Demo
+
+[demo
+    @b <- [wb[new]]
+    [wb[add-thread {board: @b,
+                     thread: {id: 1, title: "Welcome",
+                               author: "mod", pinned: true,
+                               created-ms: 1000000}}]]
+
+    [wb[add-post
+         {board: @b,
+          post: {id: 10, thread-id: 1, parent-id: none,
+                 author: "alice", body: "hi",
+                 created-ms: 1000000,
+                 upvotes: 10, downvotes: 1}}]]
+
+    [wb[add-post
+         {board: @b,
+          post: {id: 11, thread-id: 1, parent-id: 10,
+                 author: "bob", body: "hi alice",
+                 created-ms: 1100000,
+                 upvotes: 5, downvotes: 0}}]]
+
+    -> [wb[thread-tree {board: @b, thread-id: 1}]]
+    ;; -> [(post 10, depth 0), (post 11, depth 1)]
+
+    -> [wb[post-score {post: [wb[get-post {board: @b, id: 10}]]}]]
+    ;; -> 9
+]

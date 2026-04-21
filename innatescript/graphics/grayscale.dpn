@@ -1,0 +1,92 @@
+# G116 — Grayscale Converter
+
+*v2. See `grayscale.md` for prose: row-major pixel buffer, closed-enum
+conversion algorithms, Rec.709 luminosity coefficients, histogram over grayscale.*
+
+---
+
+## Choreographic Case: Vault Thumbnail Pipeline
+
+[thumbnail-pipeline @image-dir @algorithm
+    IN ORDER TO
+        convert every image in @image-dir to grayscale
+        using the chosen algorithm
+        and save thumbnails with matching contrast metrics recorded
+
+    @images <- ![vault[find {path: @image-dir + "/*.png"}]]
+
+    for @image-path in @images
+        @img  <- [img[load {path: @image-path}]]
+        @gray <- [img[convert {image: @img, algorithm: @algorithm}]]
+        @hist <- [img[histogram    {gray: @gray}]]
+        @mean <- [img[mean-brightness {gray: @gray}]]
+        @sd   <- [img[contrast-stddev {gray: @gray}]]
+        [vault[save {path: @image-path + ".thumb.gray",
+                      image: @gray,
+                      metadata: {mean: @mean, stddev: @sd}}]]
+]
+
+---
+
+## Verb Surface
+
+[img
+    new          {width, height}
+    filled       {width, height, color}
+    from-pixels  {width, height, pixels}      ;; || resistance if mismatched
+    get          {image, x, y}                ;; || nil if out of bounds
+    set          {image, x, y, pixel}         ;; || nil if out of bounds
+    convert      {image, algorithm}           ;; algorithm: "Luminosity" | "Average" | "Lightness" | "Red" | "Green" | "Blue"
+    histogram    {gray}
+    mean-brightness {gray}
+    contrast-stddev {gray}
+    dynamic-range   {gray}                    ;; || nil if empty
+]
+
+---
+
+## Distinctive Innate idiom: algorithm as bare-word string
+
+The v1 modeled the algorithm choice as a closed enum. In Innate, it's
+a bare-word string the resolver interprets:
+
+[img[convert {image: @photo, algorithm: "Luminosity"}]
+    where
+        "Luminosity" means 0.2126 R + 0.7152 G + 0.0722 B (Rec.709)
+        and "Average"   means (R + G + B) / 3
+        and "Lightness" means (max(R,G,B) + min(R,G,B)) / 2
+        and "Red" | "Green" | "Blue" means that channel alone
+]
+
+The `where` clauses above double as human-readable documentation *and*
+machine-parseable constraints the resolver validates the algorithm
+string against. An unknown algorithm resists with "no such conversion."
+
+---
+
+## Out-of-bounds access as resistance
+
+[img[get {image: @img, x: 9999, y: 9999}]
+    || -> nil
+]
+
+The resolver emits resistance on out-of-bounds; `|| -> nil` falls back
+to nil for callers who'd rather sample than crash.
+
+---
+
+## Demo
+
+[demo
+    @red <- [img[filled {width: 4, height: 4,
+                          color: {r: 255, g: 0, b: 0}}]]
+
+    @gray-lum  <- [img[convert {image: @red, algorithm: "Luminosity"}]]
+    -> [img[get {gray: @gray-lum, x: 0, y: 0}]]     ;; -> 54  (Rec.709 red)
+
+    @gray-avg  <- [img[convert {image: @red, algorithm: "Average"}]]
+    -> [img[get {gray: @gray-avg, x: 0, y: 0}]]      ;; -> 85
+
+    @hist <- [img[histogram {gray: @gray-lum}]]
+    -> @hist[54]                                      ;; -> 16 (all 16 pixels are 54)
+]

@@ -1,0 +1,99 @@
+# G029 — Random Gift Suggestions
+
+*v2. See `gift-suggestions.md` for prose: first recommendation engine,
+fuzzy matching via relevance scoring (leap from search to recommend),
+traits as profiles, budget as filter composed over ranking.*
+
+---
+
+## Choreographic Case: Agent Discovery via Capability Profiles
+
+[agent-discovery @requester @required-traits @budget
+    IN ORDER TO
+        find the best-fit agent whose capability profile covers the task
+        within the requester's resource budget — rank then filter
+        because best-within-constraint is the universal selection shape
+
+    @catalog <- [registry[all-agents]]
+
+    @ranked <- @catalog mapped to
+        {agent: @a,
+         score: [match[score
+                         {profile: @a:capabilities,
+                          traits:  @required-traits}]]}
+        ordered by score descending
+
+    @affordable <- @ranked
+        where @a:hourly-cost is at most @budget
+        first
+
+    @affordable
+        where exists
+            -> [dispatch {to: @affordable:agent,
+                           from: @requester}]
+        otherwise
+            -> #no-agent-within-budget
+]
+
+---
+
+## Verb Surface
+
+[match
+    score              {profile, traits}        ;; -> Int (count of matches)
+]
+
+[gifts
+    catalog
+    suggest            {catalog, recipient-traits, budget}
+    suggest-top-n      {catalog, recipient-traits, budget, n}
+]
+
+---
+
+## Distinctive Innate idiom: score then filter `where` rank leaves budget for later
+
+[gifts[suggest {catalog: @c, recipient-traits: @t, budget: @b}]
+    IN ORDER TO
+        score every gift by trait overlap first
+        then filter surviving gifts by budget
+        so the ranking is independent of the constraint — two operations
+        compose without either knowing the other
+
+    @c:gifts
+        mapped to {gift: @g,
+                    score: count (@g:traits intersected-with @t)}
+        ordered by score descending, then price ascending
+        where price is at most @b
+        first                       ;; take top
+]
+
+Selection is boolean; ranking is continuous. The leap from
+"does it match?" to "how well does it match?" is the leap from
+search to recommendation — G029 introduces the distinction.
+
+## Distinctive Innate idiom: profile matching IS agent discovery in disguise
+
+Gift catalog = agent registry.
+Recipient traits = task requirements.
+Relevance score = fit metric.
+Budget = resource constraint.
+`suggest` = `discover-agent`.
+
+The choreography is identical. Only the domain vocabulary changes.
+
+---
+
+## Demo
+
+[demo
+    @c <- [gifts[catalog]]
+
+    @traits <- ["book-lover", "quiet", "analytical"]
+    -> [gifts[suggest-top-n
+                {catalog: @c,
+                 recipient-traits: @traits,
+                 budget: 40,
+                 n: 3}]]
+    ;; -> three gifts, highest trait-overlap first, each ≤ $40
+]

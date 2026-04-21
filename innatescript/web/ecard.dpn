@@ -1,0 +1,117 @@
+# G081 — E-Card Generator
+
+*v2. See `ecard.md` for prose: template-and-data as separation between
+content and presentation, slot schema validated at creation not
+render time, defaults materialised into cards, unknown placeholders
+visibly preserved (fail loud), categories as cross-template axis.*
+
+---
+
+## Choreographic Case: Automated Birthday Card Mailer
+
+[birthday-mailer
+    IN ORDER TO
+        pull the vault's contacts whose birthday is today
+        fill a birthday template per person and send each one as HTML email
+        so the only work left is picking the template and the phrasing
+
+    @gallery <- [ecard[load-gallery]]
+
+    every day at 08:00
+        @birthdays <- [vault[query {filter: "birthday == today"}]]
+        for @p in @birthdays
+            @template <- [ecard[pick-template
+                                  {gallery: @gallery,
+                                   category: "birthday"}]]
+            @card <- [ecard[create-card
+                              {gallery: @gallery,
+                               template-id: @template:id,
+                               filled: {name: @p:name,
+                                         age: "year " + @p:age-today + "!"},
+                               recipient: @p:email,
+                               sender: "the Vault"}]]
+                || -> #card-invalid @resistance:reasons
+            [email[send {to: @p:email,
+                          subject: "Happy birthday!",
+                          html: [ecard[render
+                                         {gallery: @gallery,
+                                          card-id: @card}]]}]]
+]
+
+---
+
+## Verb Surface
+
+[ecard
+    load-gallery
+    add-template      {gallery, template}
+    pick-template     {gallery, category}
+    create-card       {gallery, template-id, filled, recipient, sender}
+                                                  ;; validates at creation
+    render            {gallery, card-id}           ;; never fails on stored card
+    render-plain      {gallery, card-id}
+]
+
+---
+
+## Distinctive Innate idiom: validation `where` slots and filled agree
+
+[ecard[create-card {gallery: @g, template-id: @tid, filled: @vals, ...}]
+    IN ORDER TO
+        reject any card whose filled data does not match the template schema
+        so a stored card is always renderable and rendering never fails
+
+    @template <- @g:templates at @tid
+
+    @vals
+        where key not in @template:slots            -> #unknown-slot
+    @template:slots
+        where slot:required and slot:name not in @vals and no default
+                                                     -> #missing-required
+        where slot:name not in @vals and default exists
+                                                     -> materialise default into @vals
+    otherwise
+        -> store the card with @vals (all slots resolved at creation)
+]
+
+Defaults are copied, not looked up at render time. Template edits
+don't retroactively change existing cards — each card is a
+self-contained snapshot.
+
+## Distinctive Innate idiom: unknown placeholders preserved `where` fail-loud
+
+[ecard[render {gallery: @g, card-id: @id}]
+    walk @template:html
+    where placeholder is declared slot   -> substitute filled value
+    where placeholder is reserved (_recipient, _sender) -> substitute card field
+    where placeholder is unknown         -> leave {{placeholder}} in output
+    IN ORDER TO
+        make the template author's typo visible in the rendered output
+        instead of silently producing "From ." in place of "From {{typo}}."
+]
+
+---
+
+## Demo
+
+[demo
+    @g <- [ecard[load-gallery]]
+    [ecard[add-template
+            {gallery: @g,
+             template: {id: 1, category: "birthday",
+                         slots: [{name: "name", kind: "Text", required: true}
+                                  {name: "age", kind: "Text",
+                                   required: false,
+                                   default: "another year older"}],
+                         html: "<p>Happy birthday, {{name}}! {{age}}</p>"}}]]
+
+    @card <- [ecard[create-card
+                      {gallery: @g, template-id: 1,
+                       filled: {name: "Nathan"},
+                       recipient: "n@example.com",
+                       sender: "the Vault"}]]
+    ;; age default materialised into the card
+
+    -> [ecard[render {gallery: @g, card-id: @card}]]
+    ;; -> "<p>Happy birthday, Nathan! another year older</p>"
+]

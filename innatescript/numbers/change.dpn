@@ -1,0 +1,80 @@
+# G007 — Change Return Program
+
+*v2. See `change.md` for prose: making change as priority-ordered
+allocation against uneven denominations, same structure as covering
+bills across a month against uneven due dates.*
+
+---
+
+## Choreographic Case: Monthly Bill Coverage
+
+[monthly-bill-coverage @month
+    IN ORDER TO
+        cover each bill as it comes due with the cumulative P&L available
+        and signal to trading whether scope-adjust is needed
+        by treating bills as denominations and P&L as the amount
+
+    @coverage <- [cover-obligations
+                    {available: @month:cumulative-pnl,
+                     bills: [
+                        {name: "Captivate",    amount: 19,  due: 1}
+                        {name: "Anthropic",    amount: 100, due: 10}
+                        {name: "DigitalOcean", amount: 24,  due: 15}
+                        {name: "ElevenLabs",   amount: 22,  due: 22}
+                     ]}]
+
+    <- @kathryn{evaluate @coverage}
+        where all bills covered before their due dates
+            -> #on-plan
+        otherwise
+            -> #prioritise-trading
+]
+
+---
+
+## Verb Surface
+
+[make-change
+    {amount, denominations}                  ;; -> [coin count]
+]
+
+[cover-obligations
+    {available, bills}                        ;; -> coverage map
+]
+
+---
+
+## Distinctive Innate idiom: priority allocation `where` largest-first covers most
+
+[make-change {amount: @cents, denominations: @denoms}]
+    IN ORDER TO
+        allocate @cents across @denoms largest-first
+        emitting a count per denomination summing back to @cents
+
+    remaining <- @cents
+    for @d in @denoms ordered descending
+        @count    <- remaining / @d (integer division)
+        remaining <- remaining mod @d
+        record (@d → @count)
+    where remaining is zero   -> return allocation
+    otherwise                  -> #cannot-make-exact-change
+]
+
+G005 introduced decision context; G006 introduced amortised `where`;
+G007 connects them — bills are denominations, P&L is the amount,
+cover-obligations is making change against a schedule.
+
+---
+
+## Demo
+
+[demo
+    -> [make-change {amount: 87, denominations: [25, 10, 5, 1]}]
+    ;; -> {25: 3, 10: 1, 5: 0, 1: 2}
+
+    -> [cover-obligations
+          {available: 200,
+           bills: [{amount: 100, due: 10}
+                    {amount: 80,  due: 20}]}]
+    ;; -> {covered: [both], remainder: 20}
+]

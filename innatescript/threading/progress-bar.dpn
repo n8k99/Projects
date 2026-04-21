@@ -1,0 +1,110 @@
+# G065 — Progress Bar for Downloads
+
+*v2. See `progress-bar.md` for prose: producer and consumer as distinct
+actors, atomics as minimum synchronisation, completion as state not
+flag, cooperative cancellation, consumer chooses its own cadence,
+time as first-class input.*
+
+---
+
+## Choreographic Case: Long-Running Agent Task with Live Progress
+
+[long-fetch @url @dest
+    IN ORDER TO
+        stream a large file while a separate display shows live progress
+        and let the user cancel mid-transfer without killing the worker
+
+    @total   <- [http[content-length {url: @url}]]
+    @tracker <- [progress[new {total: @total}]]
+
+    concurrent [
+        worker:
+            for @chunk in [http[stream-chunks {url: @url}]]
+                @tracker
+                    where is-cancelled is true -> break
+                [fs[append {path: @dest, bytes: @chunk}]]
+                [progress[advance
+                            {tracker: @tracker, delta: @chunk:size}]]
+            [progress[complete {tracker: @tracker}]]
+
+        display:
+            every 100 ms
+                @tracker where status is not "running" -> break
+                [ui[render-bar
+                      {snapshot: [progress[snapshot
+                                             {tracker: @tracker}]]}]]
+    ]
+    join
+
+    sync @user-events {
+        cancel -> [progress[cancel {tracker: @tracker}]]
+                  ;; worker sees flag on next chunk
+    }
+]
+
+---
+
+## Verb Surface
+
+[progress
+    new             {total}
+    advance         {tracker, delta}             ;; producer thread
+    complete        {tracker}
+    cancel          {tracker}                     ;; cooperative
+    is-cancelled    {tracker}
+    snapshot        {tracker}                     ;; consistent read
+    status          {tracker}                     ;; "running"|"completed"|"cancelled"|"failed"
+]
+
+---
+
+## Distinctive Innate idiom: cooperative cancellation as `where`-checkpoint
+
+[progress[advance {tracker: @t, delta: @d}]
+    IN ORDER TO
+        keep forward progress under concurrent cancellation signals
+        without preemptively killing the worker thread (which would
+        leak locks, files, and half-written buffers)
+
+    @t
+        where status is "running"
+            -> atomically add @d to bytes-done
+        where status is terminal (Completed | Cancelled | Failed)
+            -> no-op (terminal is sticky via compare-exchange)
+]
+
+Preemptive kill is unsafe in almost every runtime. The worker checks
+a flag between chunks; the granularity of the chunk IS the
+cancellation latency. Too-coarse = slow response; too-fine = overhead.
+
+## Distinctive Innate idiom: consumer cadence `where` independent of producer rate
+
+[every 100 ms
+    @snap <- [progress[snapshot {tracker: @t}]]
+    [ui[render-bar {snap: @snap}]]
+]
+
+The producer may write millions of increments per second; the
+consumer polls at display rate. Coalescing is explicit: consumer
+picks cadence, atomic snapshot guarantees consistent multi-field view.
+
+---
+
+## Demo
+
+[demo
+    @t <- [progress[new {total: 1000}]]
+
+    concurrent [
+        for @chunk in [0..1000] stepped by 100
+            [progress[advance {tracker: @t, delta: 100}]]
+            [progress[complete {tracker: @t}]]
+    |
+        every 50 ms until @t:status is not "running"
+            -> [progress[snapshot {tracker: @t}]]
+    ]
+    join
+
+    -> [progress[status {tracker: @t}]]     ;; -> "completed"
+    -> [progress[snapshot {tracker: @t}]]    ;; -> {bytes-done: 1000, total: 1000, ...}
+]

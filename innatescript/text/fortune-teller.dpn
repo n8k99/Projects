@@ -1,0 +1,109 @@
+# G027 — Fortune Teller
+
+*v2. See `fortune-teller.md` for prose: constrained nondeterminism
+(random within a category), context-independent response as the
+anti-pattern worth naming, stratified sampling (space/stratum/
+selection), the composition of alarm + category + injection.*
+
+---
+
+## Choreographic Case: Daily Inspiration System
+
+[daily-inspiration
+    IN ORDER TO
+        fire a morning alarm that selects a category-bounded fortune
+        and inject it into today's daily note
+        composing alarm + stratified sampling + content insertion
+
+    @teller <- [fortune[new]]
+    [fortune[seed-pool {teller: @teller,
+                         category: "motivation",
+                         fortunes: [...]}]]
+    [fortune[seed-pool {teller: @teller,
+                         category: "wisdom",
+                         fortunes: [...]}]]
+    [fortune[seed-pool {teller: @teller,
+                         category: "caution",
+                         fortunes: [...]}]]
+
+    at [[07:00]] [
+        @day-of-week <- [clock[day-of-week]]
+        @category <- @day-of-week
+            where "Monday"    -> "motivation"
+            where "Wednesday" -> "wisdom"
+            where "Friday"    -> "caution"
+            otherwise         -> "wisdom"
+
+        @fortune <- [fortune[draw
+                               {teller: @teller,
+                                category: @category}]]
+
+        [daily-note[prepend
+                     {path: [[today]] + ".md",
+                      section: "Fortune",
+                      content: @fortune}]]
+    ]
+]
+
+---
+
+## Verb Surface
+
+[fortune
+    new
+    seed-pool         {teller, category, fortunes}
+    draw              {teller, category}           ;; stratified random
+    ask-question      {teller, question}           ;; context-independent
+]
+
+---
+
+## Distinctive Innate idiom: constrained nondeterminism `where` category picks the stratum
+
+[fortune[draw {teller: @t, category: @cat}]
+    IN ORDER TO
+        select randomly within the @cat pool
+        so agency lives in the productive middle — bounded choice,
+        not chaos (unbounded) and not determinism (single answer)
+
+    @pool <- @t:pools at @cat
+        where present and count is at least 1
+            -> select one uniformly at random from @pool
+        otherwise
+            -> #category-empty @cat
+]
+
+Three levels of the same concept: the fortune space, the category
+stratum, the drawn sample. Same primitive statistical sampling uses;
+same primitive G024's random-by-tag uses a simpler form of.
+
+## Distinctive Innate idiom: context-independent response as named anti-pattern
+
+[fortune[ask-question {teller: @t, question: @q}]
+    ignores @q
+    returns [fortune[draw {teller: @t, category: "wisdom"}]]
+    IN ORDER TO
+        name the anti-pattern explicitly — agents that listen but do
+        not respond to input. Good agent design threads context into
+        the response; fortune tellers refuse to.
+]
+
+---
+
+## Demo
+
+[demo
+    @t <- [fortune[new]]
+    [fortune[seed-pool
+              {teller: @t, category: "wisdom",
+               fortunes: ["Trust the process.",
+                          "Simplicity over cleverness.",
+                          "What gets measured gets managed."]}]]
+
+    -> [fortune[draw {teller: @t, category: "wisdom"}]]
+    ;; -> one of the three, uniformly at random
+
+    -> [fortune[ask-question
+                  {teller: @t, question: "Will the market rise?"}]]
+    ;; -> a wisdom fortune, context-independent
+]

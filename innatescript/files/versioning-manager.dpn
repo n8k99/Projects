@@ -1,0 +1,145 @@
+# G100 — Versioning Manager
+
+*v2. See `versioning-manager.md` for prose: content-addressed storage
+(blobs/trees/commits keyed by hash), commit chain as linked list of
+trees, canonical encoding as the cross-language byte-identity contract,
+tree diff as hash equality, automatic dedup by construction.*
+
+---
+
+## Choreographic Case: Vault History
+
+[vault-history
+    IN ORDER TO
+        record every vault save as a commit in a content-addressed repo
+        answer per-file history queries by walking the commit chain
+        and restore historical state by checking out any commit
+
+    @repo <- [vm[new-repo]]
+
+    sync @vault-events {
+        save @path @content @message ->
+            @files <- [vault[list-tracked]]
+                       mapped to (@f, [vault[read-bytes {path: @f:path}]])
+            @files <- @files overriding where @f:path is @path
+                             with @content
+            [vm[commit {repo: @repo,
+                         files: @files,
+                         message: @message,
+                         timestamp: [clock[now]]}]]
+
+        file-history @file ->
+            @commits <- [vm[log {repo: @repo}]]
+                           where [vm[checkout
+                                      {repo: @repo,
+                                       commit-hash: @c:hash}]]
+                                 has key @file
+            [ui[render-history {commits: @commits}]]
+
+        restore @commit-hash ->
+            @snapshot <- [vm[checkout
+                              {repo: @repo,
+                               commit-hash: @commit-hash}]]
+                || -> #unknown-commit @commit-hash
+            for (@path, @bytes) in @snapshot
+                [vault[write-bytes {path: @path, content: @bytes}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[vm
+    fnv1a-hash          {bytes}
+    new-repo
+    commit              {repo, files, message, timestamp}    ;; -> Hash
+    checkout            {repo, commit-hash}                   ;; || unknown-commit
+    diff                {repo, from, to}                       ;; -> [DiffOp]
+    log                 {repo}                                 ;; -> [(Hash, Commit)]
+    blob-count          {repo}
+    commit-count        {repo}
+]
+
+---
+
+## Distinctive Innate idiom: identity as `where hash(data) = key`
+
+[vm[commit {repo: @r, files: @fs, ...}]
+    IN ORDER TO
+        store each blob/tree/commit under its own content hash
+        so identical content collapses to one object automatically
+
+    for each (name, bytes) in @fs
+        @hash <- [vm[fnv1a-hash {bytes: @bytes}]]
+        @r:blobs at @hash
+            where already present -> reuse (no new storage)
+            otherwise             -> insert bytes under @hash
+]
+
+The identifier IS the content. Same bytes → same hash → same blob.
+"Check if this already exists" vanishes because the hash already
+answered that question. Storage dedup is emergent, not coded.
+
+## Distinctive Innate idiom: canonical encoding as cross-language contract
+
+[vm[tree-to-bytes {tree: @t}]
+    IN ORDER TO
+        produce the exact byte sequence every Rosetta language agrees on
+        so the same files produce the same hash across Rust/Python/CL/Go/
+        Lean/InnateScript
+
+    bytes are "tree\n"
+    followed by, for each entry ordered by name ascending,
+        name + "\t" + lowercase-hex(hash, 16 digits) + "\n"
+    where hex is lowercase
+    and newlines are "\n"
+    and fields are separated by "\t"
+]
+
+This is the milestone's strongest cross-language contract: not just
+same logic, not just same output, but **identical bytes** produced by
+six independent implementations from the same input.
+
+## Distinctive Innate idiom: diff as `where tree hashes differ`
+
+[vm[diff {repo: @r, from: @a, to: @b}]
+    @a:tree and @b:tree
+        where both hashes are equal
+            -> [] (identical; no file reads needed)
+        otherwise, for each name in either tree
+            where only in @b    -> #added
+            where only in @a    -> #removed
+            where hash differs  -> #changed
+]
+
+Two commits are identical iff their trees hash identically — a single
+64-bit comparison replaces a full file-by-file walk. This is the
+algorithmic win that makes content-addressed storage worth its weight.
+
+---
+
+## Demo
+
+[demo
+    @r  <- [vm[new-repo]]
+    @c1 <- [vm[commit
+                 {repo: @r,
+                  files: [["a.txt", "hello"], ["b.txt", "world"]],
+                  message: "initial", timestamp: 1000}]]
+    @c2 <- [vm[commit
+                 {repo: @r,
+                  files: [["a.txt", "hello!"],
+                           ["b.txt", "world"],
+                           ["c.txt", "new"]],
+                  message: "update a, add c", timestamp: 2000}]]
+
+    -> [vm[diff {repo: @r, from: @c1, to: @c2}]]
+    ;; -> [#changed a.txt, #added c.txt]
+
+    -> [vm[checkout {repo: @r, commit-hash: @c1}]]
+    ;; -> {a.txt: "hello", b.txt: "world"}
+
+    -> [vm[blob-count {repo: @r}]]
+    ;; -> 4   (hello, world, hello!, new — automatic dedup)
+]

@@ -1,0 +1,105 @@
+# G101 — SQL Query Analyzer
+
+*v2. See `sql-query-analyzer.md` for prose: tokenise → parse → analyse
+pipeline, AST as plain data, findings with stable codes and severity,
+schema-aware validation.*
+
+---
+
+## Choreographic Case: Vault Query Linter
+
+[vault-query-linter @db
+    IN ORDER TO
+        lint a user's SQL as they type
+        surface syntax errors immediately
+        and surface semantic findings against the live schema
+        without a server round-trip
+
+    @schema <- [db[introspect-schema {connection: @db}]]
+
+    sync @user-events {
+        edit @text ->
+            @parsed <- [sql[parse {input: @text}]]
+                || -> #parse-error @resistance:reason
+
+            @analysis <- [sql[analyse {query: @parsed, schema: @schema}]]
+
+            for @finding in @analysis:findings
+                [ui[render-finding {severity: @finding:severity,
+                                      code: @finding:code,
+                                      message: @finding:message}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[sql
+    tokenise        {input}                  ;; || parse-error
+    parse           {input}                  ;; || parse-error
+    schema
+    schema-add      {schema, name, columns}
+    analyse         {query, schema}          ;; -> Analysis (never resists)
+]
+
+---
+
+## Distinctive Innate idiom: severity ladder as `where` threshold
+
+[sql[analyse {query: @q, schema: @s}]
+    where
+        severity is one of Info, Warning, Error
+        and severity is Info when the finding is an observation
+        and severity is Warning when the query is legal but likely wrong
+        and severity is Error when the query references something
+            that does not exist in the schema
+]
+
+[@findings
+    where severity at least Warning
+    IN ORDER TO
+        surface issues the user probably wants to fix
+        while allowing Info findings to stay silent by default
+]
+
+Findings carry stable codes (`SELECT_STAR`, `LIMIT_WITHOUT_ORDER`,
+`UNKNOWN_TABLE`, `FULL_SCAN`) so downstream tooling can suppress or
+group by code without parsing the human-readable message.
+
+---
+
+## Distinctive Innate idiom: parse and analyse as separate resolver calls
+
+The v1 structure gave one verb that did both. Innate keeps them apart:
+the first may resist, the second never does — it only returns findings.
+
+[sql[parse {input: @text}]
+    || -> #syntax-error @resistance:reason
+
+@analysis <- [sql[analyse {query: @parsed, schema: @s}]]
+@analysis
+    where findings count is zero
+    || for @f in @analysis:findings -> #semantic-finding @f
+
+---
+
+## Demo
+
+[demo
+    @s <- [sql[schema]]
+    [sql[schema-add {schema: @s, name: "users",
+                      columns: ["id", "name", "email", "created_at"]}]]
+
+    @q1 <- [sql[parse {input: "SELECT id, name FROM users WHERE id = 42"}]]
+    -> [sql[analyse {query: @q1, schema: @s}]]
+    ;; -> findings: []
+
+    @q2 <- [sql[parse {input: "SELECT * FROM users LIMIT 10"}]]
+    -> [sql[analyse {query: @q2, schema: @s}]]
+    ;; -> findings: [SELECT_STAR Warning, LIMIT_WITHOUT_ORDER Warning]
+
+    @q3 <- [sql[parse {input: "SELECT birthday FROM widgets"}]]
+    -> [sql[analyse {query: @q3, schema: @s}]]
+    ;; -> findings: [UNKNOWN_TABLE Error, FULL_SCAN Warning]
+]

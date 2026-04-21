@@ -1,0 +1,120 @@
+# G033 — FTP Program
+
+*v2. See `ftp-program.md` for prose: first client-server protocol,
+command language as external InnateScript-shaped channel, virtual
+filesystem as remote resource behind the protocol, every @reference
+shaped like a request-response.*
+
+---
+
+## Choreographic Case: Agent Vault Transfer
+
+[vault-transfer @server-host
+    IN ORDER TO
+        drive a remote FTP server from an agent session
+        listing, fetching, and storing vault notes through a line protocol
+        so the transfer commits a set of files atomically or resists
+
+    @client <- [ftp[connect {host: @server-host}]]
+        || -> #cannot-connect @resistance
+
+    @listing <- [ftp[send {client: @client, command: "LIST"}]]
+        where response begins with "226" -> parse file list
+        otherwise                        -> #list-failed
+
+    for @name in @listing
+        @resp <- [ftp[send {client: @client,
+                             command: "RETR " + @name}]]
+            where response begins with "226"
+                -> [vault[save {path: "incoming/" + @name,
+                                 content: @resp:body}]]
+            otherwise
+                -> #transfer-error @resp
+
+    for @upload in [vault[outgoing-notes]]
+        [ftp[send {client: @client,
+                    command: "STOR " + @upload:name + " " +
+                              @upload:content}]]
+
+    [ftp[send {client: @client, command: "QUIT"}]]
+]
+
+---
+
+## Verb Surface
+
+[ftp
+    connect          {host}                    ;; -> Client
+    send             {client, command}          ;; -> response string
+    disconnect       {client}
+]
+
+[ftp-server
+    new              {initial-files}
+    handle           {server, command}          ;; -> response string
+    files            {server}
+]
+
+---
+
+## Distinctive Innate idiom: command dispatch `where` verb determines response
+
+[ftp-server[handle {server: @s, command: @cmd}]
+    IN ORDER TO
+        parse @cmd into verb + args and produce the protocol response
+        per the FTP reply-code convention (2xx ok, 5xx client error)
+
+    @verb <- first word of @cmd, uppercased
+    @verb
+        where "LIST"
+            -> "226 File list:\n" + sorted filenames joined by newline
+        where "RETR"
+            -> @name <- second word
+               @s:files at @name
+                   where present   -> "226 Transfer complete:\n" + content
+                   otherwise       -> "550 " + @name + ": No such file"
+        where "STOR"
+            -> @name, @content <- words 2 and 3
+               store @content at @name
+               -> "226 " + @name + " stored (" + size + " bytes)"
+        where "DELE"
+            -> remove @name if present
+               -> "250 deleted" or "550 No such file"
+        where "QUIT"
+            -> "221 Goodbye"
+        otherwise
+            -> "502 Command not implemented: " + @verb
+]
+
+Reply codes are themselves a small sum type: 2xx success, 5xx client
+error. Each response carries both a status and optional payload — the
+same shape every Innate resolver verb produces (result or resistance).
+
+## Distinctive Innate idiom: protocol as resolver boundary
+
+The FTP protocol IS the resolver boundary: outside the protocol the
+client cannot observe server state; inside the protocol every access
+is a named verb with a typed response. InnateScript's `@reference`
+does exactly this — remote state is reachable only via the command
+language the resolver exposes.
+
+---
+
+## Demo
+
+[demo
+    @srv <- [ftp-server[new {initial-files: {"readme": "hello"}}]]
+
+    -> [ftp-server[handle {server: @srv, command: "LIST"}]]
+    ;; -> "226 File list:\nreadme"
+
+    -> [ftp-server[handle {server: @srv, command: "RETR readme"}]]
+    ;; -> "226 Transfer complete:\nhello"
+
+    -> [ftp-server[handle {server: @srv,
+                             command: "STOR notes hello-world"}]]
+    ;; -> "226 notes stored (11 bytes)"
+
+    -> [ftp-server[handle {server: @srv, command: "QUIT"}]]
+    ;; -> "221 Goodbye"
+]

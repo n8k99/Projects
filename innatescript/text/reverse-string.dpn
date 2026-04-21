@@ -1,0 +1,77 @@
+# G016 — Reverse a String
+
+*v2. See `reverse-string.md` for prose: first content-level operation
+(vs value-level), character vs word granularity as first-class, text
+natives are infrastructure because agents communicate in text.*
+
+---
+
+## Choreographic Case: Content Pipeline Across Granularities
+
+[content-pipeline @document
+    IN ORDER TO
+        let three agents transform @document at their preferred granularity
+        then verify meaning is preserved across the combined output
+
+    concurrent [
+        vincent: @vincent{apply stylistic reversal where beneficial
+                          on: @document}
+    |
+        sylvia:  @sylvia{restructure sentences for clarity
+                         on: @document}
+    |
+        lena:    @lena{summarise each section at paragraph level
+                       of: @document}
+    ]
+    join
+
+    <- @eliana{verify transformations preserve meaning}
+        where each agent operated at its own granularity
+        and the composed output remains coherent across levels
+]
+
+---
+
+## Verb Surface
+
+[reverse-string
+    {s}                                     ;; character-level
+]
+
+[reverse-words
+    {s}                                      ;; word-level
+]
+
+[palindrome?
+    {s}
+]
+
+---
+
+## Distinctive Innate idiom: granularity selects the unit `where` meaning depends
+
+[text-op {s: @s, level: @lvl}]
+    IN ORDER TO
+        apply the same transformation at different semantic units
+        because character-reversal and word-reversal are both valid
+        but produce different meanings from the same input
+
+    @lvl
+        where "char"      -> operate on codepoints
+        where "word"      -> split on whitespace, operate on tokens
+        where "sentence"  -> split on terminators, operate on sentences
+]
+
+The resolver must know which level you mean. Same content, different
+structural level, different result — the granularity parameter is
+as load-bearing as the operation itself.
+
+---
+
+## Demo
+
+[demo
+    -> [reverse-string {s: "Hello, World!"}]    ;; -> "!dlroW ,olleH"
+    -> [reverse-words  {s: "Hello, World!"}]    ;; -> "World! Hello,"
+    -> [palindrome?    {s: "racecar"}]          ;; -> true
+]

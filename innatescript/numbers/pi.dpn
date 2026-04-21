@@ -1,0 +1,65 @@
+# G013 — Find PI to the Nth Digit
+
+*v2. See `pi.md` for prose: not everything is a choreography —
+InnateScript is a coordination language. Pure computation delegates
+to the resolver's native capabilities; the choreography is the
+context the value is used in.*
+
+---
+
+## Choreographic Case: Circle Area Within Tolerance
+
+[circle-area @radius @required-precision
+    IN ORDER TO
+        pull π to the required precision as a native call
+        compute area as a calc expression with agent-free terms
+        and verify the area meets the caller's precision constraint
+
+    @pi-value <- [pi {digits: @required-precision}]
+    @area     <- [calc {expr: "@pi-value * @radius * @radius"}]
+
+    @area
+        where precision at least @required-precision
+            -> return @area
+        otherwise
+            -> #insufficient-precision
+]
+
+---
+
+## Verb Surface
+
+[pi
+    digits          {n}                       ;; -> String | BigDecimal
+]
+
+---
+
+## Distinctive Innate idiom: delegate to host native `where` no coordination needed
+
+[pi {digits: @n}]
+    IN ORDER TO
+        hand the computation to the resolver's host-language backing
+        because pure math with no agent interaction does not benefit
+        from choreographic framing
+
+    the resolver routes to whichever host implementation is available
+    (Common Lisp's arbitrary-precision, Python's mpmath, Rust's rug, ...)
+    and returns the computed value verbatim
+]
+
+The boundary of the language: InnateScript orchestrates computation,
+it does not perform it. G013 marks the edge — anything that is pure
+math with no coordination delegates to natives.
+
+---
+
+## Demo
+
+[demo
+    -> [pi {digits: 10}]
+    ;; -> "3.1415926535"
+
+    -> [pi {digits: 50}]
+    ;; -> "3.14159265358979323846264338327950288419716939937510"
+]

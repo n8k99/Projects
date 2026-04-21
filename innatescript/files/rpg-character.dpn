@@ -1,0 +1,124 @@
+# G096 — RPG Character Stat Creator
+
+*v2. See `rpg-character.md` for prose: class as data (multiplier
+table), derived stats computed never stored, seeded RNG for cross-
+language determinism, point budget with per-class caps as database-
+style invariants, line-based save format.*
+
+---
+
+## Choreographic Case: Vault Character Gallery
+
+[vault-character-gallery @gallery-root
+    IN ORDER TO
+        load every saved character from the gallery directory
+        present a roster view, let the user roll new characters
+        and persist level-ups immediately so the sheet is always latest
+
+    @files      <- [fs[ls {path: @gallery-root}]]
+    @characters <- for @file in @files
+        @text <- [fs[read-string {path: @file:path}]]
+        [rpg[parse-character {text: @text}]]
+
+    [ui[render-gallery {characters: @characters}]]
+
+    sync @user-events {
+        new @name @class ->
+            @c <- [rpg[roll
+                         {name: @name, class: @class,
+                          seed: [clock[now]]}]]
+            [fs[write-string
+                 {path: @gallery-root + "/" + @name + ".char",
+                  content: [rpg[to-text {character: @c}]]}]]
+
+        level-up @name ->
+            @c <- @characters where name is @name first
+            [rpg[level-up {character: @c}]]
+            [fs[write-string
+                 {path: @gallery-root + "/" + @name + ".char",
+                  content: [rpg[to-text {character: @c}]]}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[rpg
+    roll                 {name, class, seed}
+    adjusted             {character, stat}
+    derived              {character}
+    level-up             {character}
+    spend-point          {character, stat, points}    ;; || over-budget | over-cap
+    to-text              {character}
+    parse-character      {text}                        ;; || parse-error
+]
+
+---
+
+## Distinctive Innate idiom: class as table, dispatched by `where`
+
+[rpg[adjusted {character: @c, stat: @s}]
+    IN ORDER TO
+        apply the class multiplier without a code branch per class
+        so adding a Bard is adding a row, not a module
+
+    @base <- @c:base at @s
+    @multiplier <- class-table row where class is @c:class
+                                   column is @s
+    @base × @multiplier (integer-rounded)
+]
+
+The class-table is configuration. Every class runs through one
+`adjusted` function. OOP inheritance tempts us to override per class;
+the Rosetta Stone commits to data-over-dispatch.
+
+## Distinctive Innate idiom: derived stats `where` base and level suffice
+
+[rpg[derived {character: @c}]
+    IN ORDER TO
+        return a snapshot of HP/MP/armour/etc computed from
+        base stats and level, never from stored fields
+        so a level-up that forgets to refresh HP is structurally impossible
+
+    {max-hp: 10 + adjusted(STAMINA) × 5 + @c:level × 10,
+     max-mp: 10 + adjusted(INTELLECT) × 5 + @c:level × 5,
+     armour: adjusted(STRENGTH) / 2 + adjusted(DEXTERITY) / 4,
+     carry-capacity: adjusted(STRENGTH) × 10,
+     crit-chance: adjusted(LUCK) / 100.0}
+]
+
+## Distinctive Innate idiom: spending guarded by `where` budget and cap
+
+[rpg[spend-point {character: @c, stat: @s, points: @n}]
+    @c
+        where unspent-points at least @n
+        and (base at @s + @n) at most class-cap for (@c:class, @s)
+        -> apply spend: decrement unspent, increment base
+        otherwise
+        -> #over-budget or #over-cap (whichever failed first)
+]
+
+Both checks are invariants — same shape databases call constraints.
+Spending violates one or the other can never slip through; the
+resolver refuses before any mutation.
+
+---
+
+## Demo
+
+[demo
+    @c <- [rpg[roll {name: "Rook", class: "warrior", seed: 42}]]
+    ;; Deterministic across six languages (LCG constants committed):
+    ;; STR base=16 adj=24 (1.5x warrior), STA base=4 adj=5 (1.3x)
+    ;; level=1 → HP = 10 + 5×5 + 1×10 = 45
+
+    [rpg[level-up {character: @c}]]
+    [rpg[level-up {character: @c}]]
+    [rpg[spend-point {character: @c, stat: "strength", points: 5}]]
+    [rpg[spend-point {character: @c, stat: "stamina", points: 3}]]
+
+    -> [rpg[derived {character: @c}]]
+    ;; level=3, STR=21 (adj=31), STA=7 (adj=9)
+    ;; HP = 10 + 9×5 + 3×10 = 85
+]

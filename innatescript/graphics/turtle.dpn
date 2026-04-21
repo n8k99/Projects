@@ -1,0 +1,181 @@
+# G130 — Turtle Graphics
+
+*v2. The milestone finale. See `turtle.md` for prose: integer-degree heading,
+integer-scaled sin/cos table, program-as-data + stateful interpreter,
+state stack for nested procedures, vector-line canvas.*
+
+---
+
+## Choreographic Case: Vault Turtle Garden
+
+[turtle-garden @save-path
+    IN ORDER TO
+        draw a recursive fractal tree using the turtle's state stack
+        and export it as an SVG vault artifact
+
+    @canvas <- [tl[new-canvas]]
+
+    [tl[execute {canvas: @canvas,
+                  program: @[
+                      [tl[turn {deg: 90}]]
+                      ...[branch 5 100]
+                  ]}]]
+
+    @svg <- [tl[export-svg {canvas: @canvas}]]
+    [vault[save {path: @save-path, content: @svg}]]
+]
+
+[branch @depth @length
+    IN ORDER TO
+        draw a trunk segment of @length, then recurse two branches
+        each half-length at ±30°, preserving the trunk position via the stack
+
+    @depth
+        where greater than 0
+        IN ORDER TO continue recursion (otherwise emit nothing)
+
+    [
+        [tl[forward {n: @length}]]
+        [tl[push-state]]
+        [tl[turn {deg: -30}]]
+        ...[branch (@depth - 1) (@length / 2)]
+        [tl[pop-state]]
+        [tl[push-state]]
+        [tl[turn {deg: 30}]]
+        ...[branch (@depth - 1) (@length / 2)]
+        [tl[pop-state]]
+    ]
+]
+
+---
+
+## Verb Surface
+
+[tl
+    sin-table       {angle}          ;; integer × 10000
+    cos-table       {angle}
+    new-canvas
+    execute         {canvas, program}
+    step            {canvas, command}
+    forward         {n}               ;; command constructor
+    backward        {n}
+    turn            {deg}
+    set-heading     {heading}
+    pen-up
+    pen-down
+    set-color       {color}
+    set-pen-width   {width}
+    push-state
+    pop-state
+    goto            {x, y}
+    render          {canvas, width, height, bg}
+    export-svg      {canvas}
+]
+
+---
+
+## Distinctive Innate idiom: program-as-data is native
+
+A turtle program is an ordered bundle of commissions. The `execute`
+verb folds over them, each step mutating the canvas:
+
+@program <- [
+    [tl[forward {n: 100}]]
+    [tl[turn {deg: 90}]]
+    [tl[forward {n: 100}]]
+    [tl[turn {deg: 90}]]
+    [tl[forward {n: 100}]]
+    [tl[turn {deg: 90}]]
+    [tl[forward {n: 100}]]
+    [tl[turn {deg: 90}]]
+]
+[tl[execute {canvas: @c, program: @program}]]
+
+This *is* the Innate idiom. Commissions are values; lists of
+commissions are programs. The v1 `Vec<Command>` is exactly this
+structure — Innate had it natively all along.
+
+---
+
+## Integer-scaled trig as cross-resolver contract
+
+[tl[sin-table {angle: @a}
+    where
+        a is wrapped to 0..=359 first via ((a mod 360) + 360) mod 360
+        and the result is integer, scaled by 10000
+        and sin-table(0) = 0, sin-table(90) = 10000, sin-table(45) = 7071
+        and the table is byte-identical across all conforming resolvers
+]
+
+[tl[cos-table {angle: @a}
+    where cos(a) = sin((a + 90) mod 360)
+]
+
+The cross-language byte-identity contract is surfaced as a `where`
+clause. Any resolver claiming to implement `tl` must satisfy it.
+
+---
+
+## State stack preserves turtle identity, not lines
+
+[tl[push-state]
+    where snapshots (x, y, heading, pen-down, pen-color, pen-width)
+        but does NOT snapshot the canvas line list
+        so lines emitted between push and pop remain in the canvas
+        while the turtle returns to its pre-push position
+]
+
+The v1 insight — "branch lines preserved; only turtle identity restores"
+— lives in this `where` clause.
+
+---
+
+## Axis-aligned closure is exact; off-axis has bounded drift
+
+[tl[execute {canvas: @c, program: [forward 100, turn 90] × 4}
+    where turtle returns to exactly (0, 0) heading 0
+        because cos/sin at 0°/90°/180°/270° are ±10000 or 0 exactly
+]
+
+[tl[execute {canvas: @c, program: [turn 45, forward 100, turn 90] × 4}
+    where turtle returns to within ±2 pixels of (0, 0)
+        because cos(45) = sin(45) = 7071
+        and 100 × 7071 / 10000 = 70 (integer division loses 0.71 per step)
+]
+
+---
+
+## Demo
+
+[demo
+    -> [tl[sin-table {angle: 0}]]      ;; -> 0
+    -> [tl[cos-table {angle: 0}]]      ;; -> 10000
+    -> [tl[sin-table {angle: 45}]]     ;; -> 7071 (= cos 45)
+    -> [tl[sin-table {angle: 90}]]     ;; -> 10000
+    -> [tl[sin-table {angle: 270}]]    ;; -> -10000
+
+    @c <- [tl[new-canvas]]
+    @square <- [
+        [tl[forward {n: 100}]] [tl[turn {deg: 90}]]
+        [tl[forward {n: 100}]] [tl[turn {deg: 90}]]
+        [tl[forward {n: 100}]] [tl[turn {deg: 90}]]
+        [tl[forward {n: 100}]] [tl[turn {deg: 90}]]
+    ]
+    [tl[execute {canvas: @c, program: @square}]]
+
+    -> @c:turtle:x, @c:turtle:y           ;; -> 0, 0 (exact)
+    -> @c:turtle:heading                   ;; -> 0
+    -> @c:lines:count                      ;; -> 4
+
+    ;; State stack: branch off, come back
+    @c2 <- [tl[new-canvas]]
+    [tl[execute {canvas: @c2, program: [
+        [tl[forward {n: 50}]]
+        [tl[push-state]]
+        [tl[turn {deg: 90}]] [tl[forward {n: 30}]]
+        [tl[pop-state]]
+    ]}]]
+    -> @c2:turtle:x, @c2:turtle:y          ;; -> 50, 0 (back to pre-push)
+    -> @c2:turtle:heading                   ;; -> 0
+    -> @c2:lines:count                      ;; -> 2 (trunk + branch drawn)
+]

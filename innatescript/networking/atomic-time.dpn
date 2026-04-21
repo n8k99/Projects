@@ -1,0 +1,101 @@
+# G034 — Get Atomic Time from Internet Clock
+
+*v2. See `atomic-time.md` for prose: time sync as consensus on shared
+reference, offset as calibration of local drift, uncertainty bounded
+via round-trip midpoint, averaging samples reduces noise.*
+
+---
+
+## Choreographic Case: Noosphere Clock Sync
+
+[noosphere-clock-sync @time-server
+    IN ORDER TO
+        calibrate every agent's local clock against an authoritative source
+        so ordered events across agents use a shared "now" without depending
+        on the local system clock's drift
+
+    @client <- [ntp[new {server: @time-server}]]
+
+    ;; Multiple samples reduce noise; each RTT estimate has error ~ RTT/2.
+    for @i in [1..5]
+        [ntp[query-time {client: @client}]]
+
+    [ntp[sync {client: @client}]]
+
+    @client
+        where synced is true
+            -> [noosphere[publish-corrected-now
+                            {offset: @client:sync-offset}]]
+        otherwise
+            -> #sync-failed (fall back to local clock)
+]
+
+---
+
+## Verb Surface
+
+[ntp
+    new              {server}
+    query-time       {client}                  ;; one sample, appends to client
+    get-offset       {client}                   ;; -> averaged offset seconds
+    sync             {client}                   ;; apply offset, mark synced
+    corrected-now    {client}                   ;; local + sync-offset
+]
+
+---
+
+## Distinctive Innate idiom: RTT midpoint `where` uncertainty is bounded
+
+[ntp[query-time {client: @c}]
+    IN ORDER TO
+        estimate server-now from a single round-trip sample with bounded error
+        because network latency makes perfect synchronisation impossible
+        and the midpoint gives the tightest unbiased estimate
+
+    @t-send      <- local-now
+    @server-time <- query @c:server for its now
+    @t-recv      <- local-now
+
+    @rtt        <- @t-recv - @t-send
+    @estimated  <- @server-time + (@rtt / 2.0)
+    @sample     <- @estimated - @t-recv
+
+    append @sample to @c:samples
+    return @server-time
+]
+
+The midpoint assumption is that outbound and return latency are
+symmetric. Asymmetric networks add error; averaging many samples
+reduces it toward zero. Same discipline every clock-sync primitive
+(NTP, PTP, Google's TrueTime) uses in some form.
+
+## Distinctive Innate idiom: averaging samples `where` more samples shrinks error
+
+[ntp[get-offset {client: @c}]
+    @c:samples
+        where count is zero -> [ntp[query-time {client: @c}]] first
+        otherwise            -> sum of @c:samples / count
+]
+
+One sample's RTT/2 error is bounded but present; N samples' average
+has error shrinking as 1/√N. Production NTP runs 4-8 samples before
+committing a sync.
+
+---
+
+## Demo
+
+[demo
+    @c <- [ntp[new {server: "time.cloudflare.com"}]]
+
+    [ntp[query-time {client: @c}]]
+    [ntp[query-time {client: @c}]]
+    [ntp[query-time {client: @c}]]
+    [ntp[query-time {client: @c}]]
+
+    @offset <- [ntp[get-offset {client: @c}]]
+    [ntp[sync {client: @c}]]
+
+    -> @c:synced                        ;; -> true
+    -> [ntp[corrected-now {client: @c}]]  ;; local + @offset
+]

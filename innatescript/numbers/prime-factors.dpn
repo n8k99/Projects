@@ -1,0 +1,67 @@
+# G003 — Prime Factorization
+
+*v2. See `prime-factors.md` for prose: factorization decomposes a whole
+into irreducible parts, structurally analogous to choreography
+projecting a global intention into agent-local slices.*
+
+---
+
+## Choreographic Case: Project Decomposition
+
+[decompose-project @project
+    IN ORDER TO
+        break @project's complexity into irreducible factors
+        assign narrative weight and resource cost per factor concurrently
+        and verify the reassembled assignments still equal the whole
+
+    @factors <- [prime-factors {n: @project:complexity-score}]
+
+    concurrent [
+        @sylvia{assign narrative weight to each of: @factors}
+    |
+        @kathryn{assign resource cost to each of: @factors}
+    ]
+    join
+
+    <- @eliana{verify decomposition covers the whole}
+        where no factor is left unassigned
+        and product of assigned factors equals @project:complexity-score
+]
+
+---
+
+## Verb Surface
+
+[prime-factors
+    n               {n}                       ;; -> [Int]
+    factorization   {n}                        ;; -> {prime -> exponent}
+    is-prime        {n}                        ;; -> Bool
+]
+
+---
+
+## Distinctive Innate idiom: fundamental-theorem `where` product reconstructs
+
+[prime-factorization {n: @n}]
+    returns a unique multiset of primes
+    where product of primes (with multiplicity) equals @n
+    IN ORDER TO
+        encode the fundamental theorem of arithmetic as a constraint
+        so "did the decomposition cover the whole?" has a yes/no answer
+        applicable equally to integers and to project decompositions
+]
+
+Every irreducible factor is a concern; the choreography IS the
+projection of a global intention into local slices. G003 is the
+first project where *math structure mirrors coordination structure*.
+
+---
+
+## Demo
+
+[demo
+    -> [prime-factors {n: 12}]         ;; -> [2, 2, 3]
+    -> [prime-factors {n: 60}]         ;; -> [2, 2, 3, 5]
+    -> [prime-factorization {n: 60}]   ;; -> {2: 2, 3: 1, 5: 1}
+    -> [prime-factors {n: 13}]         ;; -> [13] (prime)
+]

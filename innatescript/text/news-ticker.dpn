@@ -1,0 +1,108 @@
+# G026 — News Ticker and Game Scores
+
+*v2. See `news-ticker.md` for prose: priority + time as two-axis
+sort, TTL as temporal scope managing attention, interrupts as
+reverse `<-` gates forcing output, content/presentation split
+applied to a stream.*
+
+---
+
+## Choreographic Case: Vault Attention Ticker
+
+[vault-ticker
+    IN ORDER TO
+        funnel all inbound events (alerts, scores, news) into one stream
+        rendered sorted by priority then recency
+        with TTL automatically pruning stale items every tick
+
+    @ticker <- [ticker[new]]
+
+    sync @event-sources {
+        alert @text @priority ->
+            [ticker[post {ticker: @ticker, text: @text,
+                           category: "alert",
+                           priority: @priority, ttl-seconds: 300}]]
+
+        news @text ->
+            [ticker[post {ticker: @ticker, text: @text,
+                           category: "news",
+                           priority: 2, ttl-seconds: 1800}]]
+
+        score @text ->
+            [ticker[post {ticker: @ticker, text: @text,
+                           category: "sports",
+                           priority: 1, ttl-seconds: 3600}]]
+    }
+
+    every 1 second
+        [ticker[evict-expired {ticker: @ticker, now: [clock[now]]}]]
+        @visible <- [ticker[snapshot {ticker: @ticker}]]
+        [ui[render-scrolling {items: @visible}]]
+]
+
+---
+
+## Verb Surface
+
+[ticker
+    new
+    post                 {ticker, text, category, priority, ttl-seconds?}
+    snapshot             {ticker}                   ;; sorted, non-expired
+    evict-expired        {ticker, now}
+    breaking             {ticker, text}             ;; priority 5, interrupt
+]
+
+---
+
+## Distinctive Innate idiom: two-axis sort `where` priority first, recency second
+
+[ticker[snapshot {ticker: @t}]
+    @t:items
+        where not-expired (now < expires-at or expires-at is none)
+        ordered by
+            priority descending,      ;; highest priority first
+            timestamp descending       ;; most recent within priority
+    IN ORDER TO
+        let importance dominate order while recency breaks ties
+        so the agent triaging the ticker sees what matters most first
+        and the freshest-of-equal-importance second
+]
+
+## Distinctive Innate idiom: TTL as temporal scope `where` now passes expires-at
+
+[ticker[evict-expired {ticker: @t, now: @n}]
+    @t:items
+        where expires-at is not none
+        and   expires-at is at most @n
+            -> remove from @t:items
+    IN ORDER TO
+        prune items the caller already declared temporary
+        because attention is bounded and permanent-everything is noise
+]
+
+## Distinctive Innate idiom: breaking news as interrupt `where` priority = max
+
+[ticker[breaking {ticker: @t, text: @s}]
+    post with priority 5 (max) and no TTL
+    IN ORDER TO
+        preempt normal flow — the `<-` gate operating in reverse,
+        forcing output instead of filtering input
+]
+
+---
+
+## Demo
+
+[demo
+    @t <- [ticker[new]]
+    [ticker[post {ticker: @t, text: "Mercury Retrograde",
+                   category: "news", priority: 2,
+                   ttl-seconds: 3600}]]
+    [ticker[post {ticker: @t, text: "ETH +5%",
+                   category: "finance", priority: 3,
+                   ttl-seconds: 1800}]]
+    [ticker[breaking {ticker: @t, text: "Security incident"}]]
+
+    -> [ticker[snapshot {ticker: @t}]]
+    ;; -> [Security incident (p5), ETH +5% (p3), Mercury Retrograde (p2)]
+]

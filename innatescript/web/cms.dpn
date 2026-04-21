@@ -1,0 +1,138 @@
+# G082 — Content Management System
+
+*v2. See `cms.md` for prose: five-state content lifecycle (Draft →
+InReview → Scheduled → Published → Archived), revisions as append-
+only, scheduled publish as time-triggered transition, archived as
+frozen-but-restorable, slug as natural key and id as surrogate.*
+
+---
+
+## Choreographic Case: Daily Editorial Automation
+
+[editorial-automation
+    IN ORDER TO
+        notify editors of articles awaiting review each morning
+        tick the CMS every minute to promote Scheduled articles on time
+        and archive published articles that crossed their retention window
+
+    @cms <- [cms[load]]
+
+    every day at 09:00
+        @in-review <- [cms[by-state {cms: @cms, state: "in_review"}]]
+        for @a in @in-review
+            [email[notify
+                    {to: @a:editor,
+                     subject: "Awaiting review",
+                     article: @a:slug}]]
+
+    every 1 minute
+        @new <- [cms[tick {cms: @cms, now-ms: [clock[now]]}]]
+        for @a in @new
+            [feed[publish {article: @a}]]
+]
+
+---
+
+## Verb Surface
+
+[cms
+    load
+    save-revision        {cms, slug, body, author, now-ms}
+                                                       ;; || archived-frozen
+    submit-for-review    {cms, id}                      ;; Draft → InReview
+    approve-and-publish  {cms, id, now-ms}              ;; → Published
+    schedule-publish     {cms, id, at-ms, now-ms}       ;; → Scheduled
+    archive              {cms, id}                       ;; any → Archived
+    unarchive            {cms, id}                       ;; Archived → Draft
+    revert-to-revision   {cms, id, version}              ;; creates NEW revision
+    by-state             {cms, state}
+    by-tag               {cms, tag}
+    by-author            {cms, author}
+    by-slug              {cms, slug}
+    tick                 {cms, now-ms}                   ;; time-triggered
+]
+
+---
+
+## Distinctive Innate idiom: FSM transitions as `where`-gated verbs
+
+[cms[submit-for-review {cms: @c, id: @id}]
+    @article <- @c:articles at @id
+        where state is "Draft"
+            -> state := "InReview"
+        otherwise
+            -> #illegal-transition
+               ("can't submit-for-review from " + current state)
+]
+
+[cms[save-revision {cms: @c, slug: @s, body: @b, ...}]
+    @article
+        where state is "Archived"
+            -> #frozen (archived content is read-only by design)
+        otherwise
+            -> append {version: next, body: @b, author, now-ms}
+               to @article:revisions
+]
+
+Five states; specific transitions between specific states. Archived
+is the only non-terminal frozen state — visible, restorable via
+unarchive, but not editable.
+
+## Distinctive Innate idiom: scheduled publish `where` tick catches the time
+
+[cms[tick {cms: @c, now-ms: @now}]
+    IN ORDER TO
+        promote every Scheduled article whose target time has passed
+        so the state machine has both user-triggered and time-triggered edges
+
+    @c:articles
+        where state is "Scheduled"
+        and publish-at-ms at most @now
+            -> state := "Published"
+            -> append to the returned list of just-published articles
+]
+
+Mixing user-triggered and time-triggered transitions is natural once
+the tick mechanism exists — same as G077's auto-lock. The scheduler
+lives inside the CMS because content lifecycle is the CMS's concern.
+
+## Distinctive Innate idiom: revisions append-only, revert adds a new revision
+
+[cms[revert-to-revision {cms: @c, id: @id, version: @v}]
+    @article
+        where state is not "Archived"
+            @old <- @article:revisions at version @v
+            append {version: next, body: @old:body,
+                     author: "reverter", note: "revert to v" + @v}
+            IN ORDER TO
+                preserve perfect auditability
+                so the history always answers "what did it say on day N"
+]
+
+Same discipline as Git: reverts are new commits, not rollbacks.
+
+---
+
+## Demo
+
+[demo
+    @c <- [cms[load]]
+    [cms[save-revision
+          {cms: @c, slug: "hello-world",
+           body: "first draft", author: "nathan", now-ms: 1000}]]
+
+    [cms[submit-for-review {cms: @c, id: 0}]]
+    -> [cms[by-state {cms: @c, state: "in_review"}]]   ;; -> [0]
+
+    [cms[schedule-publish
+          {cms: @c, id: 0, at-ms: 5000, now-ms: 2000}]]
+
+    -> [cms[tick {cms: @c, now-ms: 4000}]]              ;; -> []
+    -> [cms[tick {cms: @c, now-ms: 6000}]]              ;; -> [article 0]
+
+    [cms[archive {cms: @c, id: 0}]]
+    -> [cms[save-revision
+             {cms: @c, slug: "hello-world",
+              body: "late edit", author: "nathan", now-ms: 7000}]]
+    ;; -> #frozen
+]

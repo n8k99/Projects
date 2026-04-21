@@ -1,0 +1,76 @@
+# G058 — Movie Store
+
+*v2. See `movie-store.md` for prose: rental lifecycle, overdue as time-derived
+query, per-movie and per-customer history views.*
+
+---
+
+## Choreographic Case: Nightly Overdue Sweep
+
+[nightly-overdue-sweep @now
+    IN ORDER TO
+        every night find overdue rentals
+        notify each affected customer
+        and calculate late fees for kathryn to review
+
+    @overdue <- [store[overdue {now: @now}]]
+    @by-customer <- @overdue grouped by :customer-id
+
+    concurrent [
+        for @(cust, rentals) in @by-customer
+            <- @sarah{notify customer: @cust, rentals: @rentals, severity: "late"}
+        <- @kathryn{assess fees for overdue: @overdue}
+    ]
+    join
+
+    where
+        every customer was notified
+        and total fees are non-negative
+        || -> #sweep-incomplete @resistance:reason
+]
+
+---
+
+## Verb Surface
+
+[store
+    new
+    add-movie        {movie}
+    add-customer     {customer}
+    rent             {movie-id, customer-id, duration-days}   ;; || no-copies-available
+    return           {rental-id}
+    copies-available {movie-id}
+    active-rentals   {customer-id}
+    overdue          {now}
+    movie-history    {movie-id}
+    customer-history {customer-id}
+]
+
+---
+
+## Distinctive Innate idiom: overdue is derived, not stored
+
+[store[overdue {now: @now}
+    where
+        a rental is overdue if its due-at is before @now and it's not yet returned
+        computed on demand, not stored as a boolean field
+        so the answer updates automatically as time advances
+]
+
+---
+
+## Demo
+
+[demo
+    @s <- [store[new]]
+    [store[add-movie    {movie:    {id: 1, title: "Dune", copies: 2}}]]
+    [store[add-customer {customer: {id: 1, name: "Alice"}}]]
+
+    @r <- [store[rent {movie-id: 1, customer-id: 1, duration-days: 3}]]
+    -> [store[copies-available {movie-id: 1}]]   ;; -> 1
+
+    -> [store[overdue {now: @r:due-at + 1 day}]]:count   ;; -> 1
+
+    [store[return {rental-id: @r:id}]]
+    -> [store[copies-available {movie-id: 1}]]   ;; -> 2
+]

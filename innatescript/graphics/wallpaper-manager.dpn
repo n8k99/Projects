@@ -1,0 +1,126 @@
+# G122 — Wallpaper Manager
+
+*v2. See `wallpaper-manager.md` for prose: multi-monitor slot assignment,
+asymmetric resolution fit score, recency filter with fallback, schedule
+policy ADT, monotonic-to-circular time mapping.*
+
+---
+
+## Choreographic Case: Vault Workspace Theming
+
+[wallpaper-theming @monitors @wallpapers @schedule
+    IN ORDER TO
+        rotate wallpapers across all attached monitors independently
+        matching each monitor's resolution to the best variant
+        and honoring a schedule that varies by time of day
+
+    @mgr <- [wm[new-manager {schedule: @schedule,
+                              recency-window: 3,
+                              seed: 42}]]
+
+    for @m in @monitors
+        [wm[add-monitor {manager: @mgr, monitor: @m}]]
+    for @w in @wallpapers
+        [wm[add-wallpaper {manager: @mgr, wallpaper: @w}]]
+
+    until @shutdown [
+        at @every 1000 ms
+            [wm[tick {manager: @mgr, ms: 1000}]]
+
+            for @m in @monitors
+                @variant <- [wm[current-variant-for-monitor
+                                  {manager: @mgr, monitor-id: @m:id}]]
+                    || -> #warn "no variant for monitor " + @m:id
+                [wayland[set-wallpaper {monitor: @m, path: @variant:path}]]
+    ]
+]
+
+---
+
+## Verb Surface
+
+[wm
+    new-manager                   {schedule, recency-window, seed}
+    add-monitor                   {manager, monitor}
+    add-wallpaper                 {manager, wallpaper}
+    tick                          {manager, ms}
+    rotate-monitor                {manager, monitor-id, tag-filter?}
+    current-variant-for-monitor   {manager, monitor-id}
+    resolution-fit-score          {monitor-res, variant-res}
+    best-variant-for-monitor      {wallpaper, monitor-res}
+]
+
+---
+
+## Distinctive Innate idiom: schedule as a named choreography
+
+The v1 modeled `Schedule::{Interval, FixedList, TagWindow}` as a
+discriminated union. In Innate, each schedule kind is its own
+named choreography the manager references:
+
+[interval-every @ms
+    recurrence: @every @ms
+]
+
+[fixed-list @times
+    recurrence: @at @each @time in @times
+]
+
+[tag-window @tag @start @end @inner-ms
+    at @every @inner-ms
+    where time-of-day in [@start, @end)
+    tag-filter: @tag
+]
+
+A wallpaper manager takes `@schedule` — whichever choreography the
+user named — and dispatches against its recurrence shape. The
+manager doesn't care which schedule it received; the recurrence
+operator handles all three.
+
+---
+
+## Resolution fit as `where`-expressed scoring
+
+[wm[best-variant-for-monitor {wallpaper: @w, monitor-res: @m}]
+    where
+        exact match scores 1000
+        and aspect-ratio match scores up to 500
+            with 0 aspect difference scoring 500
+            and 0.5 aspect difference scoring 0
+        and pixel-count proximity scores up to 300
+            with upscaling penalized more than downscaling
+            (a 1080p monitor prefers the 4K variant over the 720p variant)
+    ordered by score descending
+    first
+]
+
+The scoring contract is documented in the `where` clauses; the
+resolver implements whichever formula satisfies them.
+
+---
+
+## Demo
+
+[demo
+    @mgr <- [wm[new-manager {schedule: [interval-every 1000],
+                              recency-window: 2, seed: 42}]]
+
+    [wm[add-monitor {manager: @mgr, monitor:
+                      {id: 1, resolution: {w: 1920, h: 1080}}}]]
+    [wm[add-monitor {manager: @mgr, monitor:
+                      {id: 2, resolution: {w: 2560, h: 1440}}}]]
+
+    for @id in [10, 11, 12, 13, 14]
+        [wm[add-wallpaper {manager: @mgr,
+                            wallpaper: {id: @id,
+                                         variants: [{res: {w: 1920, h: 1080}}
+                                                     {res: {w: 2560, h: 1440}}]}}]]
+
+    [wm[tick {manager: @mgr, ms: 1}]]
+    -> @mgr:assignments[1]:current-wallpaper-id     ;; -> 13
+    -> @mgr:assignments[2]:current-wallpaper-id     ;; -> 13
+
+    [wm[tick {manager: @mgr, ms: 1100}]]
+    -> @mgr:assignments[1]:current-wallpaper-id     ;; -> 10 (13 in recency)
+    -> @mgr:assignments[2]:current-wallpaper-id     ;; -> 14
+]

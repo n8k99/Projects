@@ -1,0 +1,106 @@
+# G114 — Slide Show
+
+*v2. See `slide-show.md` for prose insights: fluent builder, closed-enum
+element shape, per-element durations with optional override, reveal-on-click.*
+
+---
+
+## Choreographic Case: Vault Talk Builder
+
+[talk-builder @title
+    IN ORDER TO
+        assemble a slide deck from tagged vault notes
+        with per-slide reveal choreography
+
+    @talk <- [slide[presentation {title: @title}]]
+    @slides <- ![vault[find-by-tag {tag: "talk-slides"}]]
+
+    @talk <- @slides
+        where tag has @current-section
+        ordered by date ascending
+        folded through [slide[add {talk: @talk, slide: @slide-for @note}]]
+
+    -> @talk
+]
+
+[talk-present @talk
+    IN ORDER TO walk the deck with keyboard-driven reveal
+
+    @cursor <- [slide[cursor {talk: @talk, position: 0, reveal: 0}]]
+
+    until @ended [
+        sync @key-events {
+            space -> [slide[reveal-next {cursor: @cursor}]]
+                     || [slide[advance-slide {cursor: @cursor}]]
+            right -> [slide[advance-slide {cursor: @cursor}]]
+            left  -> [slide[previous-slide {cursor: @cursor}]]
+            home  -> [slide[goto-start    {cursor: @cursor}]]
+            end   -> [slide[goto-end      {cursor: @cursor}]]
+            q     -> -> @ended
+        }
+
+        #current-slide
+            slide: @cursor:current-slide
+            revealed-up-to: @cursor:reveal
+    ]
+]
+
+---
+
+## Verb Surface
+
+[slide
+    presentation  {title}
+    new           {notes?}
+    heading       {slide, text, level}         ;; fluent
+    bullet        {slide, text, indent}
+    image         {slide, path, caption?}
+    code          {slide, language, body}
+    with-notes    {slide, speaker-notes}
+    with-duration {slide, seconds}
+    add           {talk, slide}                ;; appends to deck
+
+    cursor        {talk, position, reveal}
+    reveal-next   {cursor}                     ;; || if exhausted, fall through to advance
+    advance-slide {cursor}
+    previous-slide {cursor}
+]
+
+---
+
+## Distinctive Innate idiom: fluent chains dissolve
+
+The v1 used method chaining: `slide = slide.heading(...).bullet(...).bullet(...)`.
+In Innate, each builder call is a self-contained commission returning the
+new slide. Chaining reads as sequence within a block body:
+
+[slide-5
+    @s <- [slide[new]]
+    @s <- [slide[heading {slide: @s, text: "Results", level: 1}]]
+    @s <- [slide[bullet  {slide: @s, text: "40% speedup",    indent: 0}]]
+    @s <- [slide[bullet  {slide: @s, text: "no regressions", indent: 0}]]
+    @s <- [slide[with-notes {slide: @s,
+                              speaker-notes: "emphasize stability"}]]
+    -> @s
+]
+
+The reassignment pattern `@s <- [...]` is the native equivalent of
+the fluent builder. Each step is still a discrete commission.
+
+---
+
+## Demo
+
+[demo
+    @talk <- [slide[presentation {title: "My Research"}]]
+
+    @s1 <- [slide[new]]
+    @s1 <- [slide[heading {slide: @s1, text: "Motivation", level: 1}]]
+    @s1 <- [slide[bullet  {slide: @s1, text: "reveal-on-click", indent: 0}]]
+    @s1 <- [slide[bullet  {slide: @s1, text: "pacing budget",   indent: 0}]]
+
+    [slide[add {talk: @talk, slide: @s1}]]
+
+    -> @talk:slide-count        ;; -> 1
+    -> @s1:element-count         ;; -> 3
+]

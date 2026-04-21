@@ -1,0 +1,111 @@
+# G072 — File Downloader
+
+*v2. See `file-downloader.md` for prose: disk is the durable state,
+atomic rename as promotion primitive, resume requires hash to cover
+already-downloaded bytes, transport as injected parameter, hash-
+mismatch keeps .partial for forensics.*
+
+---
+
+## Choreographic Case: Vault Media Ingestion with Integrity
+
+[ingest-remote-media @url
+    IN ORDER TO
+        download a media file survivably — atomic, resumable, hash-verified
+        and flag corruption rather than silently accept wrong bytes
+
+    @dest          <- [vault[media-path {url: @url}]]
+    @expected-hash <- [manifest[lookup-hash {url: @url}]]
+
+    @outcome <- [download[fetch
+                           {transport: [http[ranged {url: @url}]],
+                            dest: @dest,
+                            opts: {resume: true,
+                                    expected-hash: @expected-hash}}]]
+        || where resistance is hash-mismatch
+            -> [log[write
+                     {level: "error",
+                      url: @url, mismatch: @resistance}]]
+               [manifest[flag-corrupt {url: @url}]]
+               retry with fresh start
+
+    @outcome
+        where verified is true
+            -> [vault[register-media
+                       {path: @dest, hash: @expected-hash}]]
+        otherwise
+            -> #integrity-failed {url: @url}
+]
+
+---
+
+## Verb Surface
+
+[download
+    fetch            {transport, dest, opts, on-progress?}
+    ;; opts.resume, opts.chunk-size, opts.expected-hash
+]
+
+[http
+    ranged           {url}                    ;; -> Transport
+]
+
+---
+
+## Distinctive Innate idiom: atomic promotion `where` bytes verify
+
+[download[fetch {transport: @t, dest: @dest, opts: @o}]
+    IN ORDER TO
+        write bytes to @dest.partial durably
+        then atomically rename to @dest only if the hash verifies
+        so observers of @dest see absence-or-complete, never partial
+
+    bytes stream into @dest.partial via @t starting at size(@dest.partial)
+    hasher seeded from @dest.partial on resume
+    on completion:
+        where hash equals @o:expected-hash
+            -> rename @dest.partial to @dest (atomic on POSIX)
+        otherwise
+            -> keep @dest.partial for inspection (do NOT delete)
+               -> #hash-mismatch
+]
+
+## Distinctive Innate idiom: transport as injected parameter
+
+[download[fetch {transport: @t, ...}]
+    @t is any value that answers [read-range {offset, length}]
+    where production uses http-ranged
+    and tests use an in-memory fake that can fail at specific offsets
+]
+
+Same discipline every testable networked system uses. The downloader
+code is identical between production and test; only the transport
+changes.
+
+---
+
+## Demo
+
+[demo
+    @t <- [fake-transport[new {bytes: "...1MB payload..."}]]
+    [fake-transport[fail-at {transport: @t, offset: 500000}]]
+
+    @outcome <- [download[fetch
+                           {transport: @t,
+                            dest: "/tmp/media.bin",
+                            opts: {resume: true,
+                                    expected-hash: 0xDEADBEEF}}]]
+    ;; first attempt writes 500000 bytes to /tmp/media.bin.partial then fails
+
+    [fake-transport[clear-failures {transport: @t}]]
+    @outcome <- [download[fetch
+                           {transport: @t,
+                            dest: "/tmp/media.bin",
+                            opts: {resume: true,
+                                    expected-hash: 0xDEADBEEF}}]]
+    ;; resume picks up at byte 500000, hasher seeded from .partial
+
+    -> @outcome:verified                    ;; -> true
+    -> [fs[exists {path: "/tmp/media.bin"}]] ;; -> true
+    -> [fs[exists {path: "/tmp/media.bin.partial"}]] ;; -> false
+]

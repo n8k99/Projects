@@ -1,0 +1,90 @@
+# G015 — Dijkstra's Algorithm
+
+*v2. See `dijkstra.md` for prose: a dependency graph IS a
+choreography, weighted edges are costs (time, money, compute), the
+resolver could pick the cheapest resolution path, `<-` gate
+pipelines are Dijkstra applied to verification cost.*
+
+---
+
+## Choreographic Case: Cheapest Agent Route
+
+[cheapest-route @goal
+    IN ORDER TO
+        given multiple agents who can fulfil @goal with different
+        cost profiles, pick the route with the minimum total cost
+        so the choreography is optimised across concurrent alternatives
+
+    @graph <- [registry[agent-graph
+                           {goal: @goal,
+                            cost-metric: "seconds"}]]
+
+    @route <- [dijkstra
+                 {graph: @graph, start: "dispatcher", goal: @goal}]
+
+    @route
+        where distance at most @budget-seconds
+            -> for @node in @route:path
+                [dispatch[step {agent: @node}]]
+        otherwise
+            -> #no-route-within-budget
+]
+
+---
+
+## Verb Surface
+
+[dijkstra
+    shortest-path        {graph, start, goal}    ;; -> {distance, path}
+    all-distances        {graph, start}           ;; -> {node → distance}
+]
+
+---
+
+## Distinctive Innate idiom: pipeline ordering as `where` cheapest-first
+
+[gate-pipeline {gates: @gates, input: @in}]
+    IN ORDER TO
+        run gates in ascending-cost order so early rejection saves work
+        same principle Dijkstra gives for graph traversal
+
+    @gates ordered by estimated-cost ascending
+    for @g in @gates
+        where @g(@in) is true -> continue to next gate
+        otherwise              -> reject early (#gate-failed @g)
+]
+
+Verification pipelines ARE shortest-path problems in disguise. The
+`<-` gate sequence is a path through the space of validation steps;
+cheapest-first is the Dijkstra-optimal ordering.
+
+## Distinctive Innate idiom: resolver chooses path `where` multiple resolutions exist
+
+[resolve {target: @t, strategy: "dijkstra"}]
+    when @t has multiple resolution paths
+    the resolver builds a graph of (handler → cost) edges
+    and returns the result from the cheapest path
+    IN ORDER TO
+        pick the cheapest fulfilment when competing agents could all
+        produce @t, so cost and latency are the tie-breakers
+]
+
+---
+
+## Demo
+
+[demo
+    @g <- {"A": [("B", 4), ("C", 2)],
+           "B": [("D", 3), ("E", 1)],
+           "C": [("B", 1), ("D", 5)],
+           "D": [("E", 2), ("F", 6)],
+           "E": [("F", 3)]}
+
+    -> [dijkstra[shortest-path
+                    {graph: @g, start: "A", goal: "F"}]]
+    ;; -> {distance: 7, path: ["A", "C", "B", "E", "F"]}
+
+    -> [dijkstra[all-distances
+                    {graph: @g, start: "A"}]]
+    ;; -> {"A": 0, "B": 3, "C": 2, "D": 6, "E": 4, "F": 7}
+]

@@ -1,0 +1,95 @@
+# G065 — Reservation System
+
+*v2. See `reservation-system.md` for prose: resource conflict check is the
+hot path, least-loaded selection strategy, booking as transactional claim.*
+
+---
+
+## Choreographic Case: Conflict-Free Calendar Assignment
+
+[assign-agent-window @t0 @t1 @capability
+    IN ORDER TO
+        pick the least-loaded qualified agent for a time window
+        and book them conflict-free or resist with the reason
+
+    @candidates <- [rs[available {start: @t0, end: @t1, kind: @capability}]]
+
+    @candidates
+        where count at least 1
+        || -> #no-agents-available
+
+    @selected <- @candidates chosen-by "least-loaded"
+
+    @reservation <- [rs[book {resource-id: @selected,
+                                customer-id: @choreography-id,
+                                start: @t0, end: @t1}]]
+                    <- [rs[conflicts {resource-id: @selected,
+                                        start: @t0, end: @t1}]]
+                        where result is empty
+                    || -> #booking-conflict @resistance:reason
+
+    -> @reservation
+]
+
+---
+
+## Verb Surface
+
+[rs
+    new
+    add-resource       {resource}
+    book               {resource-id, customer-id, start, end}    ;; || conflict
+    cancel             {reservation-id}
+    conflicts          {resource-id, start, end, except?}
+    available          {start, end, kind?}
+    occupancy          {resource-id}
+    customer-bookings  {customer-id}
+]
+
+---
+
+## Distinctive Innate idiom: conflict verification as `<-` gate
+
+[rs[book {resource-id: @r, ...}]
+    <- [rs[conflicts {resource-id: @r, start: @s, end: @e}]]
+        where result is empty
+]
+
+The `<-` verification gate runs the conflict check between the book
+commission and the commit. Failure surfaces as resistance with the
+conflicting reservation in the reason.
+
+---
+
+## Selection strategy as bare-word string
+
+[@candidates chosen-by "least-loaded"
+    where
+        "least-loaded" picks the resource with the fewest bookings in the window
+        and "earliest" picks by ascending start time
+        and "round-robin" cycles by a counter on the resolver
+]
+
+---
+
+## Demo
+
+[demo
+    @rs <- [rs[new]]
+    [rs[add-resource {resource: {id: "A1", kind: "forex"}}]]
+    [rs[add-resource {resource: {id: "A2", kind: "forex"}}]]
+
+    @r <- [rs[book {resource-id: "A1", customer-id: "C1",
+                     start: @tomorrow-9am, end: @tomorrow-10am}]]
+    -> @r:status        ;; -> "booked"
+
+    ;; Overlapping booking on A1 rejects
+    [rs[book {resource-id: "A1", customer-id: "C2",
+               start: @tomorrow-9_30am, end: @tomorrow-11am}]]
+        || -> "conflict"
+
+    ;; Overlapping on A2 succeeds
+    @r2 <- [rs[book {resource-id: "A2", customer-id: "C2",
+                      start: @tomorrow-9_30am, end: @tomorrow-11am}]]
+    -> @r2:status       ;; -> "booked"
+]

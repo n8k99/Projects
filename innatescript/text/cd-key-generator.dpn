@@ -1,0 +1,100 @@
+# G031 — CD Key Generator
+
+*v2. See `cd-key-generator.md` for prose: self-verifying tokens
+(the key carries its own proof), checksum as one-way function
+embedded in the token, no database needed because the artifact IS
+the proof, independent nondeterminism with embedded determinism.*
+
+---
+
+## Choreographic Case: Agent Authorisation Token
+
+[agent-auth-token @agent @capability
+    IN ORDER TO
+        mint a self-verifying token that any gate can check offline
+        without consulting a central registry
+        because the checksum inside the token proves its own validity
+
+    @token <- [cd-key[generate
+                        {namespace: "capability",
+                         data: {agent: @agent, capability: @capability}}]]
+
+    [agent[deliver {token: @token, to: @agent}]]
+
+    ;; Later, a remote gate verifies:
+    -> [cd-key[validate {token: @token}]]
+       where valid is true
+         and decoded agent matches caller
+         and decoded capability matches operation
+       -> #authorised
+       otherwise
+       -> #invalid-or-forged
+]
+
+---
+
+## Verb Surface
+
+[cd-key
+    generate           {namespace, data}          ;; -> key with embedded checksum
+    validate           {token}                     ;; -> {valid, decoded}
+    decode             {token}                     ;; -> {namespace, data} | #invalid
+]
+
+---
+
+## Distinctive Innate idiom: self-verifying `where` checksum embedded in the artifact
+
+[cd-key[generate {namespace: @ns, data: @d}]
+    IN ORDER TO
+        produce a token whose structural integrity is checkable without
+        looking up anything else — the token IS the proof
+
+    @data-groups  <- encode (@ns, @d) into 4 groups of 5 chars from charset
+    @checksum     <- one-way hash over @data-groups modulo prime
+    return @data-groups + @checksum
+]
+
+[cd-key[validate {token: @t}]
+    split @t into 4 data groups + 1 checksum group
+    recompute checksum from the 4 data groups
+    where recomputed checksum is equal to the 5th group
+        -> {valid: true, decoded: parse @data-groups}
+    otherwise
+        -> {valid: false}
+]
+
+No database. No callback. No remote authority. The validator does
+NOT need access to the issuer — the artifact's own structure
+vouches for its integrity. Same primitive every real license key,
+airline ticket number, and IBAN uses.
+
+## Distinctive Innate idiom: nondeterministic data + deterministic proof
+
+[cd-key[generate]
+    the 4 data groups are randomly chosen (nondeterministic)
+    the 5th group is a deterministic function of the first 4
+    IN ORDER TO
+        combine agent autonomy (nondeterminism, G024) with
+        structural verifiability (the embedded checksum)
+        so agents can mint tokens independently but all tokens
+        pass the same validator
+]
+
+---
+
+## Demo
+
+[demo
+    @token <- [cd-key[generate
+                        {namespace: "capability",
+                         data: {agent: "kathryn",
+                                capability: "finance-read"}}]]
+    ;; -> e.g. "H4K2P-M9NQR-A2X7L-B1VYZ-WQKFP"
+
+    -> [cd-key[validate {token: @token}]]
+    ;; -> {valid: true, decoded: {agent: "kathryn", ...}}
+
+    -> [cd-key[validate {token: "H4K2P-M9NQR-A2X7L-B1VYZ-AAAAA"}]]
+    ;; -> {valid: false}  (checksum mismatch)
+]

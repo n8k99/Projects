@@ -1,0 +1,132 @@
+# G127 — Signature Maker
+
+*v2. See `signature-maker.md` for prose: per-point pressure + timestamp,
+Catmull-Rom splines integer-scaled, endpoint-preserving smoothing,
+variable-width disk-stamp render, bounding-box normalization.*
+
+---
+
+## Choreographic Case: Vault Signature Capture
+
+[signature-capture @save-path
+    IN ORDER TO
+        capture an ink signature from pen input with pressure and timing
+        smooth the stroke with endpoint preservation
+        normalize to a unit coordinate system for later comparison
+        render to a variable-width raster and save to the vault
+
+    @sig <- [sig[new-signature]]
+
+    until @save-pressed [
+        sync @pen-down
+            @stroke <- [sig[start-stroke]]
+
+        sync @pen-move (@x @y @pressure @t)
+            [sig[add-point {stroke: @stroke,
+                             x: @x, y: @y,
+                             pressure: @pressure, t-ms: @t}]]
+
+        sync @pen-up
+            @smoothed <- [sig[smooth-stroke {stroke: @stroke, steps: 8}]]
+            [sig[add-stroke {signature: @sig, stroke: @smoothed}]]
+    ]
+
+    @normalized <- [sig[normalize {signature: @sig,
+                                     target-w: 1000, target-h: 1000}]]
+    @img <- [sig[render {signature: @normalized,
+                          width: 500, height: 200,
+                          max-width: 6,
+                          bg: white, ink: black}]]
+    [vault[save {path: @save-path, image: @img}]]
+]
+
+---
+
+## Choreographic Case: Signature Verification
+
+[signature-verify @proposed @reference @threshold
+    IN ORDER TO
+        decide whether @proposed matches @reference
+        by comparing normalized point-sets within @threshold distance
+
+    @norm-p <- [sig[normalize {signature: @proposed,
+                                 target-w: 1000, target-h: 1000}]]
+    @norm-r <- [sig[normalize {signature: @reference,
+                                 target-w: 1000, target-h: 1000}]]
+    @distance <- [sig[similarity-distance {a: @norm-p, b: @norm-r}]]
+
+    @distance
+        where value at most @threshold
+        -> #verified true
+        || -> #verified false
+]
+
+---
+
+## Verb Surface
+
+[sig
+    new-signature
+    start-stroke
+    add-point          {stroke, x, y, pressure, t-ms}
+    add-stroke         {signature, stroke}
+    point-count        {signature}
+    bounding-box       {signature}
+    catmull-rom        {p0, p1, p2, p3, t}
+    smooth-stroke      {stroke, steps}
+    normalize          {signature, target-w, target-h}
+    similarity-distance {a, b}
+    render             {signature, width, height, max-width, bg, ink}
+]
+
+---
+
+## Distinctive Innate idiom: normalize-then-compare as required composition
+
+[sig[similarity-distance {a: @raw-a, b: @raw-b}
+    where both signatures are first normalized to the same target box
+        otherwise the distance is dominated by size difference
+        and tells you nothing about shape similarity
+]
+
+Enforcing the precondition in the `where` clause means the resolver
+can refuse un-normalized inputs with resistance pointing to the fix.
+
+---
+
+## Integer-scaled Catmull-Rom as cross-resolver contract
+
+[sig[catmull-rom {p0: @p0, p1: @p1, p2: @p2, p3: @p3, t: @t}
+    where
+        t is 0..=1000 (integer-scaled fraction)
+        and the curve passes through p1 at t=0 and p2 at t=1000
+        and all arithmetic is integer (scaled by powers of 1000)
+        and final division by 2,000,000
+        and result is byte-identical across all conforming resolvers
+]
+
+---
+
+## Demo
+
+[demo
+    @s <- [sig[new-signature]]
+    [sig[add-stroke {signature: @s,
+                       stroke: {points: [{x: 10, y: 20, pressure: 512, t-ms: 0}
+                                          {x: 30, y: 40, pressure: 768, t-ms: 100}
+                                          {x: 50, y: 30, pressure: 1024, t-ms: 200}
+                                          {x: 70, y: 50, pressure: 512, t-ms: 300}]}}]]
+
+    -> [sig[point-count {signature: @s}]]       ;; -> 4
+    -> [sig[bounding-box {signature: @s}]]       ;; -> (10, 20, 70, 50)
+
+    -> [sig[catmull-rom
+             {p0: (0, 0), p1: (10, 10), p2: (20, 10), p3: (30, 0),
+              t: 500}]]
+    ;; -> some interpolated midpoint, byte-identical across resolvers
+
+    @norm <- [sig[normalize {signature: @s, target-w: 1000, target-h: 1000}]]
+    -> [sig[bounding-box {signature: @norm}]]    ;; -> (0, 0, 999, 999)
+
+    -> [sig[similarity-distance {a: @s, b: @s}]]  ;; -> 0 (self-similarity)
+]

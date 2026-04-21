@@ -1,0 +1,108 @@
+# G117 — Stream Video from Online
+
+*v2. See `stream-player.md` for prose: ABR as pure function, 5-state FSM,
+buffer-budget clamping with floor + ceiling, seek invalidates buffer.*
+
+---
+
+## Choreographic Case: Vault Video Library
+
+[video-library @manifest-url
+    IN ORDER TO
+        play a segmented video with adaptive bitrate
+        reacting to observed bandwidth and buffer health
+
+    @stream <- [hls[parse-manifest {url: @manifest-url}]]
+    @player <- [sp[new]]
+    [sp[attach {player: @player, stream: @stream}]]
+
+    until @ended [
+        at @every 1000 ms
+            [sp[set-bandwidth {player: @player, bps: @network:measured-bps}]]
+            until @buffer-full
+                [sp[load-next-segment {player: @player}]]
+                    || -> @end-of-stream
+            [sp[tick {player: @player, ms: 1000}]]
+            #video
+                state: @player:state
+                bitrate: @player:current-bitrate
+                played: @player:played-ms
+
+        sync @user-events {
+            scrub @segment-idx -> [sp[seek-to-segment
+                                       {player: @player,
+                                        segment-idx: @segment-idx}]]
+            pause             -> [sp[pause {player: @player}]]
+            play              -> [sp[play  {player: @player}]]
+        }
+    ]
+]
+
+---
+
+## Verb Surface
+
+[sp
+    new
+    attach             {player, stream}
+    set-bandwidth      {player, bps}
+    load-next-segment  {player}                 ;; || end-of-stream
+    tick               {player, ms}
+    pause              {player}
+    play               {player}
+    seek-to-segment    {player, segment-idx}    ;; || out-of-range
+
+    pick-bitrate       {stream, buffer-ms, bandwidth-bps, segment}
+]
+
+---
+
+## Distinctive Innate idiom: ABR as `where`-expressed contract
+
+The v1 spec baked the bitrate-selection formula into a method. In
+Innate the contract is expressible as constraints the resolver
+satisfies:
+
+[sp[pick-bitrate {stream: @s, buffer-ms: @b, bandwidth-bps: @bw, segment: @seg}
+    where
+        effective bandwidth is bandwidth × safety-factor (typically 0.85)
+        and budget is max(buffer-ms, segment duration), capped at 2× target-buffer
+        and the chosen bitrate is the highest whose download fits the budget
+]
+
+---
+
+## End-of-stream as fulfillment fallthrough
+
+The `load-next-segment` call either succeeds (returning the segment)
+or resists with "no more segments." The `||` turns this into a
+natural loop exit:
+
+until @buffer-full
+    [sp[load-next-segment {player: @player}]]
+        || -> @end-of-stream
+
+---
+
+## Demo
+
+[demo
+    @stream <- [hls[parse-manifest
+                     {bitrates-bps: [500000, 1000000, 2000000, 4000000],
+                      segments: [5 segments of 2000ms each],
+                      safety-factor: 0.85,
+                      target-buffer-ms: 6000}]]
+    @p <- [sp[new]]
+    [sp[attach {player: @p, stream: @stream}]]
+    [sp[set-bandwidth {player: @p, bps: 10000000}]]
+
+    [sp[load-next-segment {player: @p}]]
+    [sp[load-next-segment {player: @p}]]
+    [sp[load-next-segment {player: @p}]]
+
+    -> @p:state              ;; -> "playing" (buffer reached target)
+    -> @p:current-bitrate    ;; -> 4000000  (highest that fits)
+
+    [sp[tick {player: @p, ms: 6000}]]
+    -> @p:state              ;; -> "buffering" (buffer drained)
+]

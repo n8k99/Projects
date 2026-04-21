@@ -1,0 +1,116 @@
+# G090 — Zip File Maker
+
+*v2. See `zip-file-maker.md` for prose: byte-level round-trip as
+compression contract, RLE as minimal-interesting exemplar, per-entry
+method selection, archive as manifest + payload.*
+
+---
+
+## Choreographic Case: Vault Bundle
+
+[vault-bundle @backup-name
+    IN ORDER TO
+        archive every note in the vault as individually-compressed entries
+        pick the smaller of Store or RLE per file
+        and write the serialised bundle to the backup directory
+
+    @bundle <- [archive[new]]
+    @notes  <- [vault[find {path: "*.md"}]]
+
+    for @note in @notes
+        @bytes <- [fs[read-bytes {path: @note:path}]]
+        [archive[add-file
+                   {archive: @bundle,
+                    name: @note:path,
+                    data: @bytes}]]
+
+    @manifest <- [archive[manifest {archive: @bundle}]]
+    @ratio    <- [archive[compression-ratio {archive: @bundle}]]
+
+    [vault[save-bytes
+            {path: "backups/" + @backup-name + ".zb",
+             content: [archive[serialise {archive: @bundle}]]}]]
+
+    [ui[show-bundle {manifest: @manifest, ratio: @ratio}]]
+]
+
+---
+
+## Verb Surface
+
+[rle
+    encode          {data}
+    decode          {encoded}                     ;; || truncated-input
+]
+
+[archive
+    new
+    add-file        {archive, name, data}          ;; picks Store or RLE
+    add-stored      {archive, name, data}          ;; forces Store
+    extract         {archive, name}                ;; || not-found
+    names           {archive}
+    manifest        {archive}
+    compressed-size {archive}
+    compression-ratio {archive}
+    serialise       {archive}
+]
+
+---
+
+## Distinctive Innate idiom: method selection as `where` smaller-wins
+
+[archive[add-file {archive: @a, name: @n, data: @bytes}]
+    IN ORDER TO
+        store @bytes under @n using whichever method produces less output
+        because a compressor that always compresses doubles random data
+
+    @rle-size <- size of [rle[encode {data: @bytes}]]
+    @bytes
+        where @rle-size is less than original size
+            -> store with method RLE
+        otherwise
+            -> store with method STORE (no transform)
+]
+
+The algorithm evaluates its own output. Same meta-pattern appears in
+LSM compaction, JPEG quality tuning, and every adaptive system that
+decides whether to transform at all.
+
+## Distinctive Innate idiom: byte-identity as a `where` invariant
+
+[archive[extract {archive: @a, name: @n}]
+    IN ORDER TO
+        return the exact bytes that were added under @n
+        where [extract] ∘ [add-file] is the identity on byte sequences
+        so no bit of the original file is lost
+]
+
+Textual round-trip (G085) could normalise whitespace; byte round-trip
+cannot normalise anything. Binary fidelity is the compression
+category's hard contract.
+
+---
+
+## Demo
+
+[demo
+    @a <- [archive[new]]
+
+    [archive[add-file {archive: @a, name: "repetitive.txt",
+                        data: "aaaaaaaaaa"}]]
+    ;; -> method=RLE (10 bytes -> 2 bytes)
+
+    [archive[add-file {archive: @a, name: "random.bin",
+                        data: [1, 2, 3, 4, 5]}]]
+    ;; -> method=STORE (RLE would expand to 10; keep 5 original)
+
+    [archive[add-file {archive: @a, name: "big.txt",
+                        data: "x" repeated 1000 times}]]
+    ;; -> method=RLE (1000 bytes -> 8 bytes, 4 runs of 255+235)
+
+    -> [archive[extract {archive: @a, name: "repetitive.txt"}]]
+    ;; -> "aaaaaaaaaa"
+
+    -> [archive[compression-ratio {archive: @a}]]
+    ;; -> ~0.04
+]

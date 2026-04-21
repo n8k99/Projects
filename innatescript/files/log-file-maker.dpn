@@ -1,0 +1,110 @@
+# G094 — Log File Maker
+
+*v2. See `log-file-maker.md` for prose: append-only discipline,
+level-filter at write time, rotation as ring-with-archive, tab-
+delimited format for `grep|awk|sort` interop, query results preserve
+insertion order.*
+
+---
+
+## Choreographic Case: Vault Observability
+
+[vault-observability
+    IN ORDER TO
+        funnel every event into a single logger
+        answer operator queries about last-hour errors
+        and rotate periodically into dated archive files
+
+    @logger <- [log[new {threshold: "INFO", max-entries: 10000}]]
+
+    sync @any-events {
+        event @ts @level @category @message ->
+            [log[log {logger: @logger,
+                       ts: @ts, level: @level,
+                       category: @category, message: @message}]]
+
+        last-hour-errors ->
+            @now    <- [clock[now]]
+            @range  <- [log[time-range
+                              {logger: @logger,
+                               from: @now - 3600000, to: @now}]]
+            @errors <- [log[level
+                              {logger: @logger, min-level: "ERROR"}]]
+            @hits   <- @range intersected-with @errors
+            [ui[render-log-view {entries: @hits}]]
+
+        rotate-to-archive @date ->
+            [vault[append
+                    {path: "observability/app.log." + @date,
+                     content: [log[to-text {logger: @logger}]]}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[log
+    new                  {threshold, max-entries}
+    log                  {logger, ts, level, category, message}
+    level                {logger, min-level}
+    category             {logger, category}
+    message-contains     {logger, needle}
+    time-range           {logger, from, to}
+    to-text              {logger}
+    parse-entries        {text}                    ;; || malformed-line
+]
+
+---
+
+## Distinctive Innate idiom: write-time threshold as `where` gate
+
+[log[log {logger: @l, ts: @ts, level: @lvl, ...}]
+    @entry
+        where level at least @l:level-threshold
+            -> append to @l:active buffer
+               (if @l:active overflows @l:max-entries,
+                oldest moves to @l:archive, never back)
+        otherwise
+            -> discard (never enters the buffer)
+]
+
+Filtered-out entries never enter memory — the policy is "capture at
+the point it matters." Production systems running with INFO threshold
+pay zero cost for the DEBUG entries the app emits.
+
+## Distinctive Innate idiom: two-tier storage `where` recency decides
+
+[log[query]
+    scans @l:active first
+    IN ORDER TO
+        answer most operator queries from the fast hot tier
+        and fall back to @l:archive only for compliance / historical reads
+
+    queries return results in insertion order
+        (chronology is a contract; time flows forward)
+]
+
+The active buffer is bounded and fast; the archive grows and is
+scanned rarely. Same two-tier shape as every real log system
+(log4j, systemd-journald, logrotate).
+
+---
+
+## Demo
+
+[demo
+    @l <- [log[new {threshold: "DEBUG", max-entries: 100}]]
+    [log[log {logger: @l, ts: 100, level: "INFO",
+               category: "boot", message: "starting up"}]]
+    [log[log {logger: @l, ts: 300, level: "WARN",
+               category: "net", message: "slow response"}]]
+    [log[log {logger: @l, ts: 400, level: "ERROR",
+               category: "db", message: "connection lost"}]]
+
+    -> [log[level {logger: @l, min-level: "WARN"}]]
+    ;; -> [300/WARN/net/..., 400/ERROR/db/...]
+
+    -> [log[category {logger: @l, category: "db"}]]
+    ;; -> [400/ERROR/db/connection lost]
+]

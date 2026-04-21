@@ -1,0 +1,95 @@
+# G107 — Budget Tracker
+
+*v2. See `budget-tracker.md` for prose: envelope model, category status over
+time-window, budget alerts at 80%/100%/over, uncategorized spending surfaces
+as suggestions for new envelopes.*
+
+---
+
+## Choreographic Case: Vault Monthly Budget
+
+[monthly-budget @budget-path @year @month
+    IN ORDER TO
+        show the user their envelope status for the current month
+        alert on overages or near-overages
+        and suggest envelopes for uncategorized spending
+
+    @budget <- [budget[from-yaml {path: @budget-path}]]
+    @month-start <- [clock[start-of-month {year: @year, month: @month}]]
+    @month-end   <- [clock[start-of-month {year: @year, month: @month + 1}]]
+
+    @status <- [budget[status-between {budget: @budget,
+                                         from-ms: @month-start,
+                                         to-ms: @month-end}]]
+    #envelopes @status
+
+    @alerts <- @status where alert is true
+    @alerts
+        where count at least 1
+        [notify[send {channels: ["email"],
+                       message: "Budget alerts: " + @alerts:categories:joined}]]
+
+    @uncategorised <- @status
+        where budgeted-cents is zero and spent-cents > 0
+    @uncategorised
+        where count at least 1
+        [ui[suggest-envelopes {candidates: @uncategorised}]]
+]
+
+---
+
+## Verb Surface
+
+[budget
+    new
+    add-envelope                  {budget, envelope}
+    from-yaml                     {path}
+    record                        {budget, transaction}
+    status-between                {budget, from-ms, to-ms}
+    status-all                    {budget}
+    alerts                        {budget}
+    total-budgeted                {budget}
+    total-spent-between           {budget, from-ms, to-ms}
+]
+
+---
+
+## Distinctive Innate idiom: alert threshold as `where` derived
+
+[@status
+    where spent-cents at least 0.8 × budgeted-cents
+    marks the envelope with alert: "near-limit"
+
+@status
+    where spent-cents at least budgeted-cents
+    marks the envelope with alert: "over"
+
+@status
+    where budgeted-cents is zero and spent-cents > 0
+    marks the envelope with alert: "uncategorized"
+]
+
+The resolver emits `alert` as a derived field; the choreography filters
+on it without computing thresholds itself.
+
+---
+
+## Demo
+
+[demo
+    @b <- [budget[new]]
+    [budget[add-envelope {budget: @b, envelope: {category: "groceries",
+                                                    budgeted-cents: 40000}}]]
+    [budget[record {budget: @b,
+                     transaction: {category: "groceries",
+                                    amount-cents: 15000,
+                                    ts-ms: @last-week}}]]
+    [budget[record {budget: @b,
+                     transaction: {category: "coffee",
+                                    amount-cents: 2500,
+                                    ts-ms: @yesterday}}]]
+
+    @status <- [budget[status-all {budget: @b}]]
+    -> @status where category is "groceries"   ;; -> spent 15000 / budgeted 40000
+    -> @status where category is "coffee"       ;; -> uncategorized alert
+]

@@ -1,0 +1,117 @@
+# G021 — Text Editor
+
+*v2. See `text-editor.md` for prose: first stateful object in the
+Rosetta Stone, undo stack as event sourcing, buffer as document,
+cursor as attention primitive, find/replace as content rewriting
+engine.*
+
+---
+
+## Choreographic Case: Collaborative Editing Session
+
+[collaborative-edit @document-id
+    IN ORDER TO
+        load a vault document as a text-editor buffer
+        accept edits from multiple agents each with their own cursor
+        and support undo as a reverse walk of the event stream
+
+    @buffer <- [editor[load {path: @document-id}]]
+
+    sync @edits {
+        insert @agent @pos @text ->
+            [editor[insert {buffer: @buffer, pos: @pos, text: @text}]]
+            [editor[push-event {buffer: @buffer,
+                                 op: {kind: "insert",
+                                       agent: @agent,
+                                       pos: @pos, text: @text}}]]
+
+        delete @agent @pos @length ->
+            @removed <- [editor[delete
+                                  {buffer: @buffer,
+                                   pos: @pos, length: @length}]]
+            [editor[push-event {buffer: @buffer,
+                                 op: {kind: "delete",
+                                       agent: @agent, pos: @pos,
+                                       removed: @removed}}]]
+
+        undo ->
+            [editor[undo {buffer: @buffer}]]
+            ;; walks event stack backward, inverting each op
+
+        find-replace @needle @replacement ->
+            [editor[find-replace-all
+                     {buffer: @buffer,
+                      needle: @needle,
+                      replacement: @replacement}]]
+    }
+
+    [editor[save {buffer: @buffer, path: @document-id}]]
+]
+
+---
+
+## Verb Surface
+
+[editor
+    new              {initial-text}
+    load             {path}
+    save             {buffer, path}
+    insert           {buffer, pos, text}
+    delete           {buffer, pos, length}
+    cursor           {buffer}                 ;; -> attention position
+    set-cursor       {buffer, pos}
+    undo             {buffer}
+    redo             {buffer}
+    find             {buffer, needle}         ;; -> [position]
+    find-replace-all {buffer, needle, replacement}
+    push-event       {buffer, op}
+]
+
+---
+
+## Distinctive Innate idiom: undo as inverse-walk `where` every op has a reverse
+
+[editor[undo {buffer: @b}]
+    IN ORDER TO
+        restore the prior state by popping and inverting the last event
+        so the undo stack IS the document's history, replayable either way
+
+    @last <- pop from @b:undo-stack
+    @last:kind
+        where "insert"
+            -> delete inserted range
+        where "delete"
+            -> re-insert the removed text at its position
+        where "find-replace"
+            -> walk replacements in reverse, swap back
+    push inverse onto redo-stack
+]
+
+Every operation has a reverse. The buffer's current state is the
+fold of all events from the beginning — same shape as G100's
+version store, same shape as Git.
+
+## Distinctive Innate idiom: cursor as agent attention
+
+The cursor is a single position that receives the agent's focus.
+Multiple agents in a collaborative session each carry their own
+cursor — the noosphere's notion of who is reading where is nothing
+more than a buffer plus a per-agent cursor position.
+
+---
+
+## Demo
+
+[demo
+    @b <- [editor[new {initial-text: "Hello world"}]]
+    [editor[insert {buffer: @b, pos: 5, text: ","}]]
+    -> [editor[text {buffer: @b}]]           ;; -> "Hello, world"
+
+    [editor[undo {buffer: @b}]]
+    -> [editor[text {buffer: @b}]]           ;; -> "Hello world"
+
+    [editor[find-replace-all
+             {buffer: @b, needle: "world",
+              replacement: "InnateScript"}]]
+    -> [editor[text {buffer: @b}]]           ;; -> "Hello InnateScript"
+]

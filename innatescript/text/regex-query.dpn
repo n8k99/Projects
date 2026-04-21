@@ -1,0 +1,99 @@
+# G032 — Regex Query Tool
+
+*v2. See `regex-query.md` for prose: universal pattern matching,
+pre-built patterns as domain schemas expressed in regex, the Text
+category closes where it began (pattern matching on strings), regex
+is text's primitive like Dijkstra is graph's.*
+
+---
+
+## Choreographic Case: Content Extraction Pipeline
+
+[content-extraction @text
+    IN ORDER TO
+        scan @text for every known domain-entity
+        emit each hit as a structured fact with its kind
+        and let downstream choreographies consume the typed findings
+
+    @findings <- concurrent [
+        emails:   [regex {text: @text, pattern: [patterns[EMAIL]]}]
+    |
+        urls:     [regex {text: @text, pattern: [patterns[URL]]}]
+    |
+        phones:   [regex {text: @text, pattern: [patterns[PHONE]]}]
+    |
+        dates:    [regex {text: @text, pattern: [patterns[DATE]]}]
+    |
+        ips:      [regex {text: @text, pattern: [patterns[IP_ADDRESS]]}]
+    ]
+    join
+
+    for @kind, @hits in @findings
+        for @hit in @hits
+            [emit-fact {kind: @kind, value: @hit}]
+]
+
+---
+
+## Verb Surface
+
+[regex
+    match              {text, pattern}           ;; -> [match]
+    replace            {text, pattern, replacement}
+    split              {text, pattern}            ;; -> [String]
+    is-match           {text, pattern}
+    extract-groups     {text, pattern}            ;; -> [[group]]
+]
+
+[patterns
+    EMAIL | URL | PHONE | DATE | IP_ADDRESS       ;; pre-built domain schemas
+]
+
+---
+
+## Distinctive Innate idiom: domain schema as pattern `where` pattern defines entity
+
+[patterns[EMAIL]]
+    -> "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+
+[patterns[URL]]
+    -> "https?://[^\\s<>\"']+"
+
+IN ORDER TO
+    make "what IS an email address" a reusable definition
+    shared across every agent that extracts them
+    rather than re-invented per caller
+]
+
+G022's RSS schema defined structured content; G032 defines
+unstructured content the same way — every domain entity is a
+pattern. The resolver's text analysis reduces to "does this text
+match this pattern?"
+
+## Distinctive Innate idiom: regex as text's `where` primitive
+
+Every earlier Text verb (reverse, palindrome, pig-latin, cipher,
+text-to-html, count-vowels, count-words) can be re-expressed as a
+sequence of regex operations. The Text category ends where it
+began: pattern matching on strings. Regex is to text what Dijkstra
+is to graphs — the primitive underneath the primitives.
+
+---
+
+## Demo
+
+[demo
+    -> [regex
+          {text: "mail alice@example.com today or call 555-123-4567",
+           pattern: [patterns[EMAIL]]}]
+    ;; -> ["alice@example.com"]
+
+    -> [regex
+          {text: "mail alice@example.com today or call 555-123-4567",
+           pattern: [patterns[PHONE]]}]
+    ;; -> ["555-123-4567"]
+
+    -> [regex-is-match
+          {text: "192.168.1.1", pattern: [patterns[IP_ADDRESS]]}]
+    ;; -> true
+]

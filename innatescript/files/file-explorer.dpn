@@ -1,0 +1,123 @@
+# G087 — File Explorer
+
+*v2. See `file-explorer.md` for prose: path resolution as the
+filesystem's type checker, virtual-filesystem abstraction, root-escape
+prevention, dirs-first listing, recursive-size as fold.*
+
+---
+
+## Choreographic Case: Vault File Pane
+
+[vault-file-pane @vault-root
+    IN ORDER TO
+        present a file-manager view of the vault
+        where path input resolves canonically before any lookup
+        and where root escape is structurally impossible
+
+    @explorer <- [fs[load-vault {path: @vault-root}]]
+
+    sync @user-events {
+        type-path @path ->
+            @resolved <- [fs[resolve
+                               {explorer: @explorer, path: @path}]]
+            @listing  <- [fs[ls
+                               {explorer: @explorer, path: @path}]]
+                || -> #fs-error @resistance:reason
+            [ui[render-path {resolved: @resolved, listing: @listing}]]
+
+        select @name ->
+            @full <- [fs[join {cwd: @explorer:cwd, name: @name}]]
+            @stat <- [fs[stat {explorer: @explorer, path: @full}]]
+                || -> #fs-error @resistance:reason
+
+            @stat
+                where kind is "dir"
+                    -> [fs[cd {explorer: @explorer, path: @name}]]
+                where kind is "file"
+                    -> [ui[open-file {path: @full}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[fs
+    new
+    cwd             {explorer}
+    resolve         {explorer, path}                  ;; -> [String]
+    cd              {explorer, path}                  ;; || not-a-dir | not-found
+    ls              {explorer, path}                  ;; || not-a-dir | not-found
+    mkdir           {explorer, path}                  ;; || already-exists
+    touch           {explorer, path, size, mtime}     ;; || not-a-dir
+    stat            {explorer, path}                  ;; || not-found
+    total-size      {explorer, path}                  ;; -> Int
+    join            {cwd, name}
+]
+
+---
+
+## Distinctive Innate idiom: `resolve` as a normaliser `where` `..` is safe
+
+[fs[resolve {explorer: @e, path: @p}]
+    IN ORDER TO
+        turn a raw user string into a canonical segment list
+        before any lookup or traversal runs
+        so that root escape is impossible by construction
+
+    @p
+        where absolute
+            begins from root
+        otherwise
+            begins from @e:cwd
+    processed segment-by-segment
+        where segment is empty or "." -> skip
+        where segment is ".." and cwd is at root -> skip (no-op)
+        where segment is ".." -> pop one segment
+        otherwise -> push segment
+]
+
+The normaliser sees `..` before lookup does. Any traversal downstream
+receives only well-formed segment lists — the lookup layer never has
+to defend against metacharacters.
+
+## Distinctive Innate idiom: listing order as `where` partition then sort
+
+[fs[ls {explorer: @e, path: @p}]
+    IN ORDER TO
+        list @p's immediate children dirs-first, alphabetical within kind
+        so the UI's scan order matches every other file manager in existence
+
+    children of @p
+        ordered by
+            kind where "dir" sorts before "file",
+            name ascending
+]
+
+---
+
+## Demo
+
+[demo
+    @e <- [fs[new]]
+    [fs[mkdir {explorer: @e, path: "/home"}]]
+    [fs[mkdir {explorer: @e, path: "/home/nathan"}]]
+    [fs[mkdir {explorer: @e, path: "/home/nathan/docs"}]]
+    [fs[touch {explorer: @e, path: "/home/nathan/docs/a.txt",
+                size: 100, mtime: 1000}]]
+    [fs[touch {explorer: @e, path: "/home/nathan/notes.md",
+                size: 50, mtime: 500}]]
+
+    [fs[cd {explorer: @e, path: "/home/nathan/docs"}]]
+    [fs[cd {explorer: @e, path: "../.."}]]
+    -> [fs[cwd {explorer: @e}]]                    ;; -> "/home"
+
+    -> [fs[resolve {explorer: @e, path: "/a/./b/../c"}]]
+    ;; -> ["a", "c"]
+
+    -> [fs[ls {explorer: @e, path: "/home/nathan"}]]
+    ;; -> [{name:"docs", kind:"dir"},
+    ;;     {name:"notes.md", kind:"file", size:50}]
+
+    -> [fs[total-size {explorer: @e, path: "/home"}]]   ;; -> 150
+]

@@ -1,0 +1,136 @@
+# G076 — Bookmark Collector and Sorter
+
+*v2. See `bookmarks.md` for prose: folders and tags as orthogonal
+first-class axes, URL as natural key, sort as view never storage,
+flat path strings for hierarchy, cross-axis search, upsert on re-add.*
+
+---
+
+## Choreographic Case: Research Session Capture
+
+[capture-research @topic
+    IN ORDER TO
+        record every page visit with topic-derived folder and extracted tags
+        upserting by URL so revisiting a page updates rather than duplicates
+        and surfacing sorted views without mutating storage order
+
+    @collection <- [bookmarks[new-collection]]
+
+    sync @browse-events {
+        visit @page ->
+            [bookmarks[add
+                        {collection: @collection,
+                         url: @page:url,
+                         title: @page:title,
+                         folder: [classify[folder {topic: @topic}]],
+                         tags: [extract[tags {page: @page}]],
+                         added-ms: [clock[now]]}]]
+
+        view-by-date ->
+            @view <- [bookmarks[sorted
+                                  {collection: @collection,
+                                   by: "added-ms",
+                                   order: "desc"}]]
+            [ui[render-list {items: @view}]]
+
+        view-by-tag @tag ->
+            @view <- [bookmarks[by-tag
+                                  {collection: @collection, tag: @tag}]]
+            [ui[render-list {items: @view}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[bookmarks
+    new-collection
+    add              {collection, url, title, folder, tags, added-ms}
+                                                    ;; upsert by url
+    remove           {collection, id}
+    by-folder        {collection, prefix}            ;; recursive prefix match
+    by-tag           {collection, tag}
+    search           {collection, needle}            ;; cross-axis
+    sorted           {collection, by, order}
+]
+
+---
+
+## Distinctive Innate idiom: upsert by natural key `where` url matches
+
+[bookmarks[add {collection: @c, url: @u, ...}]
+    IN ORDER TO
+        treat URL as the natural key so re-adding updates in place
+        keeping the id stable while title, folder, tags refresh
+
+    @existing <- @c:entries where url is @u
+    @existing
+        where exists
+            -> update @existing:title, :folder, :tags, :added-ms in place
+        otherwise
+            -> insert new entry with fresh id at end (insertion order)
+]
+
+Natural keys are domain-given (URL, file path, agent name); surrogate
+ids exist for reference stability. Choosing identity correctly is
+the deepest schema question G076 commits to answering via upsert.
+
+## Distinctive Innate idiom: sort as view, storage stays natural order
+
+[bookmarks[sorted {collection: @c, by: @key, order: @ord}]
+    @c:entries
+        ordered by @key in direction @ord
+        stable (insertion order breaks ties)
+    IN ORDER TO
+        compute the view on demand without mutating storage
+        so multiple callers can request different sorts concurrently
+        and add/remove remains O(1)
+]
+
+Sort never touches the stored list. Every sort is a lens. Same
+discipline G088 picks for file records but made more explicit here:
+"storage order is insertion; sorts are derived."
+
+## Distinctive Innate idiom: folder prefix `where` path begins with
+
+[bookmarks[by-folder {collection: @c, prefix: @p}]
+    @c:entries
+        where folder is equal to @p
+        or    folder begins with @p + "/"
+]
+
+Hierarchy lives in the string, not in a materialised tree. Same
+choice filesystems, URL paths, and CSS selectors make. Don't
+materialise structure you don't query.
+
+---
+
+## Demo
+
+[demo
+    @c <- [bookmarks[new-collection]]
+    [bookmarks[add {collection: @c, url: "https://rust-lang.org",
+                     title: "Rust", folder: "/dev/languages",
+                     tags: ["programming", "rust"], added-ms: 1000}]]
+    [bookmarks[add {collection: @c, url: "https://news.example",
+                     title: "News", folder: "/news",
+                     tags: ["daily"], added-ms: 2000}]]
+    [bookmarks[add {collection: @c, url: "https://rust-lang.org",
+                     title: "The Rust Language",
+                     folder: "/dev/languages",
+                     tags: ["programming", "rust", "systems"],
+                     added-ms: 3000}]]
+    ;; upsert: id stable, title/tags updated
+
+    -> [bookmarks[by-folder {collection: @c, prefix: "/dev"}]]
+    ;; -> [one entry, url rust-lang.org]
+
+    -> [bookmarks[by-tag {collection: @c, tag: "systems"}]]
+    ;; -> [one entry]
+
+    -> [bookmarks[sorted
+                    {collection: @c,
+                     by: "added-ms", order: "desc"}]]
+    ;; -> [rust (ms=3000), news (ms=2000)]
+]

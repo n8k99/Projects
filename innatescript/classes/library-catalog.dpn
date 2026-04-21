@@ -1,0 +1,101 @@
+# G053 — Library Catalog
+
+*v2. See `library-catalog.md` for prose: title/copy/patron triples, holds
+queue with FIFO semantics, auto-fulfillment on return, overdue detection.*
+
+---
+
+## Choreographic Case: Book Club Coordinator
+
+[book-club-coordinator @club-members @book-title
+    IN ORDER TO
+        place a hold for every member on a shared title
+        notify each of their position in the queue
+        and let returns auto-fulfill forward
+
+    @title <- [catalog[search-by-name {query: @book-title}]]:first
+
+    concurrent [
+        for @member in @club-members
+            @hold <- [catalog[place-hold
+                                {title-id: @title:id, patron-id: @member:id}]]
+            @pos  <- [catalog[hold-queue {title-id: @title:id}]]
+                     :index-of @hold:id
+            <- @sarah{notify @member about position: @pos}
+    ]
+    join
+
+    where
+        every hold has status "waiting"
+        and the queue is sorted by placed-at
+        and positions are unique
+        || -> #queue-inconsistent @resistance:reason
+]
+
+---
+
+## Verb Surface
+
+[catalog
+    new
+    add-title            {title}
+    add-copy             {copy}
+    check-out            {copy-id, patron-id, duration-days}   ;; || already-checked-out
+    return-copy          {loan-id}                              ;; also fulfills next hold
+    renew                {loan-id, additional-days}             ;; || has-waiting-hold
+    place-hold           {title-id, patron-id}
+    cancel-hold          {hold-id}
+    hold-queue           {title-id}
+    available-copies     {title-id}
+    search-by-subject    {prefix}                               ;; tree-prefix search
+    search-by-author     {name}
+    search-by-name       {query}
+    overdue              {now}
+]
+
+---
+
+## Distinctive Innate idiom: return triggers fulfillment automatically
+
+[catalog[return-copy {loan-id: @loan}
+    where
+        the copy is marked available
+        and if a hold queue exists, the oldest hold is promoted
+            to a new loan pointing at this copy
+        and the promoted hold's patron is notified via the sync side channel
+]
+
+The v1 described this as "wait-and-wake"; in Innate the wait is the
+holder's hold record and the wake is a natural side-effect of return.
+
+---
+
+## Overdue detection as scheduled choreography
+
+at @every 1 day
+    @overdue-list <- [catalog[overdue {now: @today}]]
+    for @loan in @overdue-list
+        <- @patrons{@loan:patron-id, remind about overdue: @loan}
+
+---
+
+## Demo
+
+[demo
+    @cat <- [catalog[new]]
+    [catalog[add-title {title: {id: 1, name: "1984", author: "Orwell",
+                                  subjects: ["fiction/dystopian"]}}]]
+    [catalog[add-copy {copy: {id: 101, title-id: 1}}]]
+    [catalog[add-copy {copy: {id: 102, title-id: 1}}]]
+
+    @loan1 <- [catalog[check-out {copy-id: 101, patron-id: 1, duration-days: 14}]]
+    @hold1 <- [catalog[place-hold {title-id: 1, patron-id: 2}]]
+    @hold2 <- [catalog[place-hold {title-id: 1, patron-id: 3}]]
+
+    -> [catalog[hold-queue {title-id: 1}]]:length    ;; -> 2
+    -> [catalog[available-copies {title-id: 1}]]:length  ;; -> 1 (copy 102)
+
+    ;; copy 101 returns; hold1 is auto-fulfilled
+    [catalog[return-copy {loan-id: @loan1:id}]]
+    -> [catalog[hold-queue {title-id: 1}]]:length    ;; -> 1 (only hold2 left)
+]

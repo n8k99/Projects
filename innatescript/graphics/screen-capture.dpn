@@ -1,0 +1,121 @@
+# G123 — Screen Capture Program
+
+*v2. See `screen-capture.md` for prose: region ADT, delay FSM with countdown,
+annotation overlays distinct from transforms, Bresenham lines, window lookup
+injected at capture time.*
+
+---
+
+## Choreographic Case: Vault Screenshot Workflow
+
+[screenshot-workflow
+    IN ORDER TO
+        capture screen regions on hotkey with optional countdown and annotations
+        and keep the last N captures in a ring buffer
+
+    @rec <- [cap[new-recorder {history-max: 10}]]
+
+    sync @hotkeys {
+        cmd-shift-3 -> [cap[arm-and-capture @rec
+                             {region: "full-screen", delay-ms: 0,
+                              include-cursor: true}]]
+
+        cmd-shift-4 -> @region <- [ui[prompt-for-rect]]
+                       [cap[arm @rec
+                             {region: {kind: "rect", ...@region},
+                              delay-ms: 3000,
+                              annotations: [
+                                  {kind: "rectangle",
+                                   x: 0, y: 0,
+                                   width: @region:width, height: @region:height,
+                                   color: "#FF0000", stroke: 2}
+                              ]}]]
+                       #countdown @rec
+
+        cmd-shift-5 -> @id <- [ui[pick-window]]
+                       [cap[arm-and-capture @rec
+                             {region: {kind: "window", window-id: @id}}]]
+    }
+
+    at @every 100 ms
+        [cap[tick {recorder: @rec, ms: 100}]]
+        where @rec:state is "capturing"
+        @capture <- [cap[capture {recorder: @rec,
+                                    screen: [wayland[current-screen]],
+                                    window-lookup: @wayland:get-window}]]
+        [vault[save {path: "/screenshots/" + @capture:captured-at-ms + ".png",
+                      image: @capture:image}]]
+]
+
+---
+
+## Verb Surface
+
+[cap
+    new-recorder         {history-max}
+    arm                  {recorder, spec}        ;; emits @armed
+    arm-and-capture      {recorder, spec}        ;; convenience: arm + immediate capture if delay=0
+    tick                 {recorder, ms}
+    capture              {recorder, screen, window-lookup}    ;; || out-of-bounds, window-missing
+    reset                {recorder}
+    apply-annotations    {image, annotations}
+]
+
+---
+
+## Distinctive Innate idiom: window lookup as injected reference
+
+The v1 passed `window_lookup: Fn(id) -> Option<Image>` as a closure.
+In Innate, a reference carries the same semantic — the resolver
+decides when to call it:
+
+[cap[capture {recorder: @rec,
+               screen: [wayland[current-screen]],
+               window-lookup: @wayland:get-window}]]
+
+`@wayland:get-window` is a reference, not a value. At capture time
+the resolver invokes it with the window ID.
+
+---
+
+## Annotations as an ordered bundle, not a pipeline
+
+The v1 distinguished "transform pipeline" (G119) from "annotation
+overlay" — same shape, different semantics. In Innate:
+
+@annotations <- [
+    {kind: "highlight", x: 0, y: 0, width: 50, height: 50,
+     color: {r: 255, g: 255, b: 0}, opacity: 128}
+    {kind: "rectangle", x: 10, y: 10, width: 30, height: 30,
+     color: {r: 255, g: 0, b: 0}, stroke: 1}
+    {kind: "arrow", x1: 5, y1: 5, x2: 45, y2: 45,
+     color: {r: 0, g: 255, b: 0}}
+]
+
+`apply-annotations` folds over the list in paint order. Rectangle,
+arrow, text are opaque; highlight blends via the shared alpha-blend
+formula (see watermark.dpn for the canonical form).
+
+---
+
+## Demo
+
+[demo
+    @rec <- [cap[new-recorder {history-max: 3}]]
+    [cap[arm {recorder: @rec, spec: {region: "full-screen", delay-ms: 1000}}]]
+    -> @rec:state                    ;; -> "counting"
+    -> @rec:countdown-remaining-ms   ;; -> 1000
+
+    [cap[tick {recorder: @rec, ms: 400}]]
+    -> @rec:countdown-remaining-ms   ;; -> 600
+
+    [cap[tick {recorder: @rec, ms: 700}]]
+    -> @rec:state                    ;; -> "capturing"
+
+    @screen <- [img[filled {width: 10, height: 8,
+                              color: {r: 100, g: 100, b: 100}}]]
+    @c <- [cap[capture {recorder: @rec, screen: @screen,
+                          window-lookup: @nil-lookup}]]
+    -> @c:id                          ;; -> 1
+    -> @c:image:width, @c:image:height   ;; -> 10, 8
+]

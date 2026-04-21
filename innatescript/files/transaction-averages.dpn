@@ -1,0 +1,110 @@
+# G089 — Transaction Averages
+
+*v2. See `transaction-averages.md` for prose: group-by as single-pass
+fold, observation and finalisation as explicit steps, integer cents
+throughout, output sorted by key for determinism, key function over
+key field.*
+
+---
+
+## Choreographic Case: Vault Finance Ledger
+
+[vault-finance-ledger @ledger-path
+    IN ORDER TO
+        ingest a CSV ledger, aggregate along several axes at once
+        render a summary card, and support category drill-down
+        without re-reading the file between views
+
+    @text <- [vault[read-string {path: @ledger-path}]]
+    @txns <- [ta[parse {text: @text}]]
+
+    [ui[render-summary
+          {total:       [ta[total        {txns: @txns}]],
+           by-category: [ta[by-category  {txns: @txns}]],
+           by-month:    [ta[by-month     {txns: @txns}]]}]]
+
+    sync @user-events {
+        pick-category @cat ->
+            @filtered <- @txns where category is @cat
+            [ui[render-detail
+                  {txns: @filtered,
+                   stats: [ta[total {txns: @filtered}]]}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[ta
+    parse-transaction   {line}                    ;; -> Transaction | none
+    parse               {text}                     ;; -> [Transaction]
+    group-by            {txns, key-fn}             ;; -> [(String, Stats)]
+    by-category         {txns}
+    by-month            {txns}
+    total               {txns}                      ;; -> Stats
+    top-n-by-mean       {groups, n}
+]
+
+---
+
+## Distinctive Innate idiom: observe and finalise as `where` phases
+
+[ta[group-by {txns: @txns, key-fn: @keys}]
+    IN ORDER TO
+        pass over @txns once updating per-key running state
+        then finalise each accumulator into means
+        and emit groups ordered by key so output is deterministic
+
+    @txns
+        gathered by @keys into @accumulators
+        where each observation updates count, sum-cents, min-cents, max-cents
+        (and does NOT compute mean — mean is not a monoid)
+
+    @accumulators
+        finalised where mean-cents = sum-cents / count
+        emitted ordered by key ascending
+]
+
+Running state is separate from output state: monoids (sum/min/max)
+combine pairwise during observation; non-monoids (mean) derive only
+at finalise. This is what makes the whole thing one pass.
+
+## Distinctive Innate idiom: malformed lines skipped `where` fields incomplete
+
+[ta[parse {text: @text}]
+    lines of @text
+        where line is blank or begins with "#" -> skip
+        where fields count is less than 3        -> skip
+        where date or category is empty          -> skip
+        where amount is not an integer           -> skip
+        otherwise                                 -> parse into Transaction
+]
+
+Silent acceptance of garbage produces zeros-that-look-like-real-data,
+which is worse than a dropped row. Explicit `where` clauses surface
+the policy the resolver applies.
+
+---
+
+## Demo
+
+[demo
+    @sample <- "2026-01-03,groceries,4500\n" +
+               "2026-01-10,groceries,3200\n" +
+               "2026-01-12,rent,120000\n" +
+               "2026-02-01,rent,120000\n" +
+               "2026-02-14,groceries,5500\n" +
+               "2026-02-22,books,2200\n"
+
+    @txns <- [ta[parse {text: @sample}]]
+
+    -> [ta[by-category {txns: @txns}]]
+    ;; -> [("books",     count=1 mean=2200)
+    ;;     ("groceries", count=3 mean=4400)
+    ;;     ("rent",      count=2 mean=120000)]
+
+    -> [ta[top-n-by-mean
+             {groups: [ta[by-category {txns: @txns}]], n: 2}]]
+    ;; -> [("rent", 120000), ("groceries", 4400)]
+]

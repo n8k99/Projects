@@ -1,0 +1,140 @@
+# G109 — TV Show Tracker
+
+*v2. See `tv-tracker.md` for prose: library vs watchlist split,
+hierarchical progress roll-up from leaf flags, next-up as
+first-unwatched-in-order, airing-since as caller-cutoff filter.*
+
+---
+
+## Choreographic Case: Vault TV Dashboard
+
+[vault-tv-dashboard @user-id
+    IN ORDER TO
+        render a Continue Watching row from the user's watchlist
+        joined against the canonical library
+        and a New Episodes row filtered by the user's last visit
+
+    @lib <- [tv[library-load {path: "tv/library.json"}]]
+    @wl  <- [tv[watchlist-load {path: "tv/" + @user-id + ".json"}]]
+    @last-open <- [user[last-dashboard-open-ms {id: @user-id}]]
+
+    @continuing <- [tv[currently-watching
+                        {library: @lib, watchlist: @wl}]]
+
+    [ui[render-row
+        {title: "Continue Watching",
+         items: @continuing mapped to ({
+            show: @show,
+            next-up:  [tv[next-up       {show: @show, watchlist: @wl}]],
+            progress: [tv[show-progress {show: @show, watchlist: @wl}]]
+         })}]]
+
+    @new <- [tv[library-airing-since
+                  {library: @lib, since-ms: @last-open}]]
+    [ui[render-row {title: "New Episodes", items: @new}]]
+
+    sync @user-events {
+        mark-watched @show-id @season @episode ->
+            [tv[watchlist-mark-watched
+                  {watchlist: @wl, show-id: @show-id,
+                   season: @season, episode: @episode}]]
+            [tv[watchlist-save
+                  {watchlist: @wl,
+                   path: "tv/" + @user-id + ".json"}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[tv
+    library
+    library-add-show          {library, show}
+    library-add-episode       {library, episode}           ;; || unknown-show
+    library-airing-since      {library, since-ms}
+    watchlist
+    watchlist-load            {path}
+    watchlist-save            {watchlist, path}
+    watchlist-mark-watched    {watchlist, show-id, season, episode}
+    watchlist-is-watched      {watchlist, show-id, season, episode}
+    show-progress             {show, watchlist}
+    next-up                   {show, watchlist}            ;; -> Episode | none
+    currently-watching        {library, watchlist}
+]
+
+---
+
+## Distinctive Innate idiom: library and watchlist as separate contexts
+
+[tv[library[...]]]      ;; canonical, shared across users
+[tv[watchlist[...]]]    ;; per-user, private
+
+The two bracket contexts share the `episode-key` join type but never
+merge state. A user switching accounts swaps the inner watchlist while
+leaving the library untouched. Conflating them — the v1 temptation —
+would fork canonical data per user.
+
+---
+
+## Distinctive Innate idiom: next-up as `where` over sorted episodes
+
+[tv[next-up {show: @s, watchlist: @wl}]
+    IN ORDER TO
+        return the first episode the user has not yet watched
+        when walking (season, episode) in natural order
+
+    @s:episodes
+        ordered by season ascending, episode ascending
+        where [tv[watchlist-is-watched
+                    {watchlist: @wl, show-id: @s:id,
+                     season: @episode:season,
+                     episode: @episode:episode}]] is false
+        first
+        || -> none
+]
+
+Out-of-order viewing returns the earliest gap. A fully-watched show
+resists the first-match and surfaces `none`, which the UI renders as
+a "Watched" badge rather than a "Resume" button.
+
+## Distinctive Innate idiom: currently-watching as a `where` range
+
+[tv[currently-watching {library: @lib, watchlist: @wl}]
+    @lib:shows
+        where watched-count is greater than zero
+        and watched-count is less than total-episode-count
+]
+
+Started-but-not-finished is a bounded interval on a derived quantity.
+Zero is candidacy; equal is completion; anything strictly between is
+the "in the middle" row the UI wants.
+
+---
+
+## Demo
+
+[demo
+    @lib <- [tv[library]]
+    @bb  <- {id: 1, title: "Breaking Bad", episodes: [
+                {season: 1, episode: 1, title: "Pilot",
+                 duration-min: 47, aired-ms: 1000000}
+                {season: 1, episode: 2, title: "Cat's in the Bag",
+                 duration-min: 48, aired-ms: 1600000}
+                {season: 1, episode: 3, title: "Bag's in the River",
+                 duration-min: 47, aired-ms: 2200000}
+            ]}
+    [tv[library-add-show {library: @lib, show: @bb}]]
+
+    @wl <- [tv[watchlist]]
+    [tv[watchlist-mark-watched
+          {watchlist: @wl, show-id: 1, season: 1, episode: 1}]]
+    [tv[watchlist-mark-watched
+          {watchlist: @wl, show-id: 1, season: 1, episode: 2}]]
+
+    -> [tv[next-up {show: @bb, watchlist: @wl}]]
+    ;; -> Episode S1E3
+
+    -> [tv[show-progress {show: @bb, watchlist: @wl}]]
+    ;; -> {watched: 2, total: 3, percent: 66}
+]

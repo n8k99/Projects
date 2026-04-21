@@ -1,0 +1,123 @@
+# G074 — Online White Board
+
+*v2. See `whiteboard.md` for prose: 2D spatial coordinates replace
+1D order with proximity, strokes as first-class retained-mode
+entities, z-order is insertion order, spatial queries as linear
+scans behind a stable interface, per-author attribution for
+collaboration queries.*
+
+---
+
+## Choreographic Case: Collaborative Diagram Session
+
+[diagram-session @room-id
+    IN ORDER TO
+        support multi-client drawing with per-author undo
+        rendered-on-demand SVG export, and broadcast of each change
+        so every client converges to the same retained-mode board
+
+    @board <- [whiteboard[new]]
+    @room  <- [chat[new-room {id: @room-id}]]
+
+    sync @client-events {
+        stroke @client @data ->
+            @id <- [whiteboard[add-stroke
+                                 {board: @board,
+                                  author: @client:name,
+                                  color: @data:color,
+                                  thickness: @data:thickness,
+                                  points: @data:points}]]
+            [broadcast[to-all {type: "stroke-added", id: @id}]]
+
+        undo @client ->
+            @mine  <- [whiteboard[strokes-by-author
+                                    {board: @board,
+                                     author: @client:name}]]
+            @latest <- @mine last
+            @latest
+                where exists
+                    [whiteboard[remove-stroke
+                                  {board: @board, id: @latest:id}]]
+                    [broadcast[to-all {type: "stroke-removed",
+                                        id: @latest:id}]]
+
+        export ->
+            [vault[save
+                    {path: "diagram-" + [clock[now]] + ".svg",
+                     content: [whiteboard[to-svg
+                                            {board: @board,
+                                             width: 800, height: 600}]]}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[whiteboard
+    new
+    add-stroke          {board, author, color, thickness, points}
+                                                    ;; -> stroke-id
+    remove-stroke       {board, id}                  ;; || not-found
+    strokes-by-author   {board, author}
+    strokes-near        {board, x, y, radius}
+    bounding-box        {board}
+    to-svg              {board, width, height}
+]
+
+---
+
+## Distinctive Innate idiom: proximity replaces order `where` data is 2D
+
+[whiteboard[strokes-near {board: @b, x: @x, y: @y, radius: @r}]
+    IN ORDER TO
+        find strokes whose points come within @r of (@x, @y)
+        using linear scan because the interface is the contract
+        and a spatial index is a later optimisation behind it
+
+    @b:strokes
+        where any point (px, py) in stroke:points satisfies
+              sqrt((px - @x)² + (py - @y)²) ≤ @r
+        ordered by insertion-order (same as z-order)
+]
+
+Linear scan is correct; quadtree/R-tree/k-d tree replaces the
+implementation without changing the interface. Same discipline as
+hash-over-flat-array: expose queries, hide the index.
+
+## Distinctive Innate idiom: z-order is insertion order (no z field)
+
+[whiteboard[to-svg {board: @b, ...}]
+    @b:strokes walked in insertion order
+    emitting <polyline> per stroke in order
+    where first stroke is underneath, last stroke is on top
+    IN ORDER TO
+        keep z as storage-order so undo (remove middle stroke)
+        does not renumber anything the surviving strokes depend on
+]
+
+---
+
+## Demo
+
+[demo
+    @b  <- [whiteboard[new]]
+    @s1 <- [whiteboard[add-stroke
+                         {board: @b, author: "alice",
+                          color: "black", thickness: 2,
+                          points: [{x:10, y:10}, {x:50, y:50}]}]]
+    @s2 <- [whiteboard[add-stroke
+                         {board: @b, author: "bob",
+                          color: "red", thickness: 2,
+                          points: [{x:40, y:40}, {x:80, y:80}]}]]
+
+    -> [whiteboard[strokes-by-author {board: @b, author: "alice"}]]
+    ;; -> [stroke @s1]
+
+    -> [whiteboard[strokes-near
+                     {board: @b, x: 45, y: 45, radius: 10}]]
+    ;; -> [stroke @s1, stroke @s2]  (both pass near (45,45))
+
+    -> [whiteboard[bounding-box {board: @b}]]
+    ;; -> {min-x: 10, min-y: 10, max-x: 80, max-y: 80}
+]

@@ -1,0 +1,125 @@
+# G067 — Chat Application (Threading)
+
+*v2. See `chat-app.md` for prose: every actor both producer and
+consumer, broadcast as fan-out on every send, dynamic membership
+under a single lock, total ordering via monotonic counter, log and
+inboxes as journal-vs-queue split.*
+
+---
+
+## Choreographic Case: Agent-to-Agent Broadcast
+
+[research-coordinator @queries
+    IN ORDER TO
+        coordinate a literature reviewer and a code analyser as peers
+        where every agent sees every send in the same total order
+        and the coordinator can audit the full conversation via the log
+
+    @room <- [chat[new-room]]
+    @me   <- [chat[join {room: @room, name: "Coordinator"}]]
+
+    concurrent [
+        literature-reviewer:
+            @id <- [chat[join
+                           {room: @room, name: "LiteratureReviewer"}]]
+            for @q in @queries
+                @findings <- [search[papers {query: @q}]]
+                [chat[send
+                       {room: @room, sender: @id,
+                        text: @findings:summary}]]
+            [chat[leave {room: @room, id: @id}]]
+
+        code-analyser:
+            @id <- [chat[join
+                           {room: @room, name: "CodeAnalyser"}]]
+            for @q in @queries
+                @analysis <- [code[analyse {query: @q}]]
+                [chat[send
+                       {room: @room, sender: @id, text: @analysis}]]
+            [chat[leave {room: @room, id: @id}]]
+
+        coordinator-read-loop:
+            every 100 ms
+                @msgs <- [chat[drain-inbox {room: @room, id: @me}]]
+                for @m in @msgs
+                    [ui[render-incoming {msg: @m}]]
+    ]
+    join
+
+    -> [chat[log {room: @room}]]
+]
+
+---
+
+## Verb Surface
+
+[chat
+    new-room
+    join            {room, name}                 ;; -> user-id
+    leave           {room, id}
+    send            {room, sender, text}           ;; broadcast to all
+    drain-inbox     {room, id}                     ;; drain-on-read
+    log             {room}                          ;; full audit history
+    members         {room}
+]
+
+---
+
+## Distinctive Innate idiom: send atomic `where` membership and counter align
+
+[chat[send {room: @r, sender: @s, text: @t}]
+    IN ORDER TO
+        fan out to every current member's inbox under one lock
+        while assigning a strictly-increasing sequence number
+        so every recipient sees messages in the same total order
+
+    acquire @r:lock
+        @seq <- ++@r:counter
+        @msg <- {seq: @seq, sender: @s, text: @t, ts: now}
+        append @msg to @r:log                   ;; journal
+        for @member in @r:members
+            append @msg to @member:inbox        ;; queue
+    release @r:lock
+]
+
+Under one lock, the membership snapshot and the counter increment
+happen together. Bob-leaves-then-Alice-sends and Alice-sends-then-
+Bob-leaves produce different outcomes but neither has a half-state.
+
+## Distinctive Innate idiom: journal vs queue as two `where` different questions
+
+[chat[log {room: @r}]
+    returns the append-only history
+    -> answers "what did the room say?"
+
+[chat[drain-inbox {room: @r, id: @u}]
+    empties @u's unread queue
+    -> answers "what do I need to look at?"
+
+Same send populates both. Log survives join and leave. Inbox is per-
+user and transient. Both are maintained atomically inside send.
+
+---
+
+## Demo
+
+[demo
+    @r <- [chat[new-room]]
+    @alice <- [chat[join {room: @r, name: "alice"}]]
+    @bob   <- [chat[join {room: @r, name: "bob"}]]
+
+    [chat[send {room: @r, sender: @alice, text: "hi"}]]
+    [chat[send {room: @r, sender: @bob,   text: "hello"}]]
+
+    -> [chat[drain-inbox {room: @r, id: @bob}]]
+    ;; -> [{seq: 0, sender: alice, text: "hi"},
+    ;;     {seq: 1, sender: bob,   text: "hello"}]
+
+    [chat[leave {room: @r, id: @bob}]]
+    [chat[send  {room: @r, sender: @alice, text: "bye"}]]
+
+    -> [chat[drain-inbox {room: @r, id: @alice}]]
+    ;; -> [{seq: 2, sender: alice, text: "bye"}]  (bob not in membership)
+
+    -> [chat[log {room: @r}]] count               ;; -> 3 (journal retains all)
+]

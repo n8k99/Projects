@@ -1,0 +1,105 @@
+# G014 — Tax Calculator
+
+*v2. See `tax-calculator.md` for prose: rules as a fifth resolver
+primitive alongside computation, representation, scheduling, and
+world-state lookup. Versioned rules differ from mutable facts —
+rules change because humans decide, not because reality shifts.*
+
+---
+
+## Choreographic Case: Tax Planning Across Years
+
+[tax-planning @client @current-year @next-year
+    IN ORDER TO
+        compare tax outcomes under the current and proposed rule sets
+        for the client's projected income
+        so the `where` reasons across rule versions, not just values
+
+    @current-brackets <- [rules[tax-brackets {year: @current-year}]]
+    @proposed-brackets <- [rules[tax-brackets {year: @next-year}]]
+
+    @comparison <- [compare-outcomes
+                      {income: @client:projected-income,
+                       current: @current-brackets,
+                       proposed: @proposed-brackets}]
+
+    @comparison
+        where proposed-liability is less than current-liability
+            -> #deferral-beneficial
+        otherwise
+            -> #accelerate-income
+]
+
+---
+
+## Verb Surface
+
+[tax
+    {income}                                 ;; -> current-year liability
+    {income, year}
+]
+
+[tax-breakdown
+    {income}                                 ;; -> [{bracket, rate, tax}]
+]
+
+[effective-rate
+    {income}
+]
+
+[marginal-rate
+    {income}
+]
+
+[rules
+    tax-brackets        {year}               ;; -> [Bracket] versioned
+]
+
+---
+
+## Distinctive Innate idiom: rules versioned `where` year picks the policy
+
+[rules[tax-brackets {year: @y}]
+    IN ORDER TO
+        fetch the bracket schedule enacted for tax year @y
+        because tax law is versioned policy, not immutable computation
+        and two different years legitimately return different schedules
+
+    rule-store at (@y, "tax-brackets")
+        where present -> return schedule
+        otherwise      -> #rules-not-loaded {year: @y}
+]
+
+Fact lookup (G012) returns contingent world-state; rule lookup (G014)
+returns intentional policy. Both bottom out in a store, but the
+staleness semantics differ — facts drift, rules are legislated.
+The resolver treats them as distinct primitives.
+
+## Distinctive Innate idiom: apply brackets as progressive `where` ladder
+
+[apply-brackets {income: @inc, brackets: @b}]
+    total <- 0
+    remaining <- @inc
+    for @bracket in @b ordered by lower-bound ascending
+        where remaining is at least bracket-width
+            -> total += bracket-width × @bracket:rate
+               remaining -= bracket-width
+        where remaining is greater than zero
+            -> total += remaining × @bracket:rate
+               remaining := 0
+    return total
+]
+
+---
+
+## Demo
+
+[demo
+    -> [tax {income: 50000, year: 2024}]             ;; -> e.g. 6053
+    -> [tax-breakdown {income: 50000}]
+    ;; -> [{bracket: "10%", amount: 1160}
+    ;;     {bracket: "12%", amount: 4893}]
+
+    -> [effective-rate {income: 50000}]               ;; -> 0.121
+    -> [marginal-rate  {income: 50000}]               ;; -> 0.22
+]

@@ -1,0 +1,134 @@
+# G118 — Mp3 Player
+
+*Pilot — real Innate syntax, v2 of the Rosetta spec. See `mp3-player.md`
+for the v1 pattern commentary (prose insights carry forward unchanged).*
+
+---
+
+## Choreographic Case: Vault Music Library
+
+[mp3-player @library @playlist
+    IN ORDER TO
+        play tracks from a loaded playlist in authorial or shuffled order
+        advance when a track ends, honoring repeat and shuffle
+        let the user skip forward, back, pause, resume, and toggle modes
+
+    [mp3[load-playlist {library: @library, playlist: @playlist}]]
+    [mp3[play]]
+
+    until @stopped [
+        at @every 100 ms
+            [mp3[tick {ms: 100, library: @library}]]
+            #now-playing
+                track: @mp3:current-track-id
+                state: @mp3:state
+                position: @mp3:position-ms
+
+        sync @ui-events {
+            play    -> [mp3[play]]
+            pause   -> [mp3[pause]]
+            stop    -> [mp3[stop]]
+            next    -> [mp3[next {library: @library}]]
+            prev    -> [mp3[prev {library: @library}]]
+            shuffle -> [mp3[set-shuffle {on: !@mp3:shuffle}]]
+            repeat  -> [mp3[set-repeat {mode: @next-repeat-mode}]]
+        }
+    ]
+]
+
+---
+
+## Verb Surface (resolver contract for `mp3`)
+
+The `rosetta-resolver` binds `mp3` as a context with these verbs. Each
+verb is a `[mp3[verb args]]` invocation; state lives in the resolver
+instance across invocations.
+
+[mp3
+    new-library           {}                                  -> @library
+    new-player            {}                                  -> @player
+    library-add           {library, track}                    -> @library
+    library-get           {library, id}                       -> @track-or-nil
+    load-playlist         {player, playlist}                  -> @player
+    play                  {player}                            -> @player
+    pause                 {player}                            -> @player
+    stop                  {player}                            -> @player
+    tick                  {player, ms, library}               -> @player
+    next                  {player, library}                   -> @player
+    prev                  {player, library}                   -> @player
+    set-shuffle           {player, on}                        -> @player
+    set-repeat            {player, mode}                      -> @player
+    current-track-id      {player}                            -> @track-id-or-nil
+]
+
+`@player:state`, `@player:shuffle`, `@player:current-track-id`,
+`@player:position-ms`, `@player:history`, `@player:events` are
+qualifier-style accessors resolving into the player's ambient state.
+
+---
+
+## Constraints expressed as `where` clauses
+
+The prev-button three-second rule, shuffle-seed determinism, and
+recency-respecting shuffle are naturally constraints, not branches:
+
+[mp3[prev {player: @player}]
+    where
+        position-ms > 3000 means restart the current track
+        and otherwise pop the history stack and jump to that track's
+        current queue position
+        and emit a track-changed event only if the track actually changed
+]
+
+[mp3[set-shuffle {player: @player, on: true}]
+    where
+        shuffle uses Fisher-Yates with the LCG seed already set on @player
+        (default @player:shuffle-seed is 42)
+        and the currently playing track must stay at queue position 0
+        so playback does not skip on toggle
+]
+
+[mp3[compute-next {player: @player}]
+    where
+        repeat is "One"  means stay at the same queue position
+        and repeat is "All" means wrap to (position + 1) mod length
+        and repeat is "Off" means advance if a next track exists,
+            otherwise transition to stopped
+]
+
+---
+
+## Demo
+
+[demo
+    IN ORDER TO
+        exercise the full mp3 verb surface against a small fixed library
+        and observe state transitions via emission
+
+    @lib <- [mp3[new-library]]
+    [mp3[library-add {library: @lib, track: {id: 1, title: "Alpha",
+         artist: "Various", duration-ms: 120000}}]]
+    [mp3[library-add {library: @lib, track: {id: 2, title: "Beta",
+         artist: "Various", duration-ms: 180000}}]]
+    [mp3[library-add {library: @lib, track: {id: 3, title: "Gamma",
+         artist: "Various", duration-ms: 150000}}]]
+    [mp3[library-add {library: @lib, track: {id: 4, title: "Delta",
+         artist: "Various", duration-ms: 200000}}]]
+
+    @p <- [mp3[new-player]]
+    [mp3[load-playlist {player: @p, playlist: {id: 1, title: "Mix",
+          track-ids: [1, 2, 3, 4]}}]]
+    [mp3[play {player: @p}]]
+    -> @p:current-track-id, @p:state
+    ;; -> 1, "Playing"
+
+    [mp3[tick {player: @p, ms: 125000, library: @lib}]]
+    -> @p:current-track-id, @p:position-ms
+    ;; -> 2, 0     (advanced past Alpha's 120s)
+
+    [mp3[set-repeat {player: @p, mode: "All"}]]
+    [mp3[set-shuffle {player: @p, on: true}]]
+    -> @p:queue-order
+    ;; -> [4, 1, 3, 2]   (seed=42, track 2 swapped to position 0
+    ;;                    because it was the current track pre-shuffle)
+]

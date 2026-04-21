@@ -1,0 +1,101 @@
+# G066 — Vending Machine
+
+*v2. See `vending-machine.md` for prose: 4-state FSM (idle / coins-inserted /
+dispensing / refunding), change-making subalgorithm, slot inventory.*
+
+---
+
+## Choreographic Case: Automated Snack Restocking
+
+[restock-cycle @machines
+    IN ORDER TO
+        restock each machine in the fleet
+        but only when the machine is in a state safe for interference
+
+    for @m in @machines
+        @inventory <- [vm[inventory-snapshot {machine: @m}]]
+        @low-slots <- @inventory:slots where quantity < 2
+        @low-change <- @inventory:coins where count < 10
+
+        @m
+            where
+                state is "idle"
+                and inserted-cents equals 0
+                    (no pending customer transaction)
+            IN ORDER TO
+                avoid interfering with a customer mid-purchase
+            || -> #skip-machine @m:id "busy"
+
+        @order <- [warehouse[prepare-delivery
+                              {machine-id: @m:id,
+                               products: @low-slots:slot-ids,
+                               coins: @low-change:denoms}]]
+        [warehouse[dispatch {order: @order}]]
+]
+
+---
+
+## Verb Surface
+
+[vm
+    new
+    add-slot            {slot}
+    load-change         {denom, count}
+    insert-coin         {denom}                    ;; || not-in-idle-or-coins-inserted
+    select              {slot-id}                  ;; (product, change) || insufficient-funds, out-of-stock
+    refund                                          ;; always legal
+    inventory-snapshot  {machine}
+    state               {machine}
+]
+
+---
+
+## Distinctive Innate idiom: FSM transitions as `where`-gated
+
+[vm[insert-coin {machine: @m, denom: @d}
+    where state is "idle" or "coins-inserted"
+        (otherwise the coin is refused and the inserted amount does not change)
+]
+
+[vm[select {machine: @m, slot-id: @slot}
+    where
+        state is "coins-inserted"
+        and inserted-cents at least the slot's price
+        and the slot has at least one unit in stock
+    IN ORDER TO
+        transition to "dispensing" atomically
+        and compute change (or resist with insufficient-change)
+]
+
+---
+
+## Change-making as sub-algorithm
+
+[vm[make-change {amount: @cents, coins: @inventory:coins}
+    where
+        result is a multiset of coins summing to @cents
+        using the greedy algorithm over available denominations
+        || resists with "cannot-make-exact-change"
+]
+
+---
+
+## Demo
+
+[demo
+    @m <- [vm[new]]
+    [vm[add-slot {slot: {id: "A1", product: "Chips", price-cents: 150, quantity: 5}}]]
+    [vm[add-slot {slot: {id: "B2", product: "Cola",  price-cents: 125, quantity: 3}}]]
+    [vm[load-change {denom: 25, count: 10}]]
+    [vm[load-change {denom: 100, count: 5}]]
+
+    -> [vm[state {machine: @m}]]    ;; -> "idle"
+
+    [vm[insert-coin {machine: @m, denom: 100}]]
+    [vm[insert-coin {machine: @m, denom: 100}]]
+    -> [vm[state {machine: @m}]]    ;; -> "coins-inserted"
+
+    @(product, change) <- [vm[select {machine: @m, slot-id: "A1"}]]
+    -> @product:product               ;; -> "Chips"
+    -> @change                         ;; -> multiset summing to 50 cents
+]

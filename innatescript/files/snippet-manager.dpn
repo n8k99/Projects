@@ -1,0 +1,114 @@
+# G099 — Code Snippet Manager
+
+*v2. See `snippet-manager.md` for prose: tab-stop IR (text + stops in
+lockstep), `$0` always last, three placeholder forms
+(`${N:default}` / `${N}` / `$N`), duplicate stops preserved for
+mirroring, library indexed by trigger / language / tag.*
+
+---
+
+## Choreographic Case: Vault Code Snippets
+
+[vault-code-snippets @snippet-dir
+    IN ORDER TO
+        load a library of JSON snippets from the snippets directory
+        expand them on trigger match and hand text + stops to the UI
+        so the user can tab through each placeholder in canonical order
+
+    @lib   <- [snippet[library]]
+    @files <- [fs[ls {path: @snippet-dir + "/*.json"}]]
+
+    for @file in @files
+        @data <- [json[parse {text: [fs[read-string {path: @file:path}]]}]]
+        [snippet[library-add {library: @lib, snippet: @data}]]
+
+    sync @user-events {
+        trigger @trigger @lang ->
+            @s <- [snippet[find-by-trigger
+                             {library: @lib,
+                              trigger: @trigger, language: @lang}]]
+            @s
+                where exists
+                    @e <- [snippet[expand {snippet: @s}]]
+                    [ui[insert-with-stops
+                          {text: @e:text, stops: @e:stops}]]
+                otherwise
+                    -> [ui[toast {msg: "no snippet for " + @trigger}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[snippet
+    library
+    library-add            {library, snippet}
+    find-by-trigger        {library, trigger, language}   ;; -> Snippet | none
+    find-by-language       {library, language}
+    find-by-tag            {library, tag}
+    expand                 {snippet}                       ;; -> Expansion
+]
+
+---
+
+## Distinctive Innate idiom: placeholder parsing as three `where` forms
+
+[snippet[expand {snippet: @s}]
+    IN ORDER TO
+        walk @s:body character-by-character producing text and stops
+        so the editor receives both pieces of the snippet contract
+
+    for @ch in @s:body
+        where @ch is "$" followed by "{N:default}"
+            -> emit default into text, record stop (N, offset, length)
+        where @ch is "$" followed by "{N}"
+            -> record stop (N, offset, 0)
+        where @ch is "$" followed by digits
+            -> record stop (parsed N, offset, 0)
+        otherwise
+            -> copy @ch verbatim into text
+
+    stops ordered by
+        @stop:number is zero sorts last (final cursor rule),
+        @stop:number ascending otherwise
+]
+
+`$0` as the final resting place is a 20-year-old snippet-system
+convention every editor ancestry (TextMate, VSCode, Sublime) shares.
+Violating the rule breaks user expectations that they carry with them.
+
+## Distinctive Innate idiom: duplicate stops preserved `where` mirroring is UI's job
+
+[snippet[expand]
+    emit both occurrences of ${1:name} as two stops with number 1
+    IN ORDER TO
+        let the editor group them by number and mirror edits
+        while keeping the parser's output purely structural
+]
+
+The library does not deduplicate. The consumer does. Mirroring is a
+UI concern; the parser provides raw grouping data.
+
+---
+
+## Demo
+
+[demo
+    @lib <- [snippet[library]]
+    [snippet[library-add
+              {library: @lib,
+               snippet: {trigger: "for", language: "python",
+                         tags: ["loop"],
+                         body: "for ${1:item} in ${2:collection}:\n" +
+                                "    ${3:pass}\n$0"}}]]
+
+    @s <- [snippet[find-by-trigger
+                     {library: @lib,
+                      trigger: "for", language: "python"}]]
+
+    -> [snippet[expand {snippet: @s}]]
+    ;; text: "for item in collection:\n    pass\n"
+    ;; stops: [#1 @4/4, #2 @12/10, #3 @28/4, #0 @33/0]
+    ;;        (non-zero ascending, then 0 last)
+]

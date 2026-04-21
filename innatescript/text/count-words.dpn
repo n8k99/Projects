@@ -1,0 +1,80 @@
+# G020 — Count Words in a String
+
+*v2. See `count-words.md` for prose: word-level granularity between
+character (G018) and document, word frequency confirms `@breakdown`
+as a generic primitive parameterised by granularity, diversity ratio
+as content-quality metric.*
+
+---
+
+## Choreographic Case: Editorial Quality Analysis
+
+[editorial-quality @text
+    IN ORDER TO
+        measure text's diversity and average length concurrently
+        combine into a readability score
+        and pass the `where` only if the combined score clears a threshold
+
+    concurrent [
+        diversity: @d  <- [calc {expr: "[unique-words {text: @text}] / " +
+                                        "[word-count {text: @text}]"}]
+    |
+        length:    @l  <- [average-word-length {text: @text}]
+    ]
+    join
+
+    @score <- [calc {expr: "(@d * 100) - (@l * 5)"}]
+    @score
+        where at least 40 -> #editorial-pass
+        otherwise          -> #needs-revision
+]
+
+---
+
+## Verb Surface
+
+[word-count
+    {text}                                   ;; -> Int
+]
+
+[word-frequency
+    {text}                                    ;; -> {word → count}
+]
+
+[unique-words
+    {text}                                    ;; -> Int
+]
+
+[average-word-length
+    {text}                                    ;; -> Float
+]
+
+---
+
+## Distinctive Innate idiom: `@breakdown` generic `where` granularity parameter
+
+[breakdown {text: @t, by: @level}]
+    @level
+        where "character"  -> count per codepoint
+        where "word"        -> count per whitespace-delimited token
+        where "sentence"    -> count per terminator-delimited segment
+    return distribution of (unit → count)
+    IN ORDER TO
+        make G018's vowel breakdown and G020's word frequency
+        the same operation at different granularities
+]
+
+Same primitive scales from characters to words to paragraphs. The
+granularity parameter is the generalisation.
+
+---
+
+## Demo
+
+[demo
+    -> [word-count {text: "the quick brown fox the fox"}]     ;; -> 6
+    -> [unique-words {text: "the quick brown fox the fox"}]   ;; -> 4
+    -> [word-frequency {text: "the quick brown fox the fox"}]
+    ;; -> {the: 2, quick: 1, brown: 1, fox: 2}
+    -> [average-word-length {text: "the quick brown fox"}]    ;; -> 4.25
+]

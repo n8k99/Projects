@@ -1,0 +1,116 @@
+# G104 — Report Generator
+
+*v2. See `report-generator.md` for prose: kind-tagged rows (Header/
+Data/Subtotal/Total), declarative column specs, grouped subtotals
+emitted alongside their data, per-column cents formatting.*
+
+---
+
+## Choreographic Case: Vault Sales Dashboard
+
+[vault-sales-dashboard @year
+    IN ORDER TO
+        pull this year's orders into a grouped report
+        render it in the dashboard with kind-aware styling
+        and export the same data as tab-delimited text on demand
+
+    @records <- [vault[query {table: "orders", year: @year}]]
+
+    @spec <- [report[spec
+        {title: "Sales by Region — " + @year,
+         columns: [
+            {name: "Region",  field: "region",  kind: "plain"}
+            {name: "Product", field: "product", kind: "plain"}
+            {name: "Qty",     field: "qty",     kind: "sum_aggregate"}
+            {name: "Revenue", field: "revenue", kind: "sum_aggregate",
+                              format-cents: true}
+         ],
+         group-by: "region"}]]
+
+    @report <- [report[generate {records: @records, spec: @spec}]]
+
+    [ui[render-report {report: @report}]]
+
+    sync @user-events {
+        export-csv ->
+            [vault[save {path: "exports/sales-" + @year + ".txt",
+                          content: [report[render {report: @report}]]}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[report
+    spec             {title, columns, group-by}
+    generate         {records, spec}
+    render           {report}                     ;; -> String (tab-delimited)
+]
+
+---
+
+## Distinctive Innate idiom: row kind as `where` dispatch key
+
+[@report:rows
+    where kind is Header      -> [ui[render-header {cells: @row:cells}]]
+    where kind is Data        -> [ui[render-data   {cells: @row:cells}]]
+    where kind is Subtotal    -> [ui[render-subtotal
+                                       {cells: @row:cells,
+                                        group: @row:group-label}]]
+    where kind is Total       -> [ui[render-total  {cells: @row:cells}]]
+]
+
+Rather than the consumer inferring row semantics from position (fragile
+when subtotals nest or totals repeat in multi-level reports), every
+row carries its kind. The `where` clauses are the dispatch table.
+
+## Distinctive Innate idiom: aggregate exists `where` column is summable
+
+[report[generate {records: @r, spec: @s}]
+    IN ORDER TO
+        emit data rows interleaved with subtotals
+        and append a grand total
+        where any column in @s:columns has kind sum_aggregate
+        (otherwise the Total row is omitted)
+]
+
+Grand total existence is a constraint on the spec, not a caller flag.
+If nothing is summable, nothing meaningful can total — the report
+ends at the last Data row.
+
+---
+
+## Demo
+
+[demo
+    @records <- [
+        {region: "East", product: "Widget", qty: 3, revenue: 1500}
+        {region: "East", product: "Gadget", qty: 2, revenue: 2000}
+        {region: "West", product: "Widget", qty: 5, revenue: 2500}
+        {region: "West", product: "Gizmo",  qty: 1, revenue: 750}
+    ]
+
+    @spec <- [report[spec
+        {title: "Sales Report",
+         columns: [
+            {name: "Region",  field: "region",  kind: "plain"}
+            {name: "Product", field: "product", kind: "plain"}
+            {name: "Qty",     field: "qty",     kind: "sum_aggregate"}
+            {name: "Revenue", field: "revenue", kind: "sum_aggregate",
+                              format-cents: true}
+         ],
+         group-by: "region"}]]
+
+    -> [report[render {report: [report[generate {records: @records,
+                                                   spec: @spec}]]}]]
+    ;; Sales Report
+    ;; # Region  Product  Qty  Revenue
+    ;;   East    Widget   3    $15.00
+    ;;   East    Gadget   2    $20.00
+    ;; ~ East subtotal    5    $35.00
+    ;;   West    Widget   5    $25.00
+    ;;   West    Gizmo    1    $7.50
+    ;; ~ West subtotal    6    $32.50
+    ;; = TOTAL            11   $67.50
+]

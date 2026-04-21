@@ -1,0 +1,132 @@
+# G128 — Screen Saver
+
+*v2. See `screen-saver.md` for prose: six-state idle FSM with mixed triggers,
+integer-scaled 2D physics with elastic reflection, dim opacity derived not
+stored, activity resets but doesn't unlock Locked.*
+
+---
+
+## Choreographic Case: Vault Idle Guardian
+
+[idle-guardian @config
+    IN ORDER TO
+        dim the display after @config:idle-ms of inactivity
+        run an animated screen saver after the dim completes
+        auto-lock the session after @config:auto-lock-ms of saver time
+        wake on activity from Dimming or Saver but require unlock from Locked
+
+    @saver <- [ss[new-saver {config: @config}]]
+
+    for @i in 0..5
+        [ss[add-line {saver: @saver,
+                       line: {p1: {x: [rand 0 192000], y: [rand 0 108000],
+                                    vx: [rand -10000 10000], vy: [rand -10000 10000]}
+                               p2: {x: [rand 0 192000], y: [rand 0 108000],
+                                    vx: [rand -10000 10000], vy: [rand -10000 10000]}
+                               color: {r: 0, g: 255, b: 255}}}]]
+
+    until @shutdown [
+        at @every 16 ms
+            [ss[tick {saver: @saver, ms: 16}]]
+            where @saver:state is "saver"
+                #canvas @saver
+            where @saver:state is "dimming"
+                #fade-to-black opacity: @saver:dim-opacity
+
+        sync @input
+            -> [ss[record-activity {saver: @saver}]]
+
+        sync @auth-approved
+            -> [ss[unlock {saver: @saver}]]
+    ]
+]
+
+---
+
+## Verb Surface
+
+[ss
+    new-saver        {config}
+    add-line         {saver, line}
+    tick             {saver, ms}
+    record-activity  {saver}
+    unlock           {saver}
+    dim-opacity      {saver}                ;; 0..255 (derived from state-time)
+]
+
+---
+
+## Distinctive Innate idiom: activity has contextual effect
+
+The v1 spec surfaced "activity has three contextual effects" as a
+design finding. In Innate, that's the natural shape of resolver
+dispatch:
+
+[ss[record-activity {saver: @saver}
+    where
+        in "active" state this resets the idle timer
+        and in "dimming" or "saver" states this transitions to "waking"
+        and in "locked" state this has no effect
+            because security boundaries must not be bypassed by keypresses
+        and in "waking" state this keeps the wake progressing
+]
+
+Same event, different resolver behavior per state. The constraint
+documents the security contract explicitly.
+
+---
+
+## Physics integration gated to saver state
+
+[ss[tick {saver: @saver, ms: @ms}
+    where physics integration runs only when state is "saver"
+        because animating during "dimming" wastes CPU on a fading screen
+        and animating during "active" wastes CPU on a visible desktop
+        and animating during "locked" / "waking" is irrelevant to the user
+]
+
+---
+
+## Reflection as energy-preserving constraint
+
+[line-endpoint @ep @canvas-width @canvas-height
+    where
+        the endpoint's new position is old-position + velocity × ms
+        and if the new x < 0, reflect: new-x = -new-x, vx = -vx
+        and if the new x > canvas-width × 100, reflect similarly
+        and the same for y against canvas-height × 100
+        and speed is preserved (only direction flips)
+]
+
+---
+
+## Demo
+
+[demo
+    @cfg <- {idle-ms: 1000, dim-ms: 200, auto-lock-ms: 500, wake-ms: 100,
+              canvas-width: 100, canvas-height: 100}
+    @s <- [ss[new-saver {config: @cfg}]]
+
+    -> @s:state                    ;; -> "active"
+    [ss[tick {saver: @s, ms: 1100}]]
+    -> @s:state                    ;; -> "dimming"
+    -> @s:dim-opacity              ;; -> 0 (just entered)
+
+    [ss[tick {saver: @s, ms: 100}]]
+    -> @s:dim-opacity              ;; -> 127 (half of dim-ms)
+
+    [ss[tick {saver: @s, ms: 100}]]
+    -> @s:state                    ;; -> "saver"
+
+    [ss[tick {saver: @s, ms: 600}]]
+    -> @s:state                    ;; -> "locked"
+
+    [ss[record-activity {saver: @s}]]
+    -> @s:state                    ;; -> "locked" (unchanged; activity can't unlock)
+
+    [ss[unlock {saver: @s}]]
+    -> @s:state                    ;; -> "waking"
+
+    [ss[tick {saver: @s, ms: 150}]]
+    -> @s:state                    ;; -> "active"
+]

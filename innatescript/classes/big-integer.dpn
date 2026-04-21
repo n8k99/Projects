@@ -1,0 +1,85 @@
+# G051 — Big Integer
+
+*v2. See `big-integer.md` for prose: unbounded-precision arithmetic,
+value class whose entire point is invariants the language can't guarantee.*
+
+---
+
+## Choreographic Case: Cumulative Token Audit Across All Conversations
+
+[token-audit
+    IN ORDER TO
+        sum token counts across a year of conversations
+        using arbitrary-precision arithmetic that cannot silently overflow
+        and cross-check against the per-day aggregate
+
+    @conversations <- [db[conversations]]
+    @total <- @conversations
+        folded through [bigint[add {x: @acc,
+                                     y: [bigint[from-int {n: @conv:token-count}]]}]]
+        starting from [bigint[zero]]
+
+    @daily-total <- @daily-totals
+        folded through [bigint[add {x: @acc, y: @day-total}]]
+        starting from [bigint[zero]]
+
+    @total
+        where
+            equals @daily-total (two aggregations must agree)
+            and is not negative
+        || -> #audit-mismatch
+            actual: [bigint[to-string {x: @total}]]
+            expected: [bigint[to-string {x: @daily-total}]]
+]
+
+---
+
+## Verb Surface
+
+[bigint
+    zero
+    from-int    {n}
+    parse       {s}
+    to-string   {x}
+    neg         {x}
+    abs         {x}
+    add         {x, y}
+    sub         {x, y}
+    mul         {x, y}
+    cmp         {x, y}          ;; -> -1 | 0 | 1
+    equal       {x, y}
+    negative    {x}
+]
+
+---
+
+## Distinctive Innate idiom: overflow impossibility as `where` assertion
+
+BigInt's entire point is that overflow is not a concern. In Innate
+this shows up as a `where` clause the resolver must satisfy:
+
+[bigint[add {x: @a, y: @b}]
+    where result precision grows to accommodate any sum
+        and no silent truncation or wraparound occurs
+        and result equals x + y in the integers
+]
+
+Any resolver claiming to implement `bigint` that violates this contract
+is non-conformant; callers can rely on the invariant.
+
+---
+
+## Demo
+
+[demo
+    @z <- [bigint[zero]]
+    @n <- [bigint[from-int {n: 123456789}]]
+    @m <- [bigint[parse {s: "987654321098765432109876543210"}]]
+
+    @sum <- [bigint[add {x: @n, y: @m}]]
+    -> [bigint[to-string {x: @sum}]]
+    ;; -> "987654321098765432233333332999"   (no overflow)
+
+    -> [bigint[cmp {x: @sum, y: @m}]]        ;; -> 1 (sum > m)
+    -> [bigint[equal {x: @z, y: [bigint[zero]]}]]   ;; -> true
+]

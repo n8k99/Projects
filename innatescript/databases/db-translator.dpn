@@ -1,0 +1,84 @@
+# G112 — DB Translator (dialect-specific DDL)
+
+*v2. See `db-translator.md` for prose: one abstract type, many concrete DDL
+strings; dialect as bare-word at render time, not bake-in.*
+
+---
+
+## Choreographic Case: Vault Schema Migrator
+
+[schema-migrator @erd @target-connection
+    IN ORDER TO
+        let the user pick a SQL dialect
+        preview the generated DDL
+        and execute it on the target database only on confirmation
+
+    @tables <- [erd[to-translator-tables {erd: @erd}]]
+
+    sync @user-events {
+        pick-target @dialect ->
+            @ddl <- [dbt[emit-schema {tables: @tables, dialect: @dialect}]]
+            [ui[preview-ddl {text: @ddl}]]
+
+            <- @user{confirm DDL execution}
+            [db[execute-script {connection: @target-connection, script: @ddl}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[dbt
+    type-small-int
+    type-integer
+    type-varchar        {length}
+    type-boolean
+    type-timestamp
+    default-literal     {str}
+    default-now
+    column              {name, ty}
+    table               {name, columns}
+    render-type         {type, dialect}
+    render-default      {default, dialect}
+    emit-create-table   {table, dialect}
+    emit-schema         {tables, dialect}
+]
+
+---
+
+## Distinctive Innate idiom: dialect as late-binding bare-word
+
+[dbt[render-type {type: @ty, dialect: @d}
+    where
+        for "postgres"  type-small-int renders "SMALLINT",
+                        type-varchar(n) renders "VARCHAR(n)",
+                        type-boolean renders "BOOLEAN",
+                        type-timestamp renders "TIMESTAMPTZ"
+        and for "mysql" type-boolean renders "TINYINT(1)",
+                        type-timestamp renders "DATETIME"
+        and for "sqlite" type-boolean renders "INTEGER",
+                         type-timestamp renders "TEXT"
+]
+
+One table definition; three target strings. The `where` clause
+documents the translation table; adding a new dialect is a resolver
+extension.
+
+---
+
+## Demo
+
+[demo
+    @t <- [dbt[table {name: "user",
+                       columns: [[dbt[column {name: "id",       ty: [dbt[type-integer]]}]]
+                                  [dbt[column {name: "name",     ty: [dbt[type-varchar {length: 100}]]}]]
+                                  [dbt[column {name: "active",   ty: [dbt[type-boolean]]}]]
+                                  [dbt[column {name: "created",  ty: [dbt[type-timestamp]]}]]]}]]
+
+    -> [dbt[emit-create-table {table: @t, dialect: "postgres"}]]
+    ;; -> "CREATE TABLE user (...BOOLEAN...TIMESTAMPTZ)"
+
+    -> [dbt[emit-create-table {table: @t, dialect: "mysql"}]]
+    ;; -> "CREATE TABLE user (...TINYINT(1)...DATETIME)"
+]

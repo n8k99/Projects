@@ -1,0 +1,108 @@
+# G088 — Sort File Records Utility
+
+*v2. See `sort-file-records.md` for prose: file-as-table, sort spec
+composes single-axis sorts, stable-sort as contract, missing fields
+sort first ascending.*
+
+---
+
+## Choreographic Case: Vault Record Table
+
+[vault-record-table @csv-path
+    IN ORDER TO
+        present a CSV as a sortable table where clicks on column headers
+        compose a multi-key sort spec the user builds up interactively
+        and where the underlying sort is stable across every run
+
+    @text  <- [vault[read-string {path: @csv-path}]]
+    @table <- [sfr[parse {text: @text, has-header: true}]]
+    @spec  <- []
+
+    sync @user-events {
+        click @col-name ->
+            @idx  <- [sfr[field-index
+                            {table: @table, name: @col-name}]]
+            @spec <- [{field: @idx, order: "asc", kind: "str"}]
+            [sfr[sort-by {table: @table, spec: @spec}]]
+            [ui[render-rows {rows: @table:rows}]]
+
+        shift-click @col-name ->
+            @idx  <- [sfr[field-index
+                            {table: @table, name: @col-name}]]
+            @spec <- @spec + {field: @idx, order: "asc", kind: "str"}
+            [sfr[sort-by {table: @table, spec: @spec}]]
+            [ui[render-rows {rows: @table:rows}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[sfr
+    parse-record        {line}
+    serialise-record    {record}
+    parse               {text, has-header}
+    serialise           {table}
+    sort-by             {table, spec}                ;; mutates; stable
+    field-index         {table, name}                ;; || unknown-field
+]
+
+---
+
+## Distinctive Innate idiom: multi-key sort as `where` short-circuit
+
+[sfr[sort-by {table: @t, spec: @spec}]
+    IN ORDER TO
+        order @t:rows by walking @spec key-by-key
+        returning the first non-zero comparison per pair
+        and preserving insertion order wherever all keys tie
+
+    for @a, @b in @t:rows
+        for @key in @spec
+            where compare(@a[@key:field], @b[@key:field],
+                          kind: @key:kind, order: @key:order)
+                  is non-zero
+                -> first such comparison decides
+        otherwise
+            -> preserve original index order (stable)
+]
+
+Stability is not an optimisation — it is the contract that makes
+`serialise(sort(parse(text)))` deterministic across runs, which is
+what version control, diffs, and audit logs depend on.
+
+## Distinctive Innate idiom: missing fields as `where NULLS FIRST`
+
+[@record:fields at @idx
+    where absent
+        sorts first in ascending order
+        sorts last  in descending order
+    otherwise
+        compares by declared kind (string or integer)
+]
+
+Partial records still belong in the output. Clustering them at the
+start (or end) gives the UI a stable place to render "incomplete"
+indicators without breaking the total-order invariant.
+
+---
+
+## Demo
+
+[demo
+    @sample <- "name,age,score\nAlice,30,85\nBob,25,92\n" +
+               "Carol,30,78\nDave,25,88\n"
+    @t <- [sfr[parse {text: @sample, has-header: true}]]
+
+    [sfr[sort-by
+          {table: @t,
+           spec: [{field: 1, order: "asc",  kind: "int"}
+                   {field: 2, order: "desc", kind: "int"}]}]]
+    -> @t:rows
+    ;; -> [Bob,25,92  Dave,25,88  Alice,30,85  Carol,30,78]
+
+    -> [sfr[serialise {table: [sfr[parse {text: @sample,
+                                            has-header: true}]]}]]
+       is equal to @sample                          ;; -> true (round-trip)
+]

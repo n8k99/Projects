@@ -1,0 +1,79 @@
+# G006 — Mortgage Calculator
+
+*v2. See `mortgage.md` for prose: every temporal `where` is amortized —
+not "did we hit the target" but "are we tracking toward it." The
+pace check turns a monthly obligation into a daily gradient.*
+
+---
+
+## Choreographic Case: Kathryn's Daily Finance Where
+
+[daily-finance-where @today
+    IN ORDER TO
+        evaluate whether today's cumulative P&L keeps the month on track
+        so a distant monthly obligation becomes a daily gradient
+        and adjustment is continuous, not an end-of-month shock
+
+    @pace <- [pace-check
+                {target: @em:monthly-costs,
+                 periods: @month:trading-days,
+                 current: @today:day-number,
+                 cumulative: @month:cumulative-pnl}]
+
+    @kathryn{evaluate @pace against acceptable variance}
+        where on-track     -> -> #on-track
+        where off-pace     -> -> #adjust-strategy
+]
+
+---
+
+## Verb Surface
+
+[monthly-payment
+    {principal, rate, years}                ;; -> payment
+]
+
+[amortization
+    {principal, rate, years}                 ;; -> [Payment]
+]
+
+[pace-check
+    {target, periods, current, cumulative}   ;; -> Pace
+]
+
+---
+
+## Distinctive Innate idiom: amortised `where` as periodic gradient
+
+[pace-check {target: @t, periods: @n, current: @i, cumulative: @c}]
+    IN ORDER TO
+        turn an end-of-period obligation into a per-period score
+        so "are we on track" has an answer every day, not just month-end
+
+    @expected <- @t × (@i / @n)
+    @pace-ratio <- @c / @expected
+        where @pace-ratio at least 1.0  -> on-track
+        where @pace-ratio at least 0.8  -> acceptable-variance
+        otherwise                        -> off-pace
+]
+
+Same primitive at every level of the temporal chain: daily against
+weekly, weekly against monthly, monthly against quarterly. The
+mortgage math underneath every temporal `where` in the noosphere.
+
+---
+
+## Demo
+
+[demo
+    -> [monthly-payment {principal: 300000, rate: 0.065, years: 30}]
+    ;; -> 1896.20
+
+    -> [pace-check
+          {target: 10000, periods: 20, current: 5, cumulative: 2300}]
+    ;; -> {expected: 2500, ratio: 0.92, status: "acceptable-variance"}
+
+    -> [pace-check
+          {target: 10000, periods: 20, current: 5, cumulative: 500}]
+    ;; -> {expected: 2500, ratio: 0.20, status: "off-pace"}
+]

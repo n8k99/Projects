@@ -1,0 +1,111 @@
+# G024 — Quote Tracker
+
+*v2. See `quote-tracker.md` for prose: curated collection beyond CRUD,
+multi-label tags, first non-deterministic function (nondeterminism as
+seed of agency), attribution as provenance.*
+
+---
+
+## Choreographic Case: Domain-Specific Knowledge Curation
+
+[knowledge-curation
+    IN ORDER TO
+        let each agent curate domain-specific quotes into one shared tracker
+        query by tag for a domain view without moving the data
+        and surface a random quote constrained by category on demand
+
+    @tracker <- [quotes[new]]
+
+    concurrent [
+        sylvia:
+            [quotes[add {tracker: @tracker,
+                          text: "Kill your darlings.",
+                          author: "Faulkner",
+                          tags: ["writing", "craft"]}]]
+    |
+        kathryn:
+            [quotes[add {tracker: @tracker,
+                          text: "The trend is your friend.",
+                          author: "market adage",
+                          tags: ["trading", "risk"]}]]
+    |
+        eliana:
+            [quotes[add {tracker: @tracker,
+                          text: "Make it work, then make it right.",
+                          author: "Kent Beck",
+                          tags: ["engineering", "craft"]}]]
+    ]
+    join
+
+    sync @daily-events {
+        morning-wisdom @category ->
+            @q <- [quotes[random-by-tag
+                            {tracker: @tracker, tag: @category}]]
+            [ui[show-morning {quote: @q}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[quotes
+    new
+    add                 {tracker, text, author, tags}
+    search-by-tag       {tracker, tag}              ;; multi-label
+    search-by-author    {tracker, author}
+    random              {tracker}                    ;; nondeterministic
+    random-by-tag       {tracker, tag}               ;; constrained random
+]
+
+---
+
+## Distinctive Innate idiom: multi-label `where` one quote lives in many sets
+
+[quotes[search-by-tag {tracker: @t, tag: @g}]
+    @t:quotes
+        where @g is in quote:tags
+    IN ORDER TO
+        support the real shape of the noosphere — entities with
+        multiple facets, multiple memberships, multiple roles —
+        rather than single-dispatch classification
+]
+
+Tags are sets, not labels. A quote tagged ["craft", "writing",
+"wisdom"] belongs to every set simultaneously. Same primitive
+underlies G093's tag store and G076's bookmarks.
+
+## Distinctive Innate idiom: nondeterminism as a first-class `where` primitive
+
+[quotes[random-by-tag {tracker: @t, tag: @g}]
+    IN ORDER TO
+        pick one quote from a constrained pool where neither the caller
+        nor the inputs decide which quote is returned
+
+    @candidates <- @t:quotes where @g is in quote:tags
+    @candidates
+        where count is at least 1  -> select one uniformly at random
+        otherwise                   -> none
+]
+
+First resolver verb that returns different results for the same
+input — the seed of agent autonomy. Agents making choices not
+dictated by their inputs IS nondeterminism.
+
+---
+
+## Demo
+
+[demo
+    @t <- [quotes[new]]
+    [quotes[add {tracker: @t, text: "In the beginning",
+                  author: "Genesis", tags: ["wisdom", "origin"]}]]
+    [quotes[add {tracker: @t, text: "Premature optimization...",
+                  author: "Knuth", tags: ["engineering", "wisdom"]}]]
+
+    -> [quotes[search-by-tag {tracker: @t, tag: "wisdom"}]]
+    ;; -> both quotes
+
+    -> [quotes[random {tracker: @t}]]
+    ;; -> one of them, different on successive calls
+]

@@ -1,0 +1,107 @@
+# G075 — Bandwidth Monitor
+
+*v2. See `bandwidth-monitor.md` for prose: time series as primary,
+useful signal is the derivative not the counter, average smooths vs
+peak preserves, counter wraparound as adversary not error, ring
+buffer as bounded storage.*
+
+---
+
+## Choreographic Case: Per-Agent Throughput Monitoring
+
+[monitor-agents
+    IN ORDER TO
+        sample every agent's message counter on a fixed cadence
+        derive average and peak rates across rolling windows
+        and alert when peak crosses a per-agent threshold
+
+    @monitors <- [agents[all]] mapped to
+        {agent: @a,
+         monitor: [bw[new-monitor {capacity: 300}]]}
+
+    every 1 second
+        for @m in @monitors
+            @count <- [agent[message-count {agent: @m:agent}]]
+            [bw[record
+                 {monitor: @m:monitor,
+                  ts: [clock[now]],
+                  bytes-total: @count}]]
+
+            @avg  <- [bw[average-rate
+                           {monitor: @m:monitor, window-ms: 60000}]]
+            @peak <- [bw[peak-rate
+                           {monitor: @m:monitor, window-ms: 300000}]]
+
+            @peak
+                where greater than @m:agent:peak-threshold
+                    -> [alert[dispatch
+                                {agent: @m:agent,
+                                 avg: @avg, peak: @peak}]]
+]
+
+---
+
+## Verb Surface
+
+[bw
+    new-monitor          {capacity}
+    record               {monitor, ts, bytes-total}
+    average-rate         {monitor, window-ms}
+    peak-rate            {monitor, window-ms}
+    samples              {monitor}
+]
+
+---
+
+## Distinctive Innate idiom: rate as `where` derivative over window
+
+[bw[average-rate {monitor: @m, window-ms: @w}]
+    IN ORDER TO
+        return bytes-per-second averaged over the last @w milliseconds
+        from the monotonic counter stream @m is recording
+
+    samples of @m
+        where ts is within (now - @w) and now
+        pair first and last such samples as (@a, @b)
+        where @b:bytes-total is at least @a:bytes-total (no wrap)
+            -> (@b:bytes-total - @a:bytes-total) × 1000
+               / (@b:ts - @a:ts)
+        otherwise
+            -> skip this interval (wraparound; cannot measure)
+               -> resume with next consecutive-increasing pair
+]
+
+The counter is the source of truth; every rate is a projection on
+query. Same discipline every metrics system (Prometheus, StatsD,
+the kernel's /proc/net/dev) encodes.
+
+## Distinctive Innate idiom: average and peak as different `where` reducers
+
+[bw[peak-rate {monitor: @m, window-ms: @w}]
+    pairs of consecutive samples in the window
+        reduced by maximum rate (not mean)
+    IN ORDER TO
+        preserve the spike that an averaged rate would smooth away
+        so a 10x burst visible in peak stays visible
+]
+
+Average smooths; peak preserves. Both statistics on the same counter
+data — pick the algorithm to match the question.
+
+---
+
+## Demo
+
+[demo
+    @m <- [bw[new-monitor {capacity: 100}]]
+    [bw[record {monitor: @m, ts: 1000, bytes-total: 0}]]
+    [bw[record {monitor: @m, ts: 2000, bytes-total: 1000}]]    ;; +1 KB/s
+    [bw[record {monitor: @m, ts: 3000, bytes-total: 51000}]]   ;; +50 KB/s (spike)
+    [bw[record {monitor: @m, ts: 4000, bytes-total: 52000}]]   ;; +1 KB/s
+
+    -> [bw[average-rate {monitor: @m, window-ms: 3000}]]
+    ;; -> ~17333 bytes/sec (spike smoothed into the mean)
+
+    -> [bw[peak-rate {monitor: @m, window-ms: 3000}]]
+    ;; -> 50000 bytes/sec (spike preserved)
+]

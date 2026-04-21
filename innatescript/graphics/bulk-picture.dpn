@@ -1,0 +1,117 @@
+# G119 — Bulk Picture Manipulator
+
+*v2. See `bulk-picture.md` for prose: pipeline-as-data, pure ops, dry-run
+over dimensions, per-image error isolation, non-commutative op composition.*
+
+---
+
+## Choreographic Case: Vault Photo Batch
+
+[photo-batch @photos @pipeline
+    IN ORDER TO
+        apply a shared transformation recipe to every photo
+        without one failure aborting the batch
+        and preview dimensions before running on pixel data
+
+    @preview <- [bulk[dry-run-dims {start: @photos:first:dims,
+                                      pipeline: @pipeline}]]
+    #preview @preview
+
+    @results <- for @photo in @photos
+        [bulk[apply-pipeline {image: @photo, pipeline: @pipeline}]]
+            || -> {index: @loop:index,
+                    error: @resistance:reason}
+
+    for @result in @results
+        where @result has no error
+        [vault[save {path: @result:path + ".processed",
+                      image: @result:output}]]
+
+    for @result in @results
+        where @result has an error
+        #batch-error
+            index: @result:index
+            reason: @result:error
+]
+
+---
+
+## Verb Surface
+
+[bulk
+    op-resize      {width, height}
+    op-grayscale   {algorithm}
+    op-rotate-90
+    op-rotate-180
+    op-rotate-270
+    op-flip-h
+    op-flip-v
+    op-crop        {x, y, width, height}
+    op-brightness  {delta}
+    op-contrast    {factor}
+
+    apply-op       {image, op}
+    apply-pipeline {image, pipeline}              ;; || resistance per op
+    run-batch      {images, pipeline}
+    dry-run-dims   {start, pipeline}              ;; || resistance if crop out of bounds
+]
+
+---
+
+## Distinctive Innate idiom: pipeline as ordered list of commissions
+
+The v1 modeled the pipeline as a `Vec<Op>` with an `Op` ADT. In Innate,
+a pipeline is a bundle of resolver commissions:
+
+@pipeline <- [
+    [bulk[op-rotate-90]]
+    [bulk[op-brightness {delta: 10}]]
+    [bulk[op-grayscale {algorithm: "Luminosity"}]]
+]
+
+Each op is a commission that produces an `Op` value. The list is
+ordered — `op-brightness` before `op-contrast` differs from the reverse
+because contrast pivots around 128 (the v1 non-commutativity insight).
+
+---
+
+## Dry-run separates metadata effect from data effect
+
+[bulk[dry-run-dims {start: (8, 6), pipeline: @pipeline}
+    where each op transforms (w, h) without touching pixels
+        so that callers can confirm the pipeline doesn't crop out of bounds
+        or produce an unusable final size before incurring the pixel cost
+]
+
+---
+
+## Batch error isolation via fulfillment
+
+The per-image `|| -> {index, error: @resistance:reason}` turns each
+resistance into a tagged record in the results list. The choreography
+continues; the batch doesn't abort.
+
+---
+
+## Demo
+
+[demo
+    @checker <- [img[checker-pattern {width: 4, height: 4}]]
+    @pipeline <- [
+        [bulk[op-rotate-90]]
+        [bulk[op-brightness {delta: 10}]]
+        [bulk[op-grayscale {algorithm: "Luminosity"}]]
+    ]
+    @out <- [bulk[apply-pipeline {image: @checker, pipeline: @pipeline}]]
+    -> [img[get {image: @out, x: 0, y: 0}]]   ;; -> 107 (byte-identical across langs)
+
+    @dims <- [bulk[dry-run-dims {start: (4, 4), pipeline: @pipeline}]]
+    -> @dims    ;; -> [(4,4), (4,4), (4,4), (4,4)]
+
+    @batch <- [[img[filled {width: 6, height: 6, color: gray-128}]]
+                [img[filled {width: 2, height: 2, color: gray-128}]]]
+    @crop-only <- [[bulk[op-crop {x: 0, y: 0, width: 3, height: 3}]]]
+    @results <- [bulk[run-batch {images: @batch, pipeline: @crop-only}]]
+    -> @results[0]:ok      ;; -> true  (3×3 output)
+    -> @results[1]:error   ;; -> "crop out of bounds"
+]

@@ -1,0 +1,130 @@
+# G044 — Remote Login
+
+*v2. See `remote-login.md` for prose: identity verification as trust
+establishment across a boundary, salted hashing as one-way trust,
+sessions as time-bounded identity assertions, brute-force protection
+as rate-limited `<-` gates, revoke-all as retroactive invalidation.*
+
+---
+
+## Choreographic Case: Agent Authentication
+
+[agent-auth @agent @capability
+    IN ORDER TO
+        gate the operation behind three progressive checks
+        so the expensive verb only runs after identity, role, and session
+        have each passed — cheapest gate first
+
+    @cred <- [auth[verify
+                     {agent: @agent,
+                      capability: @capability,
+                      context: @current-choreography}]]
+        || -> #no-such-credential
+
+    @cred
+        where valid is true                                ;; identity gate
+        and role is in ["exec", "admin"]                    ;; role gate
+        and session-remaining-seconds at least 60           ;; temporal gate
+            -> [@agent[do {capability: @capability}]]
+        where valid is false
+            -> #unauthenticated
+        where role is not in ["exec", "admin"]
+            -> #unauthorised (identity proven, role insufficient)
+        where session-remaining-seconds is less than 60
+            -> #session-expiring (re-authenticate first)
+]
+
+---
+
+## Verb Surface
+
+[auth
+    create-user         {username, password}    ;; stores salt + hash, not pw
+    login               {username, password}    ;; || locked | bad-credentials
+                                                ;; -> Session
+    verify              {agent, capability, context}
+    revoke              {session-token}
+    revoke-all          {username}               ;; emergency kill
+    attempts-remaining  {username}
+    audit-log
+]
+
+---
+
+## Distinctive Innate idiom: salted hash `where` secret is never stored
+
+[auth[create-user {username: @u, password: @p}]
+    IN ORDER TO
+        establish a verifier without ever storing @p itself
+        so a database leak cannot reveal user passwords
+
+    @salt <- [random[bytes {length: 16}]]
+    @hash <- [hash[argon2id {password: @p, salt: @salt}]]
+    store {username: @u, salt: @salt, hash: @hash}
+    ;; @p is never written to disk, never kept in memory past this call
+]
+
+The verifier proves knowledge without storing the secret. Same
+discipline G077's password safe applied internally — G044 applies it
+across a trust boundary.
+
+## Distinctive Innate idiom: lockout as `where` consecutive failures exceed threshold
+
+[auth[login {username: @u, password: @p}]
+    @user <- lookup @u
+    @user
+        where consecutive-failures at least @policy:max-attempts
+          and (now - last-failure-ms) less than @policy:cooldown-ms
+            -> #locked (rate-limited)
+        where hash matches argon2id(@p, @user:salt)
+            -> reset consecutive-failures to 0
+            -> issue Session with expiry now + @policy:session-ttl
+            -> append #login-success to audit-log
+        otherwise
+            -> increment consecutive-failures
+            -> append #login-failure to audit-log
+            -> #bad-credentials
+]
+
+Progressive cost: the first attempt is free; subsequent attempts
+accumulate risk; the final attempt triggers lockout. Each failed
+`<-` gate is a new ledger entry the audit log preserves.
+
+## Distinctive Innate idiom: revoke-all `where` trust basis has changed
+
+[auth[revoke-all {username: @u}]
+    @sessions <- active sessions for @u
+    for @s in @sessions
+        mark @s as revoked (future verify returns #revoked)
+    append #mass-revocation to audit-log
+    IN ORDER TO
+        invalidate every session retroactively when credentials
+        are suspected compromised — the sessions were valid, they
+        are now invalid because the underlying trust changed
+]
+
+---
+
+## Demo
+
+[demo
+    [auth[create-user
+           {username: "alice", password: "correct-horse"}]]
+
+    @s <- [auth[login
+                  {username: "alice", password: "correct-horse"}]]
+    -> @s:token                      ;; -> opaque session token
+    -> @s:expires-ms                 ;; -> now + ttl
+
+    -> [auth[login
+               {username: "alice", password: "wrong"}]]   ;; -> #bad-credentials
+    -> [auth[login
+               {username: "alice", password: "wrong"}]]   ;; -> #bad-credentials
+    -> [auth[login
+               {username: "alice", password: "wrong"}]]   ;; -> #locked
+
+    [auth[revoke-all {username: "alice"}]]
+    -> [auth[verify
+               {agent: "alice", capability: "read",
+                context: @c}]]        ;; -> #revoked
+]

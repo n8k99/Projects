@@ -1,0 +1,121 @@
+# G093 — Mp3 Tagger
+
+*v2. See `mp3-tagger.md` for prose: metadata separate from data,
+indexed equality fields vs scanned free-form fields, missing-vs-empty
+distinction as first-class, query reified as a data structure.*
+
+---
+
+## Choreographic Case: Vault Music Library
+
+[vault-music-library @music-root
+    IN ORDER TO
+        build an indexed tag store over the music folder
+        answer artist/album/year queries in O(1) via indexes
+        and surface files with missing metadata for batch editing
+
+    @store <- [tag-store[new]]
+    @mp3s  <- [fs[ls {path: @music-root}]]
+
+    for @file in @mp3s
+        @bytes <- [fs[read-bytes {path: @file:path}]]
+        @tag   <- [id3[parse {bytes: @bytes}]]
+        [tag-store[insert {store: @store,
+                            path: @file:path, tag: @tag}]]
+
+    sync @user-events {
+        search-artist @name ->
+            @matches <- [tag-store[query
+                                     {store: @store,
+                                      query: {kind: "by-artist",
+                                              artist: @name}}]]
+            [ui[render-results {paths: @matches}]]
+
+        fix-missing @field ->
+            @needs <- [tag-store[query
+                                   {store: @store,
+                                    query: {kind: "missing-field",
+                                            field: @field}}]]
+            [ui[show-batch-editor {paths: @needs, field: @field}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[tag-store
+    new
+    insert             {store, path, tag}     ;; refreshes all indexes atomically
+    get                {store, path}           ;; || not-found
+    remove             {store, path}           ;; cleans all indexes
+    query              {store, query}          ;; -> [String] sorted
+]
+
+[tag
+    missing-fields     {tag}                   ;; -> [String]
+]
+
+---
+
+## Distinctive Innate idiom: query as reified data, not function call
+
+[tag-store[query {store: @s, query: @q}]
+    @q
+        where kind is BY_ARTIST        -> artist-index lookup of @q:artist
+        where kind is BY_ALBUM         -> album-index lookup of @q:album
+        where kind is BY_YEAR          -> year-index lookup of @q:year
+        where kind is YEAR_RANGE       -> scan years in [@q:from, @q:to]
+        where kind is TITLE_CONTAINS   -> scan tags for substring @q:needle
+        where kind is MISSING_FIELD    -> scan tags where @q:field is none
+    results ordered by path ascending
+]
+
+The query is a value the caller constructs. New query kinds add
+variants, not new methods. Compound And/Or can recurse into sub-
+queries to produce the full filter AST every real database has.
+
+## Distinctive Innate idiom: missing vs empty as two `where` states
+
+[tag-store[query {store: @s, query: {kind: "missing-field", field: @f}}]
+    @s:tags
+        where @f is none             -> include  (user never set it)
+        where @f is empty string      -> exclude (user explicitly blank)
+        otherwise                     -> exclude (user set a value)
+]
+
+`none` (unknown, please fill in) and `""` (deliberately blank) are
+different user intents. Collapsing them hides information that UIs
+legitimately need to act on.
+
+---
+
+## Demo
+
+[demo
+    @s <- [tag-store[new]]
+
+    [tag-store[insert
+                 {store: @s, path: "a.mp3",
+                  tag: {title: "Aeon", artist: "Björk",
+                         album: "Vespertine", year: 2001,
+                         genre: "Electronic", track: 1}}]]
+    [tag-store[insert
+                 {store: @s, path: "b.mp3",
+                  tag: {title: "Pagan Poetry", artist: "Björk",
+                         album: "Vespertine", year: 2001,
+                         genre: "Electronic", track: 3}}]]
+    [tag-store[insert
+                 {store: @s, path: "c.mp3",
+                  tag: {title: "Unplayed"}}]]
+
+    -> [tag-store[query
+                    {store: @s,
+                     query: {kind: "by-artist", artist: "Björk"}}]]
+    ;; -> ["a.mp3", "b.mp3"]
+
+    -> [tag-store[query
+                    {store: @s,
+                     query: {kind: "missing-field", field: "genre"}}]]
+    ;; -> ["c.mp3"]
+]

@@ -1,0 +1,77 @@
+# G011 — Alarm Clock
+
+*v2. See `alarm-clock.md` for prose: the crossing from computation
+into temporality, scheduled obligation as a new primitive, the vault
+temporal chain IS the scheduler, event-driven semantics layered over
+on-demand evaluation.*
+
+---
+
+## Choreographic Case: Morning Operations Alarm
+
+[morning-ops
+    IN ORDER TO
+        let a single 07:00 alarm kick off three concurrent reports
+        so a time trigger becomes the starting gun of a multi-agent dance
+
+    at [[07:00]] [
+        concurrent [
+            @kathryn{report: "overnight P&L"}
+        |
+            @eliana{report: "system health"}
+        |
+            @sarah{report: "today's schedule"}
+        ]
+        join
+        -> [ui[morning-dashboard]]
+    ]
+]
+
+---
+
+## Verb Surface
+
+[alarm
+    at              {time, label}            ;; register obligation
+    cancel          {label}
+    check           {now}                     ;; -> [fired]
+    pending
+]
+
+---
+
+## Distinctive Innate idiom: obligation registered `where` time has not arrived yet
+
+[alarm[at {time: @t, label: @l}]
+    IN ORDER TO
+        register with the temporal chain rather than evaluate now
+        so the control flow inverts from pull (call-and-return)
+        to push (time fires the expression at @t)
+
+    stored in @schedule:pending
+        where now is less than @t
+            -> waiting
+        where now is at least @t
+            -> fire, append to @schedule:history
+]
+
+The resolver's job changes from "evaluate now" to "schedule for
+later." Same shift that happens moving from synchronous functions
+to asynchronous event handlers.
+
+---
+
+## Demo
+
+[demo
+    [alarm[at {time: [[07:00]], label: "wake-up"}]]
+    [alarm[at {time: [[08:30]], label: "standup"}]]
+    [alarm[at {time: [[23:00]], label: "nightly-summary"}]]
+
+    -> [alarm[check {now: [[07:15]]}]]
+    ;; -> [{label: "wake-up", at: 07:00}]
+
+    [alarm[cancel {label: "standup"}]]
+    -> [alarm[pending]]
+    ;; -> [wake-up (already fired), nightly-summary]
+]

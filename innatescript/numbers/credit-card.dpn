@@ -1,0 +1,89 @@
+# G013 — Credit Card Validator
+
+*v2. See `credit-card.md` for prose: Luhn as cheap structural `<-`
+gate, network identification as prefix-dispatch, structural validity
+distinct from semantic validity.*
+
+---
+
+## Choreographic Case: Payment Intake
+
+[payment-intake @transaction
+    IN ORDER TO
+        reject malformed card numbers via Luhn before any network call
+        dispatch the valid card to its network-specific processor
+        and verify the charge confirmation came back genuine
+
+    <- [validate-card {number: @transaction:card-number}]
+        where valid is true
+        otherwise -> #card-rejected
+
+    @network <- [identify-network {number: @transaction:card-number}]
+
+    @charge <- @network
+        where is "Visa"       -> (@VisaProcessor){charge @transaction:amount}
+        where is "Mastercard" -> (@MCProcessor)  {charge @transaction:amount}
+        where is "Amex"       -> (@AmexProcessor){charge @transaction:amount,
+                                                    verify premium status}
+        where is "Discover"   -> (@DiscoverProcessor){charge @transaction:amount}
+        otherwise              -> #unsupported-network
+
+    <- @eliana{verify charge confirmation is genuine}
+]
+
+---
+
+## Verb Surface
+
+[luhn-check
+    {number}                                ;; -> Bool
+]
+
+[identify-network
+    {number}                                 ;; -> "Visa"|"Mastercard"|...
+]
+
+[validate-card
+    {number}                                 ;; -> {valid, network, ...}
+]
+
+---
+
+## Distinctive Innate idiom: `<-` gate filters cheap `where` Luhn fails
+
+[<- [validate-card {number: @n}] where valid is true]
+    IN ORDER TO
+        reject structurally-invalid card numbers before any remote call
+        because Luhn is microseconds and a processor call is milliseconds
+
+    ascending cost: gates are ordered cheap → expensive
+    regex (ns) → luhn (μs) → network-dispatch (μs) → remote-processor (ms)
+]
+
+Structural validity ≠ semantic validity. Luhn catches typos and
+transpositions; it does NOT prove the card exists. That's the
+processor's job — and the `<-` gate protects the processor from
+wasted calls on invalid input.
+
+## Distinctive Innate idiom: network dispatch as prefix `where`
+
+[identify-network {number: @n}]
+    @n's first digits
+        where begin with 4               -> "Visa"
+        where begin with 51-55 or 2221-2720 -> "Mastercard"
+        where begin with 34 or 37         -> "Amex"
+        where begin with 6011 or 65       -> "Discover"
+        otherwise                          -> "Unknown"
+]
+
+---
+
+## Demo
+
+[demo
+    -> [luhn-check {number: "4532015112830366"}]      ;; -> true
+    -> [luhn-check {number: "4532015112830367"}]      ;; -> false
+
+    -> [identify-network {number: "4532015112830366"}]  ;; -> "Visa"
+    -> [identify-network {number: "5425233430109903"}]  ;; -> "Mastercard"
+]

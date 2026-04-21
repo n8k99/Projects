@@ -1,0 +1,93 @@
+# G074 — Card Collector
+
+*v2. See `card-collector.md` for prose: catalogue + collection bifurcation,
+condition-weighted value, trade evaluation with tolerance, set difference
+for "what's missing from my collection."*
+
+---
+
+## Choreographic Case: Vault Card Binder
+
+[card-binder @catalogue-path @collection-path
+    IN ORDER TO
+        show current collection value and missing cards
+        evaluate proposed trades within a tolerance
+
+    @cat <- [cc[catalogue-load  {path: @catalogue-path}]]
+    @col <- [cc[collection-load {path: @collection-path}]]
+
+    #stats
+        total-value: [cc[total-value {collection: @col, catalogue: @cat}]]
+        unique:      [cc[unique-cards {collection: @col}]]
+        missing:     [cc[missing {collection: @col, catalogue: @cat}]]
+
+    sync @trade-proposals (@offered @asked) ->
+        @result <- [cc[evaluate-trade
+                        {offered: @offered, asked: @asked,
+                         catalogue: @cat, tolerance-cents: 100}]]
+        [ui[render-trade-verdict {result: @result}]]
+]
+
+---
+
+## Verb Surface
+
+[cc
+    catalogue
+    catalogue-add        {cat, card}
+    catalogue-load       {path}
+    collection
+    collection-load      {path}
+    add                  {col, card-id, condition, qty}
+    remove               {col, card-id, condition, qty}   ;; || insufficient
+    total-value          {col, cat}
+    unique-cards         {col}
+    missing              {col, cat}
+    trade-bundle
+    bundle-add           {bundle, card-id, condition, qty}
+    evaluate-trade       {offered, asked, cat, tolerance}
+]
+
+---
+
+## Distinctive Innate idiom: trade evaluation as `where`-judged verdict
+
+[cc[evaluate-trade {offered: @o, asked: @a, cat: @c, tolerance: @t}
+    where
+        the offered bundle's value and the asked bundle's value
+            are each computed via total-value
+        and the trade is "fair" if |offered-value - asked-value| ≤ tolerance
+        and the trade is "gives-up-value" if offered-value > asked-value + tolerance
+        and the trade is "gains-value" if asked-value > offered-value + tolerance
+    so verdict is a bare-word string the UI renders without judgment
+]
+
+---
+
+## Demo
+
+[demo
+    @cat <- [cc[catalogue]]
+    [cc[catalogue-add {cat: @cat,
+                        card: {id: "A001", name: "Common", rarity: "common",
+                               prices: {mint: 100, played: 40}}}]]
+    [cc[catalogue-add {cat: @cat,
+                        card: {id: "A002", name: "Rare", rarity: "rare",
+                               prices: {mint: 5000, played: 2000}}}]]
+
+    @col <- [cc[collection]]
+    [cc[add {col: @col, card-id: "A001", condition: "mint", qty: 3}]]
+
+    -> [cc[total-value {col: @col, cat: @cat}]]   ;; -> 300
+
+    @offered <- [cc[trade-bundle]]
+    [cc[bundle-add {bundle: @offered, card-id: "A001",
+                     condition: "mint", qty: 3}]]
+    @asked <- [cc[trade-bundle]]
+    [cc[bundle-add {bundle: @asked, card-id: "A002",
+                     condition: "played", qty: 1}]]
+
+    -> [cc[evaluate-trade {offered: @offered, asked: @asked,
+                            cat: @cat, tolerance-cents: 100}]]
+    ;; -> {verdict: "gains-value", offered-value: 300, asked-value: 2000, delta: 1700}
+]

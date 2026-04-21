@@ -1,0 +1,88 @@
+# G111 — ERD Creator
+
+*v2. See `erd-creator.md` for prose: topological sort + cycle detection,
+DOT output for visualization, entity + relationship as complementary records.*
+
+---
+
+## Choreographic Case: Vault Schema Diagram
+
+[schema-diagram @db-connection
+    IN ORDER TO
+        introspect a live database, build an ERD, validate it
+        render DOT and invoke graphviz to produce SVG
+        and surface any cycles as warnings
+
+    @erd <- [erd[new]]
+    @tables <- [db[introspect-schema {connection: @db-connection}]]
+    for @t in @tables
+        [erd[add-entity {erd: @erd, entity: @t}]]
+
+    @fks <- [db[introspect-foreign-keys {connection: @db-connection}]]
+    for @fk in @fks
+        [erd[add-relationship {erd: @erd, relationship: @fk}]]
+
+    @issues <- [erd[validate {erd: @erd}]]
+    @issues
+        where count is zero
+        @dot <- [erd[to-dot {erd: @erd}]]
+        [vault[save {path: "schema/erd.dot", content: @dot}]]
+        [shell[run {command: "dot -Tsvg schema/erd.dot -o schema/erd.svg"}]]
+        || [ui[show-validation-issues {issues: @issues}]]
+
+    @cycles <- [erd[find-cycles {erd: @erd}]]
+    @cycles
+        where count at least 1
+        #warning "foreign-key cycles detected: " + @cycles
+]
+
+---
+
+## Verb Surface
+
+[erd
+    new
+    add-entity           {erd, entity}
+    add-relationship     {erd, relationship}
+    dependencies-of      {erd, name}
+    topo-sort            {erd}                  ;; || cycle-exists
+    find-cycles          {erd}
+    validate             {erd}
+    to-dot               {erd}
+    to-translator-tables {erd}
+]
+
+---
+
+## Distinctive Innate idiom: topo-sort resistance means cycle
+
+[erd[topo-sort {erd: @erd}]
+    || @cycles <- [erd[find-cycles {erd: @erd}]]
+       -> #cycle-found @cycles
+
+Kahn's algorithm yields a valid ordering or proves impossibility.
+Resistance here carries structural meaning: "there is a cycle, run
+find-cycles to see which tables."
+
+---
+
+## Demo
+
+[demo
+    @erd <- [erd[new]]
+    [erd[add-entity {erd: @erd, entity: {name: "user", columns: [...]}}]]
+    [erd[add-entity {erd: @erd, entity: {name: "post", columns: [...]}}]]
+    [erd[add-entity {erd: @erd, entity: {name: "comment", columns: [...]}}]]
+    [erd[add-relationship {erd: @erd,
+                             relationship: {from: "post", to: "user",
+                                             kind: "many-to-one"}}]]
+    [erd[add-relationship {erd: @erd,
+                             relationship: {from: "comment", to: "post",
+                                             kind: "many-to-one"}}]]
+    [erd[add-relationship {erd: @erd,
+                             relationship: {from: "comment", to: "user",
+                                             kind: "many-to-one"}}]]
+
+    -> [erd[topo-sort {erd: @erd}]]       ;; -> ["user", "post", "comment"]
+    -> [erd[find-cycles {erd: @erd}]]     ;; -> []
+]

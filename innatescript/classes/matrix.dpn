@@ -1,0 +1,74 @@
+# G060 — Matrix
+
+*v2. See `matrix.md` for prose: shape-gated operations, matmul inner-dim
+compatibility, transpose as shape-swap.*
+
+---
+
+## Choreographic Case: Agent Workload Matrix
+
+[agent-workload-transform
+    IN ORDER TO
+        compute how much each agent touched each project
+        by multiplying the agent-day workload by the day-project priority
+
+    @workload <- [db[load-matrix {table: "allocations"}]]    ;; N × 7
+    @priority <- [db[load-matrix {table: "agent-priority"}]]  ;; 7 × K
+
+    @workload
+        where columns equal @priority rows (shapes must chain)
+        || -> #shape-mismatch "cannot multiply " + @workload:shape + " × " + @priority:shape
+
+    @agent-project <- [matrix[matmul {a: @workload, b: @priority}]]
+
+    @agent-project
+        where
+            shape is (@workload:rows, @priority:cols)
+            and all entries are non-negative
+        || -> #sanity-check-failed @resistance:reason
+]
+
+---
+
+## Verb Surface
+
+[matrix
+    new           {rows}
+    zeros         {rows, cols}
+    identity      {n}
+    shape         {m}
+    get           {m, i, j}
+    set           {m, i, j, value}
+    add           {a, b}              ;; || shape-mismatch
+    sub           {a, b}              ;; || shape-mismatch
+    scalar-mul    {m, k}
+    matmul        {a, b}              ;; || inner-dim-mismatch
+    transpose     {m}
+    determinant   {m}                  ;; || not-square
+]
+
+---
+
+## Distinctive Innate idiom: shape compatibility as `where` precondition
+
+[matrix[matmul {a: @a, b: @b}
+    where @a columns equals @b rows
+        || resists with "inner-dimension-mismatch: @a:cols vs @b:rows"
+]
+
+---
+
+## Demo
+
+[demo
+    @a <- [matrix[new {rows: [[1, 2, 3], [4, 5, 6]]}]]     ;; 2×3
+    @b <- [matrix[new {rows: [[1, 0], [0, 1], [1, 1]]}]]   ;; 3×2
+
+    @product <- [matrix[matmul {a: @a, b: @b}]]              ;; 2×2
+    -> [matrix[get {m: @product, i: 0, j: 0}]]               ;; -> 4  (1+0+3)
+    -> [matrix[get {m: @product, i: 1, j: 1}]]               ;; -> 11 (0+5+6)
+    -> [matrix[shape {m: @product}]]                          ;; -> (2, 2)
+
+    @i3 <- [matrix[identity {n: 3}]]
+    -> [matrix[determinant {m: @i3}]]                         ;; -> 1
+]

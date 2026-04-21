@@ -1,0 +1,109 @@
+# G073 — Telnet Application
+
+*v2. See `telnet.md` for prose: protocol split from transport, session
+as a three-state FSM with Disconnected as terminal, commands as
+dispatch map, state-gated commands as security policy, per-session
+history as journal, sessions isolated across callers.*
+
+---
+
+## Choreographic Case: Agent Command REPL
+
+[agent-repl
+    IN ORDER TO
+        expose agent operations over a line-oriented protocol
+        where authentication gates sensitive commands
+        and each client holds its own session independent of any other
+
+    @srv <- [telnet[new-server]]
+    [telnet[register {srv: @srv, name: "deploy",
+                       handler: [agent[deploy-handler]],
+                       legal-states: ["Authenticated"]}]]
+    [telnet[register {srv: @srv, name: "rollback",
+                       handler: [agent[rollback-handler]],
+                       legal-states: ["Authenticated"]}]]
+
+    sync @socket-events {
+        accept @conn ->
+            @sid <- [telnet[connect {srv: @srv}]]
+            loop
+                @line <- [@conn[read-line]]
+                @out  <- [telnet[handle-line
+                                   {srv: @srv, sid: @sid, line: @line}]]
+                [@conn[write-line {text: @out:text}]]
+                @out where kind is "disconnect" -> break
+    }
+]
+
+---
+
+## Verb Surface
+
+[telnet
+    new-server
+    register         {srv, name, handler, legal-states}
+    connect          {srv}                         ;; -> session-id
+    handle-line      {srv, sid, line}              ;; -> {kind, text}
+    history          {srv, sid}
+]
+
+---
+
+## Distinctive Innate idiom: state gate as `where` access policy
+
+[telnet[handle-line {srv: @srv, sid: @sid, line: @line}]
+    IN ORDER TO
+        dispatch @line's command only when the session's state allows it
+        so the access-control surface is visible as a table, not buried in ifs
+
+    @session <- @srv:sessions at @sid
+        where state is "Disconnected"
+            -> #session-terminated (refuse all commands)
+    @cmd <- parse @line
+    @handler <- @srv:commands at @cmd:name
+        where @session:state is in @handler:legal-states
+            -> run @handler with @cmd:args
+        otherwise
+            -> #not-allowed-in-state (do not reveal whether command exists)
+]
+
+`help` works in any state. `login` only in Unauthenticated. `whoami`
+and `who` only in Authenticated. The legal-in-state table IS the
+protocol's security policy; every historical protocol bug has been
+a command accidentally legal in the wrong state.
+
+## Distinctive Innate idiom: per-session history as audit journal
+
+[telnet[history {srv: @srv, sid: @sid}]
+    @session:history is append-only
+    where each entry is (line, reply) recorded after dispatch
+    IN ORDER TO
+        serve as an audit trail, not a replay mechanism
+        so if state ever desyncs the journal is the recovery source
+]
+
+---
+
+## Demo
+
+[demo
+    @srv <- [telnet[new-server]]
+    @s1 <- [telnet[connect {srv: @srv}]]
+    @s2 <- [telnet[connect {srv: @srv}]]
+
+    -> [telnet[handle-line
+                 {srv: @srv, sid: @s1, line: "whoami"}]]
+    ;; -> #not-allowed-in-state (Unauthenticated)
+
+    -> [telnet[handle-line
+                 {srv: @srv, sid: @s1, line: "login alice"}]]
+    ;; -> {kind: "ok", text: "welcome alice"}
+
+    -> [telnet[handle-line
+                 {srv: @srv, sid: @s1, line: "whoami"}]]
+    ;; -> {kind: "ok", text: "alice"}
+
+    -> [telnet[handle-line
+                 {srv: @srv, sid: @s2, line: "whoami"}]]
+    ;; -> #not-allowed-in-state (s2 unaffected by s1's login — isolation)
+]

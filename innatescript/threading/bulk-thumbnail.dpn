@@ -1,0 +1,148 @@
+# G068 — Bulk Thumbnail Creator
+
+*v2. Closes Threading. See `bulk-thumbnail.md` for prose: result as
+shared aggregated index, content-addressing as parallel-safe dedup,
+reservation pattern decoupling lock-hold from work-time, CPU-bound
+ergonomics, partitioned locks.*
+
+---
+
+## Choreographic Case: Parallel Vault Thumbnail Generation
+
+[generate-vault-thumbnails @worker-count
+    IN ORDER TO
+        walk every image in the vault, produce a deduplicated thumbnail
+        index keyed by content hash, and run the expensive thumbnailer
+        at most once per unique content across all workers
+
+    @images  <- [vault[images]]
+    @creator <- [thumbnails[new {worker-count: @worker-count}]]
+
+    for @img in @images
+        [thumbnails[enqueue
+                     {creator: @creator,
+                      req: {source-id: @img:path,
+                             content: [fs[read {path: @img:path}]]}}]]
+
+    @index <- [thumbnails[run-with
+                            {creator: @creator,
+                             hasher:       [content[sha256]],
+                             thumbnailer:  [image[resize-to
+                                                    {dims: [200, 200]}]]}]]
+
+    [log[write
+          {level: "info",
+           message: @index:generated + " generated, " +
+                     @index:deduplicated + " deduped"}]]
+]
+
+---
+
+## Verb Surface
+
+[thumbnails
+    new                  {worker-count}
+    enqueue              {creator, req}
+    run-with             {creator, hasher, thumbnailer}
+                                                  ;; -> Index
+    extract              {index, content-hash}     ;; -> thumbnail | none
+    source-to-hash       {index, source-id}        ;; -> hash
+]
+
+---
+
+## Distinctive Innate idiom: content-addressing `where` hash IS the key
+
+[thumbnails[run-with {creator: @c, hasher: @h, thumbnailer: @th}]
+    IN ORDER TO
+        compute the thumbnail exactly once per unique content
+        even when many workers race on the same bytes concurrently
+
+    for each job popped from @c:queue
+        @hash <- [@h {content: @job:content}]
+        acquire @c:index-lock
+            where @hash already in @c:index
+                -> record (@job:source-id → @hash) in source-map
+                   (dedup — skip expensive work)
+            otherwise
+                -> insert placeholder under @hash in @c:index
+                -> record (@job:source-id → @hash) in source-map
+                -> mark "I own the generation for this hash"
+        release @c:index-lock
+
+        where "I own generation"
+            @thumb <- [@th {content: @job:content}]   ;; EXPENSIVE, no lock held
+            acquire @c:index-lock
+                install @thumb at @hash (replace placeholder)
+            release
+]
+
+Two workers with identical content compute the same hash; one claims
+the placeholder, the other sees a "present" entry and records dedup.
+Same discipline Nix caches, Docker layers, Git objects, IPFS use.
+
+## Distinctive Innate idiom: reservation decouples lock-hold `where` work is expensive
+
+The critical sections are TINY:
+1. Check + insert placeholder + record mapping   (fast)
+2. Install real thumbnail                         (fast)
+
+The expensive thumbnailer runs OUTSIDE any lock. Concurrent workers
+that hit the placeholder treat it as dedup, semantically correct
+because someone else IS generating this thumbnail right now.
+
+Same pattern Go's sync.Once, Rust's OnceLock, and memoise-under-
+concurrency libraries all use — G068 shows the primitive explicitly.
+
+## Distinctive Innate idiom: partitioned locks `where` concerns are orthogonal
+
+[thumbnails[run-with]
+    uses TWO locks:
+        queue-lock   — protects the job queue (pop)
+        index-lock   — protects the shared thumbnail index (claim/install)
+
+    operations on the queue do not affect the index.
+    A worker waiting on queue-lock does not block another worker
+    installing into the index.
+]
+
+Contention on each lock is independent. Production scales by
+sharding index-lock by hash prefix; the demo uses one global lock.
+
+---
+
+## Demo
+
+[demo
+    @c <- [thumbnails[new {worker-count: 4}]]
+    [thumbnails[enqueue
+                 {creator: @c,
+                  req: {source-id: "a.png", content: [1, 2, 3]}}]]
+    [thumbnails[enqueue
+                 {creator: @c,
+                  req: {source-id: "b.png", content: [1, 2, 3]}}]]   ;; dup
+    [thumbnails[enqueue
+                 {creator: @c,
+                  req: {source-id: "c.png", content: [4, 5, 6]}}]]
+
+    @index <- [thumbnails[run-with
+                            {creator: @c,
+                             hasher: @sha, thumbnailer: @thumbnailer}]]
+
+    -> @index:generated                        ;; -> 2 (not 3)
+    -> @index:deduplicated                     ;; -> 1
+    -> [thumbnails[extract
+                     {index: @index,
+                      content-hash:
+                        [thumbnails[source-to-hash
+                                      {index: @index,
+                                       source-id: "a.png"}]]}]]
+       is equal to
+       [thumbnails[extract
+                     {index: @index,
+                      content-hash:
+                        [thumbnails[source-to-hash
+                                      {index: @index,
+                                       source-id: "b.png"}]]}]]
+    ;; -> true (a.png and b.png share one thumbnail)
+]

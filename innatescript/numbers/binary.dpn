@@ -1,0 +1,69 @@
+# G004 — Binary to Decimal and Back
+
+*v2. See `binary.md` for prose: base conversion as parameterised
+resolver native, choreography emerges from format negotiation between
+agents with different preferred representations.*
+
+---
+
+## Choreographic Case: Sensor-Display Format Negotiation
+
+[sensor-display
+    IN ORDER TO
+        bridge a sensor producing integers with a display expecting hex
+        through a single resolver-native conversion at the boundary
+
+    concurrent [
+        @sensor{read-value}              -> @raw
+    |
+        @display{format}                  -> @fmt
+    ]
+    join
+
+    @formatted <- [base
+                    {value: @raw,
+                     radix: @fmt is "hex" ? 16 : 10}]
+    @display{show: @formatted}
+]
+
+---
+
+## Verb Surface
+
+[base
+    value           {value, radix}            ;; parameterised native
+]
+
+[binary
+    value           {value}                   ;; -> [bits]
+]
+
+[decimal
+    value           {bits}                    ;; -> Int
+]
+
+---
+
+## Distinctive Innate idiom: parameterised native `where` radix picks the family
+
+[base {value: @n, radix: @r}]
+    IN ORDER TO
+        name one capability that covers every base-conversion variant
+        so the resolver's standard library has one entry, not one per base
+]
+
+`@binary`, `@decimal`, `@hex` could each be separate natives; `@base`
+is the parameterised form that subsumes them. Same move the resolver
+makes everywhere — one generic dispatch with parameters rather than
+many specific verbs.
+
+---
+
+## Demo
+
+[demo
+    -> [base {value: 255, radix: 2}]         ;; -> "11111111"
+    -> [base {value: 255, radix: 16}]        ;; -> "ff"
+    -> [binary {value: 42}]                   ;; -> [1, 0, 1, 0, 1, 0]
+    -> [decimal {bits: [1, 0, 1, 0, 1, 0]}]   ;; -> 42
+]

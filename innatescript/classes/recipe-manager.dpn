@@ -1,0 +1,92 @@
+# G057 — Recipe Manager
+
+*v2. See `recipe-manager.md` for prose: scaling as pure function, pantry-gap
+as shopping list, unit compatibility enforced at ingredient level.*
+
+---
+
+## Choreographic Case: Weekly Meal Plan
+
+[weekly-meal-plan @planned-recipes
+    IN ORDER TO
+        compute the shopping list for a week's menu
+        accounting for pantry and unit compatibility
+        with sarah ordering groceries and korrallan checking the schedule
+
+    @pantry          <- [recipe-book[pantry]]
+    @cumulative-need <- @planned-recipes
+        folded through merge-adding @recipe:lines
+        starting from {}
+
+    @shopping <- [recipe-book[gap {required: @cumulative-need,
+                                     available: @pantry}]]
+
+    concurrent [
+        <- @sarah{order groceries: @shopping}
+        <- @korrallan{check cooking schedule for: @planned-recipes}
+    ]
+    join
+
+    where
+        every recipe id is in the recipe book
+        and no shopping entry has a unit-mismatch reason
+        and groceries are ordered
+        || -> #meal-plan-halted @resistance:reason
+]
+
+---
+
+## Verb Surface
+
+[recipe-book
+    new
+    add-ingredient   {ingredient}
+    add-recipe       {recipe}
+    stock            {ingredient-id, quantity, unit}
+    scale            {recipe-id, factor}
+    can-make         {recipe-id, servings?}       ;; (bool, [shortage])
+    shopping-list    {recipe-id, servings?}
+    gap              {required, available}
+    make             {recipe-id, servings?}        ;; consumes pantry
+    recipes-using    {ingredient-id}
+]
+
+---
+
+## Distinctive Innate idiom: unit compatibility as resolver-enforced invariant
+
+[recipe-book[stock {ingredient-id: @id, quantity: @q, unit: @u}
+    where
+        @u is compatible with the ingredient's default unit
+        (e.g. kg/g/oz for mass; ml/L/cup for volume; never mixed)
+        || resists with "unit-incompatible"
+]
+
+---
+
+## Scaling as pure function
+
+[recipe-book[scale {recipe-id: @id, factor: @n}
+    where every ingredient quantity is multiplied by @n
+        producing a new Recipe value, leaving the original unchanged
+]
+
+---
+
+## Demo
+
+[demo
+    @rb <- [recipe-book[new]]
+    [recipe-book[add-ingredient {ingredient: {id: "flour", default-unit: "g"}}]]
+    [recipe-book[add-ingredient {ingredient: {id: "sugar", default-unit: "g"}}]]
+    [recipe-book[add-recipe {recipe: {id: "pancakes", servings: 4,
+                                         lines: [{ingredient: "flour", qty: 200, unit: "g"}
+                                                  {ingredient: "sugar", qty: 50, unit: "g"}]}}]]
+
+    @doubled <- [recipe-book[scale {recipe-id: "pancakes", factor: 2}]]
+    -> @doubled:lines[0]:qty        ;; -> 400 (flour)
+
+    [recipe-book[stock {ingredient-id: "flour", quantity: 300, unit: "g"}]]
+    -> [recipe-book[can-make {recipe-id: "pancakes", servings: 4}]]
+    ;; -> (false, [{ingredient: "sugar", short-by: 50}])
+]

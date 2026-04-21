@@ -1,0 +1,97 @@
+# G022 — RSS Feed Creator
+
+*v2. See `rss-feed.md` for prose: from string to document (first
+structured content with schema), publication channel as broadcast,
+serialisation as communication across boundaries, RSS items as
+vault-note analogue.*
+
+---
+
+## Choreographic Case: Vault Publication Feed
+
+[vault-publication-feed @tag
+    IN ORDER TO
+        assemble vault notes tagged @tag into an RSS document
+        emit the serialised XML to subscribers via dpn-reader
+        and round-trip through parse to verify the schema
+
+    @items <- [vault[find-notes {tag: @tag}]]
+               mapped to [rss[item-from-note {note: @n}]]
+
+    @feed <- [rss[feed
+                    {title: "Vault / " + @tag,
+                     link: "https://vault.dpn/feeds/" + @tag,
+                     description: "vault notes tagged " + @tag,
+                     items: @items}]]
+
+    @xml    <- [rss[to-xml {feed: @feed}]]
+    @parsed <- [rss[from-xml {xml: @xml}]]
+
+    @parsed
+        where equal to @feed
+            -> [dpn-reader[publish {feed-xml: @xml}]]
+        otherwise
+            -> #round-trip-failed
+]
+
+---
+
+## Verb Surface
+
+[rss
+    feed                 {title, link, description, items}
+    item                 {title, link, description, pub-date}
+    item-from-note       {note}
+    to-xml               {feed}                    ;; serialise
+    from-xml             {xml}                      ;; parse
+]
+
+---
+
+## Distinctive Innate idiom: round-trip serialisation `where` parse ∘ emit = id
+
+[rss[from-xml {xml: [rss[to-xml {feed: @f}]]}]
+    where result equal to @f
+    IN ORDER TO
+        establish the serialisation contract: wire-form round-trips
+        exactly, so agents on different machines can exchange feeds
+        without losing structure
+]
+
+Serialisation IS how agents communicate across boundaries. G022
+introduces the primitive: take a structured value, flatten to a
+string, transmit, reconstruct. Same discipline G085 Quiz, G090 Zip,
+G100 Versioning extend across the Files category.
+
+## Distinctive Innate idiom: one-to-many broadcast contract
+
+[rss[feed]]
+    IN ORDER TO
+        publish one document that many consumers read independently
+        without the publisher knowing who they are
+        and without consumers coordinating with each other
+
+    the feed is the shared contract — "here's structured content in
+    a format we all agree on" — the simplest distributed protocol
+    in the Rosetta Stone, and the shape every pub-sub channel uses
+]
+
+---
+
+## Demo
+
+[demo
+    @f <- [rss[feed
+                 {title: "Vault Weekly",
+                  link: "https://vault.dpn/weekly",
+                  description: "weekly digest",
+                  items: [[rss[item
+                                {title: "Rosetta Stone second pass",
+                                 link: "https://vault.dpn/rosetta-stone",
+                                 description: "130 .dpn files",
+                                 pub-date: "2026-04-21"}]]]}]]
+
+    @xml <- [rss[to-xml {feed: @f}]]
+    -> [rss[from-xml {xml: @xml}]]
+       is equal to @f                        ;; -> true
+]

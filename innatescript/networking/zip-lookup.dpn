@@ -1,0 +1,107 @@
+# G043 — Zip / Postal Code Lookup
+
+*v2. Closes Networking. See `zip-lookup.md` for prose: third identity-
+to-context layer (after city→coords, IP→country), postal codes as
+hierarchical identifiers, radius search as proximity discovery,
+multiple indexes serve different access patterns.*
+
+---
+
+## Choreographic Case: Location-Aware Delivery
+
+[shipping-estimate @origin-code @destination-code
+    IN ORDER TO
+        resolve both postal codes, compute great-circle distance
+        and find nearby warehouses within a delivery radius
+        only when both endpoints and at least one warehouse resolve
+
+    @origin      <- [postal[lookup {code: @origin-code}]]
+    @destination <- [postal[lookup {code: @destination-code}]]
+
+    @origin and @destination
+        where both are not none
+            @distance <- [geo[haversine
+                                {from: @origin:coords,
+                                 to: @destination:coords}]]
+            @warehouses <- [postal[radius
+                                     {center: @destination-code,
+                                      km: 200}]]
+            @warehouses
+                where count is at least 1
+                    -> [compose
+                         {distance: @distance,
+                          warehouses: @warehouses}]
+                otherwise
+                    -> #no-warehouse-coverage
+        otherwise
+            -> #unresolved-postal-code
+                {missing: [@origin-code, @destination-code]
+                          where resolution is none}
+]
+
+---
+
+## Verb Surface
+
+[postal
+    lookup              {code}                    ;; -> Record | none
+    by-city             {city, state}              ;; -> [Record]
+    by-state            {state}                     ;; -> [Record]
+    radius              {center, km}                ;; -> [Record]
+    hierarchy           {code}                      ;; -> {region, sectional, area}
+]
+
+---
+
+## Distinctive Innate idiom: hierarchy from prefix `where` digits encode scope
+
+[postal[hierarchy {code: @c}]
+    IN ORDER TO
+        decompose a US zip into its layered geographic scopes
+        so region / sectional / area all become first-class fields
+
+    @c
+        where length is 5 and digits only
+            -> {region:    first digit,
+                sectional: first three digits,
+                area:      all five digits}
+        otherwise
+            -> #invalid-zip-format
+]
+
+Same shape InnateScript's namespace uses: `@forge.engineering.testing`
+decomposes into forge / engineering / testing. The resolver could
+route by prefix the way postal routing does — region first, area last.
+
+## Distinctive Innate idiom: multiple indexes `where` access pattern varies
+
+[postal[indexes]
+    by-code:   @code → Record          (exact lookup, O(1))
+    by-city:   (city, state) → [Record] (reverse lookup, O(1))
+    by-state:  state → [Record]         (regional aggregation)
+    by-coord:  geo-grid → [Record]      (radius queries)
+
+    each index serves a different query pattern
+    same data, different entry points — the resolver viewed from
+    multiple angles is G076 Bookmarks' multi-axis organisation
+    applied to postal records
+]
+
+---
+
+## Demo
+
+[demo
+    -> [postal[lookup {code: "32202"}]]
+    ;; -> {code: "32202", city: "Jacksonville", state: "FL",
+    ;;     coords: (30.33, -81.66)}
+
+    -> [postal[hierarchy {code: "32202"}]]
+    ;; -> {region: 3, sectional: 322, area: 32202}
+
+    -> [postal[by-city {city: "Jacksonville", state: "FL"}]]
+    ;; -> [multiple zips serving Jacksonville]
+
+    -> [postal[radius {center: "32202", km: 50}]]
+    ;; -> [nearby zips within 50km]
+]

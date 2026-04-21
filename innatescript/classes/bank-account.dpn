@@ -1,0 +1,83 @@
+# G052 — Bank Account
+
+*v2. See `bank-account.md` for prose: double-entry ledger, zero-sum invariant,
+atomic transfers, ledger-balanced as a global conservation check.*
+
+---
+
+## Choreographic Case: Monthly Sweep with Balanced Reconciliation
+
+[monthly-sweep @month-start
+    IN ORDER TO
+        run a month-end reconciliation that three reviewers sign off on
+        only if the global ledger conservation invariant holds
+
+    @all-tx <- [bank[transactions-since {at: @month-start}]]
+
+    concurrent [
+        <- @kathryn{verify conservation of transactions: @all-tx}
+        <- @sarah{flag overdrafts in: @all-tx}
+        <- @ellie{sum fees from: @all-tx}
+    ]
+    join
+
+    [bank[ledger-balanced]]
+        where
+            every account balance is non-negative
+            and the sum of debits equals the sum of credits
+            and kathryn's verification returned "confirmed"
+        || -> #reconciliation-halted @resistance:reason
+]
+
+---
+
+## Verb Surface
+
+[bank
+    open-account           {holder-id, kind}
+    close-account          {id}                            ;; || non-zero-balance
+    freeze                 {id}
+    deposit                {account-id, amount-cents}
+    withdraw               {account-id, amount-cents}      ;; || insufficient-funds
+    transfer               {from-id, to-id, amount-cents}  ;; || either-frozen
+    balance                {account-id}
+    statement              {account-id, from?, to?}
+    total-assets           {customer-id}
+    transactions-since     {at}
+    ledger-balanced                                          ;; global invariant check
+]
+
+---
+
+## Distinctive Innate idiom: double-entry invariant as verification step
+
+The v1 insight: every transfer creates a pair of entries summing to
+zero, and the global ledger must balance. In Innate, that's a
+verification gate:
+
+[bank[transfer {from-id: @a, to-id: @b, amount-cents: @n}]
+    <- [bank[conservation-check]]
+    where entries sum to zero and both accounts are active
+]
+
+`<-` verifies the transfer against reality before advancing. A
+non-balanced transfer emits resistance, caught by the outer choreography.
+
+---
+
+## Demo
+
+[demo
+    @bank <- [bank[new]]
+    (@bank, @alice) <- [bank[open-account
+                               {holder-id: "alice", kind: "checking"}]]
+    (@bank, @bob)   <- [bank[open-account
+                               {holder-id: "bob", kind: "savings"}]]
+
+    [bank[deposit {account-id: @alice, amount-cents: 10000}]]
+    [bank[transfer {from-id: @alice, to-id: @bob, amount-cents: 3000}]]
+
+    -> [bank[balance {account-id: @alice}]]   ;; -> 7000
+    -> [bank[balance {account-id: @bob}]]     ;; -> 3000
+    -> [bank[ledger-balanced]]                 ;; -> true
+]

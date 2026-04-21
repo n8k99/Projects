@@ -1,0 +1,116 @@
+# G121 — YouTube Downloader
+
+*v2. See `youtube-downloader.md` for prose: concurrency as slot count,
+resumable bytes-done, exponential backoff as pure function, format-policy
+as data value, 5-state FSM with bounded self-loop.*
+
+---
+
+## Choreographic Case: Vault Offline Archive
+
+[offline-archive @videos
+    IN ORDER TO
+        download tagged videos within a bandwidth budget
+        respecting retry policy on transient failures
+        while preserving progress across retries
+
+    @mgr <- [ytd[new-manager {max-concurrent: 3,
+                               bandwidth-bps: 50000000,
+                               retry-policy: {max-attempts: 3,
+                                               initial-ms: 1000,
+                                               multiplier: 2}}]]
+
+    for @video in @videos
+        @format <- [ytd[pick-format {formats: @video:formats,
+                                       policy: {kind: "best-under",
+                                                 cap-bytes: 500000000}}]]
+        @format || -> #warn "no format under 500MB for " + @video:title
+        [ytd[enqueue {manager: @mgr,
+                       video-id: @video:id, format: @format}]]
+
+    until @all-done [
+        at @every 100 ms
+            [ytd[tick {manager: @mgr, ms: 100}]]
+            #progress
+                active: @mgr:active-count
+                pending: @mgr:pending-queue count
+                downloads: @mgr:downloads
+
+        sync @network-errors (@download-id)
+            -> [ytd[report-failure {manager: @mgr, id: @download-id}]]
+    ]
+]
+
+---
+
+## Verb Surface
+
+[ytd
+    new-manager                 {max-concurrent, bandwidth-bps, retry-policy}
+    enqueue                     {manager, video-id, format}
+    tick                        {manager, ms}
+    report-failure              {manager, id}
+    pick-format                 {formats, policy}
+    retry-policy-backoff        {policy, attempt}
+    download                    {manager, id}
+    active-count                {manager}
+]
+
+---
+
+## Distinctive Innate idiom: format policy as `where` clause
+
+The v1 modeled `FormatPolicy::{MaxQuality, Lowest, BestUnder(cap)}`
+as an ADT. In Innate, the user writes the selection criteria as
+prose and the resolver matches:
+
+@format <- @video:formats
+    where
+        size no more than 500 megabytes
+        and resolution at most 1080
+    ordered by resolution descending
+    first
+
+The `where`-clause form composes: add `and codec is "avc1"` and the
+policy refines without needing a new enum variant.
+
+---
+
+## Retry as scheduled state transition
+
+The v1 retry mechanic was a `Retrying { ready_at_ms }` state. In
+Innate, the scheduler handles readiness:
+
+on @download-failure
+    at @now + [ytd[retry-policy-backoff {policy: @p,
+                                           attempt: @attempts}]] ms
+    [ytd[retry {id: @id}]]
+    where attempts < @p:max-attempts
+    || -> #abandoned
+
+`at @future-time @commission` is the native scheduled-trigger form.
+The backoff computation and the scheduling are orthogonal.
+
+---
+
+## Demo
+
+[demo
+    @formats <- [
+        {id: "a", resolution: 480, size-bytes: 50000000, bitrate-bps: 500000}
+        {id: "b", resolution: 720, size-bytes: 100000000, bitrate-bps: 1000000}
+        {id: "c", resolution: 1080, size-bytes: 200000000, bitrate-bps: 2000000}
+    ]
+
+    -> [ytd[pick-format {formats: @formats, policy: {kind: "max-quality"}}]]:id
+    ;; -> "c"
+
+    -> [ytd[pick-format {formats: @formats,
+                          policy: {kind: "best-under", cap-bytes: 120000000}}]]:id
+    ;; -> "b"  (720p fits under 120MB; 1080p at 200MB doesn't)
+
+    -> [ytd[retry-policy-backoff
+             {policy: {max-attempts: 3, initial-ms: 1000, multiplier: 2},
+              attempt: 2}]]
+    ;; -> 2000
+]

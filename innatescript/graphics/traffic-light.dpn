@@ -1,0 +1,125 @@
+# G125 — Traffic Light Application
+
+*v2. See `traffic-light.md` for prose: coordinated super-state, emergency
+preemption with state preservation, adaptive green with queue cap, ped-walk
+sub-FSM gated to AllRed, overflow carry across transitions.*
+
+---
+
+## Choreographic Case: Vault Intersection Simulator
+
+[intersection-sim @config
+    IN ORDER TO
+        simulate a coordinated four-way intersection
+        with adaptive timing based on detected queue
+        pedestrian walk phases on request
+        and emergency preemption that preserves then restores state
+
+    @light <- [tl[new-intersection {config: @config}]]
+
+    until @shutdown [
+        at @every 100 ms
+            [tl[tick {intersection: @light, ms: 100}]]
+            #render
+                ns-light: @light:ns-light
+                ew-light: @light:ew-light
+                ped-signal: @light:ped-signal
+                elapsed-ms: @light:total-elapsed-ms
+
+        sync @sensors {
+            ns-queue @n -> [tl[set-ns-queue {intersection: @light, count: @n}]]
+            ew-queue @n -> [tl[set-ew-queue {intersection: @light, count: @n}]]
+        }
+
+        sync @user {
+            ped-button -> [tl[request-ped-crossing {intersection: @light}]]
+        }
+
+        sync @emergency {
+            arriving -> [tl[begin-emergency {intersection: @light}]]
+                        #alert "Emergency vehicle approaching"
+            cleared  -> [tl[end-emergency {intersection: @light}]]
+        }
+    ]
+]
+
+---
+
+## Verb Surface
+
+[tl
+    new-intersection       {config}
+    tick                   {intersection, ms}
+    set-ns-queue           {intersection, count}
+    set-ew-queue           {intersection, count}
+    request-ped-crossing   {intersection}
+    begin-emergency        {intersection}
+    end-emergency          {intersection}
+    ns-light               {intersection}
+    ew-light               {intersection}
+    ped-signal             {intersection}
+]
+
+---
+
+## Distinctive Innate idiom: phase as single coordinated super-state
+
+The v1 wrote the impossibility invariant into the enum: only one
+`Phase` value exists at a time, so "both green" is unrepresentable.
+In Innate, the same invariant is naturally carried by the resolver:
+
+[tl[tick {intersection: @light, ms: 100}]
+    where
+        at most one direction has green at any instant
+        and the phase transitions cycle
+            NS_GREEN → NS_YELLOW → ALL_RED → EW_GREEN → EW_YELLOW → ALL_RED → NS_GREEN
+        and emergency preemption is a separate absorbing phase
+            that saves (phase, elapsed, cycle-side) for restoration
+]
+
+The user doesn't construct a `Phase` value; they query
+`@light:ns-light` and `@light:ew-light`, which the resolver computes
+from the internal phase.
+
+---
+
+## Adaptive green extension as constraint not method
+
+[tl[tick {intersection: @light, ms: 100}
+    where
+        when a green phase reaches its nominal duration
+        and a queue is detected in that direction
+        the green is extended by min(queue × 2000ms, remaining cap)
+        where cap is @config:max-green-extension-ms minus already-extended
+    so the extension decision happens once at phase-end, not per tick
+]
+
+---
+
+## Demo
+
+[demo
+    @cfg <- {ns-green-ms: 1000, ns-yellow-ms: 200,
+              ew-green-ms: 1000, ew-yellow-ms: 200,
+              all-red-ms: 100, max-green-extension-ms: 500,
+              ped-walk-ms: 500, ped-flashing-ms: 300}
+    @i <- [tl[new-intersection {config: @cfg}]]
+
+    -> @i:ns-light, @i:ew-light   ;; -> "green", "red"
+
+    [tl[tick {intersection: @i, ms: 1000}]]
+    -> @i:ns-light, @i:ew-light   ;; -> "yellow", "red"
+
+    [tl[tick {intersection: @i, ms: 200}]]
+    -> @i:ns-light, @i:ew-light   ;; -> "red", "red"   (all-red)
+
+    [tl[tick {intersection: @i, ms: 100}]]
+    -> @i:ns-light, @i:ew-light   ;; -> "red", "green"
+
+    [tl[begin-emergency {intersection: @i}]]
+    [tl[tick {intersection: @i, ms: 10000}]]
+    -> @i:ns-light, @i:ew-light   ;; -> "red", "red"   (frozen at emergency)
+
+    [tl[end-emergency {intersection: @i}]]
+    -> @i:ew-light                 ;; -> "green" (restored to pre-emergency state)
+]

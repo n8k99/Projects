@@ -1,0 +1,112 @@
+# G054 — Grade Book
+
+*v2. See `grade-book.md` for prose: student/course/assignment triples,
+missing-grade semantics, GPA with optional missing-as-zero projection,
+distribution histograms.*
+
+---
+
+## Choreographic Case: Term-End Report Cards
+
+[term-end-reports @students @courses
+    IN ORDER TO
+        produce each student's transcript
+        with both current and projected GPA
+        reviewed by two parties before release
+
+    for @student in @students
+        @transcript <- {
+            courses: for @c in @courses
+                {id: @c:id,
+                 average: [gb[course-average {student: @student:id, course: @c:id}]]
+                 missing: [gb[missing        {student: @student:id, course: @c:id}]]}
+            gpa:           [gb[gpa {student: @student:id}]]
+            projected-gpa: [gb[gpa {student: @student:id, missing-as-zero?: true}]]
+        }
+
+        concurrent [
+            <- @teacher{review transcript: @transcript}
+            <- @advisor{flag risk in: @transcript}
+        ]
+        join
+
+        @transcript
+            where
+                every course has no missing assignments
+                and gpa equals projected-gpa
+                    (otherwise missing grades are inflating the average)
+                and both teacher and advisor reviews were received
+            || -> #flag-for-attention
+                student: @student
+                reason: @resistance:reason
+]
+
+---
+
+## Verb Surface
+
+[gb
+    new
+    add-student      {student}
+    add-course       {course}
+    add-assignment   {assignment}
+    record-grade     {student-id, assignment-id, points}
+    grade-of         {student-id, assignment-id}         ;; || not-recorded
+    course-average   {student-id, course-id, missing-as-zero?}
+    gpa              {student-id, missing-as-zero?}
+    class-average    {assignment-id}
+    missing          {student-id, course-id?}
+    distribution     {course-id}
+]
+
+---
+
+## Distinctive Innate idiom: missing as option, not zero
+
+[gb[grade-of {student-id: @s, assignment-id: @a}]
+    || -> nil
+    where
+        missing grades surface as resistance, not as zero
+        so that "hasn't submitted" and "submitted with zero" are distinguishable
+]
+
+The `|| -> nil` fulfillment lets callers treat absence as nil when
+convenient; the resolver never silently substitutes zero.
+
+---
+
+## GPA as projection: current vs projected
+
+[gb[gpa {student-id: @s}]
+    where
+        current GPA includes only recorded grades
+        and missing-as-zero projection substitutes 0 for each missing grade
+        so the gap between them measures "how much is the student's
+        standing propped up by ungraded work"
+]
+
+---
+
+## Demo
+
+[demo
+    @gb <- [gb[new]]
+    [gb[add-student {student: {id: 1, name: "Alice"}}]]
+    [gb[add-course {course: {id: 101, name: "Algebra", credits: 3}}]]
+    [gb[add-assignment {assignment: {id: 1001, course-id: 101,
+                                       name: "HW1", max-points: 10}}]]
+    [gb[add-assignment {assignment: {id: 1002, course-id: 101,
+                                       name: "HW2", max-points: 10}}]]
+
+    [gb[record-grade {student-id: 1, assignment-id: 1001, points: 9}]]
+
+    -> [gb[course-average {student-id: 1, course-id: 101}]]
+    ;; -> 0.9  (just HW1: 9/10)
+
+    -> [gb[course-average {student-id: 1, course-id: 101,
+                            missing-as-zero?: true}]]
+    ;; -> 0.45  (HW1=9, HW2=0; avg = 9/20)
+
+    -> [gb[missing {student-id: 1, course-id: 101}]]
+    ;; -> [{id: 1002, name: "HW2"}]
+]

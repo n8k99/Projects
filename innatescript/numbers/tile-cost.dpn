@@ -1,0 +1,65 @@
+# G005 — Tile Cost Calculator
+
+*v2. See `tile-cost.md` for prose: first computation with domain
+context, the math always works — the `where` is judgment, not
+arithmetic. InnateScript doesn't make math easier; it makes the
+conversation around math structured.*
+
+---
+
+## Choreographic Case: Renovation Budget
+
+[renovation-budget @room
+    IN ORDER TO
+        compute the material cost for floor and walls as native calls
+        let Kathryn verify the total against the room's budget
+        and pass only if the scope fits or is reduced to fit
+
+    @flooring  <- [tile-cost {floor: @room:dimensions,
+                                tile:  @selected-tile:size,
+                                cost:  @selected-tile:price}]
+    @walls     <- [tile-cost {floor: @room:dimensions,
+                                tile:  @backsplash:size,
+                                cost:  @backsplash:price}]
+    @total     <- [calc {expr: "@flooring:total + @walls:total + @labor"}]
+
+    <- @kathryn{verify @total against @room:budget}
+        where total is within @room:budget
+        or   scope is reduced to fit within @room:budget
+]
+
+---
+
+## Verb Surface
+
+[tile-cost
+    compute         {floor, tile, cost}       ;; -> {tiles-needed, total-cost}
+]
+
+---
+
+## Distinctive Innate idiom: the `where` scores judgment, not arithmetic
+
+[tile-cost {...}]
+    returns a number
+    IN ORDER TO
+        stay out of the judgment loop entirely
+        the choreography's `where` asks "can we afford this" —
+        the calculator asks "how many tiles" —
+        these are two different questions answered by two different actors
+]
+
+G005 is the first encounter with a computation that exists because
+of a *human decision context*. The calculation is trivial; the
+coordination around it is where agents earn their keep.
+
+---
+
+## Demo
+
+[demo
+    -> [tile-cost {floor: [20, 15],
+                    tile:  [2, 2],
+                    cost:  3}]
+    ;; -> {tiles-needed: 75, total-cost: 225}
+]

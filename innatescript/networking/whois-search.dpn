@@ -1,0 +1,106 @@
+# G042 — Whois Search Tool
+
+*v2. See `whois-search.md` for prose: ownership as network-identity
+provenance, registration as temporal lease, domain-specific regex
+parsing over non-standard formats, record comparison as change
+detection.*
+
+---
+
+## Choreographic Case: Domain Health Monitoring
+
+[domain-health @domains
+    IN ORDER TO
+        query whois for each tracked domain concurrently
+        flag upcoming expiries and detect unexpected registration changes
+        so compromises or lapsing leases surface before they break DNS
+
+    concurrent
+        @records <- @domains mapped concurrently to
+                     [whois[query {domain: @d}]]
+    join
+
+    @expiring <- @records
+        where days-until-expiry is less than 30
+    @changed  <- @domains mapped to
+        [whois[compare
+                 {before: [history[last-record {domain: @d}]],
+                  after:  @records where domain is @d first}]]
+
+    @changed where changes count is greater than zero
+        -> #whois-changed {domain, changes}
+
+    @expiring where count is greater than zero
+        -> #expiry-soon {domains: @expiring mapped to domain}
+
+    @records
+        where any name-server does not contain "digitalocean"
+            -> #unexpected-nameservers (possible DNS hijack)
+]
+
+---
+
+## Verb Surface
+
+[whois
+    query           {domain}                   ;; -> WhoisRecord | unknown
+    parse           {raw-text}                  ;; regex-per-field
+    compare         {before, after}             ;; -> {changes: [kind]}
+    days-until-expiry {record}
+]
+
+---
+
+## Distinctive Innate idiom: flexible parse `where` field name varies
+
+[whois[parse {raw-text: @t}]
+    IN ORDER TO
+        extract fields across TLDs and registrars where the same concept
+        appears under different names ("Creation Date" vs "Created Date"
+        vs "Creat Date") without failing on missing or reordered fields
+
+    @t searched line-by-line
+        where line matches /Registrar:\s*(.+)/i      -> registrar := group 1
+        where line matches /Creat(ion|ed)? Date:\s*(.+)/i
+                                                       -> created := group 2
+        where line matches /(Expir(y|ation)|Registry Expiry) Date:\s*(.+)/i
+                                                       -> expiry := group 3
+        where line matches /Name Server:\s*(.+)/i     -> append to name-servers
+        otherwise                                      -> skip
+]
+
+Real-world unstandardised text formats demand multiple patterns per
+field. G032's regex toolkit applied to domain registration — the
+resolver's equivalent when natural-language inputs express the same
+concept in many surface forms.
+
+## Distinctive Innate idiom: change as `where` field differs between snapshots
+
+[whois[compare {before: @a, after: @b}]
+    changes <- []
+        where @a:registrar is not @b:registrar
+            -> append #registrar-changed (possible domain transfer)
+        where @a:name-servers is not @b:name-servers
+            -> append #nameservers-changed (possible DNS hijack)
+        where @a:expiry-date is not @b:expiry-date
+            -> append #expiry-changed (renewal or lapse)
+        where @a:status is not @b:status
+            -> append #status-changed (lock/unlock)
+    IN ORDER TO
+        classify each mutation by its operational meaning
+        so the alert path knows whether this is maintenance or a compromise
+]
+
+---
+
+## Demo
+
+[demo
+    @r <- [whois[query {domain: "eckenrodemuziekopname.com"}]]
+    -> @r:registrar                            ;; -> "DigitalOcean" or similar
+    -> [whois[days-until-expiry {record: @r}]]  ;; -> e.g. 183
+
+    @old <- @r with name-servers replaced by ["ns1.attacker.com"]
+    -> [whois[compare {before: @r, after: @old}]]
+    ;; -> {changes: [#nameservers-changed]}
+]

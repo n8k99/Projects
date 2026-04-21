@@ -1,0 +1,111 @@
+# G039 — Mail Checker
+
+*v2. See `mail-checker.md` for prose: polling as alarm-clock applied
+to external state, inbox as filtered priority stream, read-state as
+agent attention, notification callbacks as event-driven alternative
+to polling.*
+
+---
+
+## Choreographic Case: Morning Briefing as Mail Check
+
+[morning-briefing @since
+    IN ORDER TO
+        concurrently drain three executive inboxes filtered to unread-since
+        compose a single morning briefing from the matched messages
+        and leave every inbox with zero unread after the briefing runs
+
+    concurrent [
+        finance:     @fin <- [inbox[check
+                                      {owner: "kathryn",
+                                       filter: {since: @since,
+                                                 unread-only: true}}]]
+    |
+        engineering: @eng <- [inbox[check
+                                      {owner: "jay",
+                                       filter: {since: @since,
+                                                 unread-only: true}}]]
+    |
+        editorial:   @ed  <- [inbox[check
+                                      {owner: "lena",
+                                       filter: {since: @since,
+                                                 unread-only: true}}]]
+    ]
+    join
+
+    @briefing <- [compose
+                    {finance: @fin:matched,
+                     engineering: @eng:matched,
+                     editorial: @ed:matched}]
+
+    @fin, @eng, @ed
+        where each has checked is true
+        and each has new-remaining is zero
+            -> [ui[show-briefing {briefing: @briefing}]]
+        otherwise
+            -> #briefing-stale (mail arrived during assembly)
+]
+
+---
+
+## Verb Surface
+
+[inbox
+    check               {owner, filter}          ;; -> {matched, checked, new-remaining}
+    mark-read           {owner, uid}
+    flag                {owner, uid}
+    unflag              {owner, uid}
+    on-new              {owner, handler}         ;; event-driven variant
+]
+
+---
+
+## Distinctive Innate idiom: three-state attention `where` processed and actionable diverge
+
+[@message
+    where is-read is false                       -> #unprocessed (attention debt)
+    where is-read is true and is-flagged is false -> #acknowledged
+    where is-flagged is true                      -> #actionable (requires future action)
+]
+
+Read-state is binary attention. Flagging is prioritised attention.
+Together they form a triage protocol for the agent's queue —
+unprocessed, acknowledged, actionable.
+
+## Distinctive Innate idiom: filter as `where`-gated pipeline
+
+[inbox[check {owner: @o, filter: @f}]
+    IN ORDER TO
+        apply progressively cheaper gates first
+        so expensive content searches only run on the reduced set
+
+    @o:messages
+        where sender matches @f:sender-pattern         ;; cheap string
+        where subject matches @f:subject-pattern       ;; cheap string
+        where since @f:since                            ;; date comparison
+        where body contains @f:body-needle              ;; moderate scan
+        where unread-only implies is-read is false
+    IN ORDER TO
+        cheapest gate first is the standard staged-filter pattern —
+        reduce the set before doing substring searches over bodies
+]
+
+---
+
+## Demo
+
+[demo
+    @yesterday <- [clock[now]] - 86400000
+    -> [inbox[check
+                {owner: "kathryn",
+                 filter: {since: @yesterday,
+                           unread-only: true,
+                           subject-pattern: "budget"}}]]
+    ;; -> {matched: [msg-ids], checked: true, new-remaining: 0}
+
+    [inbox[mark-read {owner: "kathryn", uid: @msg-id}]]
+    -> [inbox[check
+                {owner: "kathryn",
+                 filter: {unread-only: true}}]]
+    ;; -> {matched: [...], checked: true, new-remaining: ...}
+]

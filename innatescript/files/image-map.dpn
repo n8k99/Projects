@@ -1,0 +1,117 @@
+# G097 — Image Map Generator
+
+*v2. See `image-map.md` for prose: shape polymorphism as one `contains`
+predicate, ray-casting point-in-polygon with even-odd rule, z-order
+resolves overlaps via stable sort, HTML `<map>` as universal export.*
+
+---
+
+## Choreographic Case: Vault Dashboard Hot Spots
+
+[vault-dashboard @layout
+    IN ORDER TO
+        build an image map with rect/circle/polygon regions
+        dispatch user clicks to the topmost region that claims the point
+        and persist the same map as an HTML <map> document
+
+    @map <- [im[new]]
+
+    [im[add {map: @map,
+              region: {id: 1,
+                       shape: [im[rect   {x: 0,   y: 0,   w: 200, h: 100}]],
+                       action: "/tasks",   alt: "Tasks", z: 0}}]]
+    [im[add {map: @map,
+              region: {id: 2,
+                       shape: [im[rect   {x: 200, y: 0,   w: 200, h: 100}]],
+                       action: "/projects", alt: "Projects", z: 0}}]]
+    [im[add {map: @map,
+              region: {id: 3,
+                       shape: [im[circle {cx: 150, cy: 150, r: 30}]],
+                       action: "/urgent",   alt: "Urgent", z: 10}}]]
+
+    sync @user-events {
+        click @x @y ->
+            @region <- [im[hit-test {map: @map, x: @x, y: @y}]]
+            @region
+                where exists -> [navigate {to: @region:action}]
+                otherwise    -> [ui[toast {msg: "no region"}]]
+    }
+
+    [vault[save {path: "ui/dashboard.html",
+                  content: [im[to-html {map: @map, name: "dashboard"}]]}]]
+]
+
+---
+
+## Verb Surface
+
+[im
+    rect           {x, y, w, h}
+    circle         {cx, cy, r}
+    polygon        {points}
+    contains       {shape, x, y}
+    bbox           {shape}
+    new
+    add            {map, region}
+    hit-test       {map, x, y}                    ;; -> Region | none
+    hit-test-all   {map, x, y}                    ;; -> [Region]
+    to-html        {map, name}
+]
+
+---
+
+## Distinctive Innate idiom: hit test as `where contains` with z-order
+
+[im[hit-test {map: @m, x: @x, y: @y}]
+    IN ORDER TO
+        return the topmost region that claims the point
+        so overlapping regions resolve by the usual UI stacking rule
+
+    @m:regions
+        where [im[contains {shape: @region:shape, x: @x, y: @y}]]
+        ordered by z descending, insertion-order ascending (stable)
+        first
+        || -> none
+]
+
+Shape polymorphism is the contract: rect, circle, and polygon each
+answer the same `contains` predicate through their own internal test.
+The hit-test pipeline is uniform regardless of shape.
+
+## Distinctive Innate idiom: polygon `contains` as ray-casting `where` odd-crossings
+
+[im[contains {shape: @poly, x: @x, y: @y}]
+    IN ORDER TO
+        decide inside vs outside for a (possibly concave) polygon
+        using the 1962 ray-casting algorithm every GIS/CAD tool uses
+
+    shoot a horizontal ray from (@x, @y) going right
+    count edges where (yi > @y) is not equal to (yj > @y)
+        and the x-intersection falls to the right of @x
+    where crossings count is odd    -> inside
+    where crossings count is even   -> outside
+]
+
+Ray casting with the even-odd rule is the canonical point-in-polygon
+algorithm. First published 1962; no improvement for general polygons.
+Cross-language byte-identity is the Rosetta Stone verification.
+
+---
+
+## Demo
+
+[demo
+    @m <- [im[new]]
+    [im[add {map: @m,
+              region: {id: 1, shape: [im[rect {0, 0, 100, 100}]],
+                        action: "/home", alt: "Home", z: 0}}]]
+    [im[add {map: @m,
+              region: {id: 2, shape: [im[circle {50, 50, 20}]],
+                        action: "/center", alt: "Centre", z: 1}}]]
+
+    -> [im[hit-test {map: @m, x: 50, y: 50}]]
+    ;; -> {id: 2, action: "/center"}  — circle wins on z
+
+    -> [im[hit-test {map: @m, x: 90, y: 90}]]
+    ;; -> {id: 1, action: "/home"}   — only rect contains (90,90)
+]

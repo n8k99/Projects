@@ -1,0 +1,95 @@
+# G062 — Chart Maker
+
+*v2. See `chart-maker.md` for prose: scale abstraction (linear/ordinal),
+chart type as closed enum, backend-agnostic rendering (ascii/svg/html).*
+
+---
+
+## Choreographic Case: Weekly Dashboard
+
+[weekly-dashboard
+    IN ORDER TO
+        render a weekly revenue bar chart and pace-score line chart
+        into a single ascii-art report
+        that the resolver can later re-render as SVG or HTML
+
+    @revenue <- [sql[query {statement: "select day, sum(amount) from orders where week = @this-week group by day"}]]
+    @pace-scores <- [daily-notes[map {field: "pace_score"}]]
+
+    @bar <- [chart[bar-chart {title: "Weekly Revenue",
+                                data: @revenue,
+                                encode: {x: "day", y: "total"}}]]
+    @line <- [chart[line-chart {title: "Pace Score Trend",
+                                  data: @pace-scores,
+                                  encode: {x: "day", y: "score"}}]]
+
+    @report <- [chart[render-all {charts: [@bar, @line],
+                                    backend: "ascii"}]]
+
+    @report
+        where
+            backend is in ["ascii", "svg", "html"]
+            and every chart has at least one data point
+            and render produced non-empty output
+        || -> #render-failed @resistance:reason
+]
+
+---
+
+## Verb Surface
+
+[scale
+    linear          {domain-min, domain-max, range-min, range-max}
+    linear-at       {scale, x}
+    linear-fit      {values, range-min, range-max, include-zero?}
+    ordinal         {categories, range-min, range-max}
+]
+
+[chart
+    bar-chart       {title, data, encode, width?}
+    line-chart      {title, data, encode, width?, height?}
+    scatter-chart   {title, data, encode}
+    histogram       {title, values, bins?}
+    render          {chart, backend?}
+    render-all      {charts, backend?}
+]
+
+---
+
+## Distinctive Innate idiom: backend as bare-word string, not enum
+
+The v1 modeled backend as `enum Backend { Ascii, Svg, Html }`. In
+Innate the backend is a bare-word string; the resolver picks the
+rendering path:
+
+[chart[render {chart: @c, backend: "ascii"}
+    where
+        "ascii" renders to a text-mode box-drawing grid
+        and "svg" renders to SVG markup
+        and "html" wraps SVG in an html table
+]
+
+Adding a new backend is a resolver extension — no grammar change.
+
+---
+
+## Demo
+
+[demo
+    @data <- [{day: "Mon", total: 120}
+               {day: "Tue", total: 85}
+               {day: "Wed", total: 210}
+               {day: "Thu", total: 180}
+               {day: "Fri", total: 95}]
+
+    @bar <- [chart[bar-chart {title: "Weekly Revenue",
+                                data: @data,
+                                encode: {x: "day", y: "total"}}]]
+    -> [chart[render {chart: @bar, backend: "ascii"}]]
+    ;; -> 5-bar ASCII chart with labeled axes
+
+    @scale <- [scale[linear-fit {values: [120, 85, 210, 180, 95],
+                                   range-min: 0, range-max: 20,
+                                   include-zero?: true}]]
+    -> [scale[linear-at {scale: @scale, x: 210}]]   ;; -> 20 (max maps to range-max)
+]

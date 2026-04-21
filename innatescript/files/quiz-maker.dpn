@@ -1,0 +1,116 @@
+# G085 — Quiz Maker
+
+*v2. See `quiz-maker.md` for prose: round-trip equivalence as the
+Files-category contract, line-based text format, polymorphic questions
+dispatched through uniform kinds, fold scoring, structured parse errors.*
+
+---
+
+## Choreographic Case: Vault Quiz Archive
+
+[vault-quiz-archive
+    IN ORDER TO
+        load every .quiz file in the archive directory
+        render them as a browseable library
+        and persist each user attempt as a text file alongside the quiz
+
+    @files <- [vault[find {path: "quizzes/*.quiz"}]]
+
+    @quizzes <- for @file in @files
+        @text <- [fs[read-string {path: @file:path}]]
+        @quiz <- [quiz[from-text {text: @text}]]
+            || -> #quiz-parse-error {path: @file:path,
+                                      reason: @resistance:reason}
+        @quiz
+
+    [ui[list-quizzes
+          {quizzes: @quizzes indexed-by title}]]
+
+    sync @user-events {
+        attempt @quiz-id @answers ->
+            @quiz  <- @quizzes where id is @quiz-id first
+            @score <- [quiz[score {quiz: @quiz,
+                                    attempt: {answers: @answers}}]]
+            [vault[save
+                    {path: "attempts/" + [clock[now]] + ".attempt",
+                     content: [attempt[to-text
+                                         {quiz: @quiz,
+                                          answers: @answers,
+                                          score: @score}]]}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[quiz
+    new                     {id, title}
+    add-mc-question         {quiz, prompt, options, correct-index}
+    add-tf-question         {quiz, prompt, correct}
+    add-sa-question         {quiz, prompt, expected}
+    to-text                 {quiz}                     ;; -> String
+    from-text               {text}                      ;; || parse-error
+    score                   {quiz, attempt}             ;; -> Score
+]
+
+---
+
+## Distinctive Innate idiom: round-trip as a `where` invariant
+
+[quiz[from-text {text: [quiz[to-text {quiz: @q}]]}]
+    where the returned quiz is equal to @q
+    IN ORDER TO
+        guarantee the file format is reliable across writes and reads
+        which is the Files category's defining contract
+]
+
+The identity `from-text ∘ to-text == identity` is not an assertion in
+the demo — it's the property every Files-category verb surface promises
+and that downstream choreographies can rely on without checking.
+
+## Distinctive Innate idiom: answer correctness dispatched by `where`
+
+[@question, @answer
+    where @question:kind is MC and @answer:kind is MC
+        -> [@answer:choice is equal to @question:correct-index]
+    where @question:kind is TF and @answer:kind is TF
+        -> [@answer:truth is equal to @question:correct-bool]
+    where @question:kind is SA and @answer:kind is SA
+        -> [@answer:text trimmed and case-folded
+             is equal to @question:expected trimmed and case-folded]
+    where kinds do not match
+        -> #wrong (not #runtime-error)
+]
+
+Skipped answers (`none`) are counted separately from wrong answers —
+the UI distinguishes "didn't try" from "tried and failed."
+
+---
+
+## Demo
+
+[demo
+    @q <- [quiz[new {id: 42, title: "Programming Languages"}]]
+    [quiz[add-mc-question
+            {quiz: @q, prompt: "Rust's package manager?",
+             options: ["npm", "cargo", "pip"], correct-index: 1}]]
+    [quiz[add-tf-question
+            {quiz: @q, prompt: "Rust has a GC.", correct: false}]]
+    [quiz[add-sa-question
+            {quiz: @q, prompt: "Ownership model?",
+             expected: "ownership"}]]
+
+    @text     <- [quiz[to-text  {quiz: @q}]]
+    @restored <- [quiz[from-text {text: @text}]]
+    -> @restored is equal to @q                    ;; -> true
+
+    @score <- [quiz[score
+                      {quiz: @q,
+                       attempt: {answers: [
+                          {kind: "mc", choice: 1}
+                          none
+                          {kind: "sa", text: "  OWNERSHIP  "}
+                       ]}}]]
+    -> @score:percent                                ;; -> 66.67
+]

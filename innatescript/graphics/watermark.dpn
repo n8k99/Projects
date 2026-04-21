@@ -1,0 +1,137 @@
+# G129 — Watermarking Application
+
+*v2. See `watermark.md` for prose: LSB steganography with length header,
+capacity as pure function, position ADT with Tiled as mode, alpha-blend
+formula shared with G123.*
+
+---
+
+## Choreographic Case: Vault Image Fingerprint
+
+[fingerprint @original-path @metadata @output-path
+    IN ORDER TO
+        embed provenance metadata into an image via LSB steganography
+        so the artifact carries its own verifiability
+        without visibly changing the image
+
+    @original <- [img[load {path: @original-path}]]
+    @payload  <- [cbor[encode {data: @metadata}]]
+
+    @capacity <- [wm[lsb-capacity {image: @original, bits-per-channel: 2}]]
+    @payload
+        where length at most @capacity
+        || -> #error "payload too large: " + @payload:length +
+                     " bytes, capacity is " + @capacity
+
+    @fingerprinted <- [wm[embed-lsb {image: @original,
+                                       payload: @payload,
+                                       bits-per-channel: 2}]]
+    [img[save {path: @output-path, image: @fingerprinted}]]
+]
+
+[verify-fingerprint @path @expected-metadata
+    IN ORDER TO
+        recover the embedded metadata and check it against the expected
+
+    @img <- [img[load {path: @path}]]
+    @recovered <- [wm[extract-lsb {image: @img, bits-per-channel: 2}]]
+                  || -> #error "image has no recoverable fingerprint"
+    @metadata <- [cbor[decode {data: @recovered}]]
+
+    @metadata
+        where equal to @expected-metadata
+        -> #verified
+        || -> #tampered
+]
+
+---
+
+## Choreographic Case: Visible Copyright Overlay
+
+[copyright-overlay @photo @logo @position
+    IN ORDER TO
+        composite a visible copyright watermark at the requested position
+
+    [wm[apply-visible-watermark {base: @photo,
+                                   watermark: @logo,
+                                   position: @position,
+                                   opacity: 180}]]
+]
+
+---
+
+## Verb Surface
+
+[wm
+    lsb-capacity               {image, bits-per-channel}
+    embed-lsb                  {image, payload, bits-per-channel}   ;; || payload-too-large, invalid-bits
+    extract-lsb                {image, bits-per-channel}            ;; || truncated-data
+    apply-visible-watermark    {base, watermark, position, opacity}
+    resolve-position           {base, watermark, position}
+]
+
+---
+
+## Distinctive Innate idiom: position is a bare-word string
+
+The v1 modeled `Position::{TopLeft, TopRight, BottomLeft, BottomRight,
+Center, Tiled}` as an enum. In Innate, the position is a bare-word
+string the resolver interprets, with Tiled carrying the "mode" semantic:
+
+[wm[apply-visible-watermark {base: @photo, watermark: @logo,
+                              position: "bottom-right", opacity: 180}
+    where
+        "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center"
+            place the watermark once at that corner
+        and "tiled" repeats the watermark across the base
+            with raster iteration (row-major) by watermark dimensions
+]
+
+---
+
+## Capacity as pure function, checked before embed
+
+[wm[lsb-capacity {image: @img, bits-per-channel: @n}
+    where
+        capacity-bytes = (pixels × 3 × n) / 8 - 4   (minus length header)
+        and n is 1, 2, 3, or 4
+            (higher n = more capacity, more visible speckle)
+]
+
+Callers check capacity first; the embed itself resists on overflow.
+
+---
+
+## Graceful failure on tampered header
+
+[wm[extract-lsb {image: @suspect-img, bits-per-channel: 2}
+    || -> #warn "header decoded to an impossible length; image is not a carrier"
+        ;; resolver checks bits.len >= 32 + payload_len × 8 before slicing
+        ;; never reads beyond the image's bit capacity
+]
+
+---
+
+## Demo
+
+[demo
+    @base <- [img[filled {width: 32, height: 32,
+                            color: {r: 128, g: 128, b: 128}}]]
+
+    -> [wm[lsb-capacity {image: @base, bits-per-channel: 1}]]    ;; -> 380
+    -> [wm[lsb-capacity {image: @base, bits-per-channel: 2}]]    ;; -> 764
+    -> [wm[lsb-capacity {image: @base, bits-per-channel: 4}]]    ;; -> 1532
+
+    @payload <- "Hello, watermark!"
+    @embedded <- [wm[embed-lsb {image: @base, payload: @payload,
+                                  bits-per-channel: 1}]]
+    @extracted <- [wm[extract-lsb {image: @embedded, bits-per-channel: 1}]]
+    -> @extracted == @payload                                     ;; -> true
+
+    @logo <- [img[filled {width: 8, height: 8, color: {r: 255, g: 0, b: 0}}]]
+    @branded <- [wm[apply-visible-watermark
+                     {base: @base, watermark: @logo,
+                      position: "top-right", opacity: 128}]]
+    -> [img[get {image: @branded, x: 31, y: 0}]]
+    ;; -> {r: 191, g: 63, b: 63}   (128/128/128 blended with 255/0/0 at α=128)
+]

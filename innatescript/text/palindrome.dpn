@@ -1,0 +1,108 @@
+# G019 — Check if Palindrome
+
+*v2. See `palindrome.md` for prose: palindrome as composition of
+reverse + equality, normalisation as projection (the `where` in
+disguise), longest-palindrome as content search, expand-around-centre
+as local-to-global pattern.*
+
+---
+
+## Choreographic Case: Quality Verification Gate
+
+[quality-verify @content
+    IN ORDER TO
+        gate submission behind structural property checks
+        where normalised palindrome detection is one of several verifiers
+        composed from reverse + equality on a normalised projection
+
+    <- [palindrome-normalized? {s: @content}]
+        where true -> #easter-egg-bonus
+
+    @length <- [length {s: @content}]
+    @length
+        where at most @max-chars -> #length-ok
+        otherwise                 -> #too-long
+
+    @longest <- [longest-palindrome {s: @content}]
+    @longest
+        where length at least 5 -> #contains-palindrome-gem
+]
+
+---
+
+## Verb Surface
+
+[palindrome?
+    {s}                                      ;; exact (case + punctuation sensitive)
+]
+
+[palindrome-normalized?
+    {s}                                       ;; case-folded, punctuation-stripped
+]
+
+[longest-palindrome
+    {s}                                       ;; -> longest palindromic substring
+]
+
+---
+
+## Distinctive Innate idiom: palindrome composes `where` reverse = identity
+
+[palindrome? {s: @s}]
+    IN ORDER TO
+        name a concept the resolver could derive but deserves a name
+        because symmetry detection recurs across domains
+
+    [reverse-string {s: @s}] is equal to @s
+]
+
+The resolver could always rewrite `@palindrome?` as reverse + `==`.
+It commits to the named form because the concept is load-bearing —
+symmetry detection generalises to grammar checking, format
+validation, plagiarism scoring.
+
+## Distinctive Innate idiom: normalisation as `where` projection defines the frame
+
+[palindrome-normalized? {s: @s}]
+    @projected <- @s
+        lowercased
+        with non-alphanumeric stripped
+    [palindrome? {s: @projected}]
+
+    IN ORDER TO
+        ignore details that don't matter for the question
+        because every `where` clause is a normalisation —
+        it declares which details count and which are noise
+]
+
+"Race car" is not a palindrome. "racecar" is. The difference is
+what you choose to ignore. G019 makes that choice explicit at the
+verb level.
+
+## Distinctive Innate idiom: expand-around-centre as `where` hypothesis at each position
+
+[longest-palindrome {s: @s}]
+    for each @i in positions of @s
+        expand around @i (odd-length candidate)
+        expand around (@i, @i+1) (even-length candidate)
+        record the longest palindromic substring found
+    return best over all positions
+    IN ORDER TO
+        test each position as a potential centre of symmetry
+        and keep the winner — the local-to-global pattern the
+        resolver will see again in graph search and tree matching
+]
+
+---
+
+## Demo
+
+[demo
+    -> [palindrome? {s: "racecar"}]                          ;; -> true
+    -> [palindrome? {s: "Race car"}]                         ;; -> false
+
+    -> [palindrome-normalized? {s: "A man, a plan, a canal: Panama"}]
+    ;; -> true (normalised)
+
+    -> [longest-palindrome {s: "forgeeksskeegfor"}]          ;; -> "geeksskeeg"
+]

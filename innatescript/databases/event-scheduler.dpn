@@ -1,0 +1,84 @@
+# G105 — Event Scheduler
+
+*v2. See `event-scheduler.md` for prose: interval-overlap conflict detection,
+calendar events as half-open intervals, day-agenda as time-window slice.*
+
+---
+
+## Choreographic Case: Vault Daily Calendar
+
+[daily-calendar @calendar-path
+    IN ORDER TO
+        render today's agenda
+        accept user-proposed events that don't conflict
+        and surface conflicts when they do
+
+    @cal <- [calendar[load {path: @calendar-path}]]
+    @today-start <- [clock[start-of-day {ms: [clock[now]]}]]
+    @today-end   <- @today-start + 86400000
+
+    @today-events <- [cal[events-between {calendar: @cal,
+                                            from-ms: @today-start,
+                                            to-ms: @today-end}]]
+    #agenda @today-events
+
+    sync @user-events {
+        propose @title @start-ms @end-ms ->
+            @conflicts <- [cal[find-conflicts {calendar: @cal,
+                                                 start-ms: @start-ms,
+                                                 end-ms: @end-ms}]]
+            @conflicts
+                where count is zero
+                [cal[add {calendar: @cal,
+                           event: {title: @title,
+                                   start-ms: @start-ms, end-ms: @end-ms}}]]
+                || [ui[show-conflicts {ids: @conflicts}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[cal
+    new
+    add                  {calendar, event}
+    get                  {calendar, id}                   ;; || not-found
+    events-between       {calendar, from-ms, to-ms}
+    find-conflicts       {calendar, start-ms, end-ms}
+    cancel               {calendar, id}
+]
+
+---
+
+## Distinctive Innate idiom: half-open intervals as standard
+
+[cal[find-conflicts {calendar: @c, start-ms: @s, end-ms: @e}
+    where
+        events are half-open intervals [start-ms, end-ms)
+        and two intervals conflict iff they overlap (a.end > b.start and b.end > a.start)
+        and back-to-back events (a.end == b.start) do not conflict
+            so a 9-10am and a 10-11am meeting are adjacent, not overlapping
+]
+
+---
+
+## Demo
+
+[demo
+    @c <- [cal[new]]
+    [cal[add {calendar: @c,
+               event: {id: 1, title: "Standup",
+                       start-ms: @9am, end-ms: @9_30am}}]]
+    [cal[add {calendar: @c,
+               event: {id: 2, title: "Lunch",
+                       start-ms: @12pm, end-ms: @1pm}}]]
+
+    -> [cal[find-conflicts {calendar: @c,
+                             start-ms: @9_15am, end-ms: @9_45am}]]
+    ;; -> [1]   (overlaps standup)
+
+    -> [cal[find-conflicts {calendar: @c,
+                             start-ms: @9_30am, end-ms: @10am}]]
+    ;; -> []    (back-to-back, not overlapping)
+]

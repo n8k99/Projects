@@ -1,0 +1,77 @@
+# G063 — Josephus
+
+*v2. See `josephus.md` for prose: classic recurrence, O(n) iteration vs
+O(n²) simulation, survivor position under round-robin elimination.*
+
+---
+
+## Choreographic Case: Round-Robin with Skips
+
+[fair-shift-assignment @team @current-shift @counter @k
+    IN ORDER TO
+        distribute an unpleasant shift across the team fairly
+        by cycling the roster and skipping @k-1 members each time
+        so the assignment has no "always me" bias
+
+    @team
+        where length is at least 1
+
+    @victim-idx <- (@counter + @k - 1) mod @team:length
+    @victim     <- @team at-index @victim-idx
+
+    [scheduler[assign-shift {agent: @victim, shift: @current-shift}]]
+    [state[set {key: "shift-counter",
+                 value: (@counter + @k) mod @team:length}]]
+]
+
+---
+
+## Verb Surface
+
+[josephus
+    survivor        {n, k}                  ;; O(n) via recurrence
+    simulate        {n, k}                  ;; (survivor, elimination-order)
+]
+
+---
+
+## Distinctive Innate idiom: recurrence as `where`-expressed contract
+
+The v1 surfaced the O(n) recurrence:
+
+[josephus[survivor {n: @n, k: @k}]
+    where
+        survivor(1, k) = 0
+        and survivor(n, k) = (survivor(n-1, k) + k) mod n
+        and result is in 0..@n (zero-indexed)
+]
+
+The resolver satisfies the contract however it likes. The calling
+choreography trusts the recurrence.
+
+---
+
+## Simulation includes elimination order
+
+[josephus[simulate {n: @n, k: @k}]
+    where
+        second return value is the full elimination order
+        starting from the first eliminated and ending just before the survivor
+        useful for "show the stages of the problem" tutorials or visualisations
+]
+
+---
+
+## Demo
+
+[demo
+    -> [josephus[survivor {n: 41, k: 3}]]
+    ;; -> 30  (the classic Josephus problem)
+
+    -> [josephus[survivor {n: 7, k: 2}]]
+    ;; -> 6  (2^n - 1 pattern for k=2)
+
+    @(survivor, order) <- [josephus[simulate {n: 5, k: 2}]]
+    -> @survivor                                         ;; -> 2
+    -> @order                                             ;; -> [1, 3, 0, 4] (elim order)
+]

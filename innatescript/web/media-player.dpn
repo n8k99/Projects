@@ -1,0 +1,122 @@
+# G078 — Media Player Widget
+
+*v2. See `media-player.md` for prose: three-state FSM (Stopped ↔
+Playing ↔ Paused), context-dependent transport actions, tick as the
+engine, repeat × shuffle as orthogonal modes, events on boundaries
+not every tick.*
+
+---
+
+## Choreographic Case: Vault-Scoped Background Music Channel
+
+[music-channel @tag
+    IN ORDER TO
+        build a playlist from vault-tagged notes, start it with
+        repeat-all and shuffle, and tick the engine on a real-time
+        cadence while surfacing boundary events as UI updates
+
+    @tracks   <- [vault[find-notes {tag: @tag}]]
+                 mapped to [media[render-as-track {note: @n}]]
+    @player   <- [media[new-player]]
+    [media[load-playlist {player: @player, tracks: @tracks}]]
+    [media[set-repeat   {player: @player, mode: "all"}]]
+    [media[set-shuffle  {player: @player, on: true}]]
+    [media[play {player: @player}]]
+
+    every 100 ms
+        @events <- [media[tick {player: @player, delta-ms: 100}]]
+        for @e in @events
+            @e where kind is "TrackStarted"
+                -> [ui[update-now-playing {track: @e:track}]]
+            @e where kind is "PlaylistEnded"
+                -> [ui[toast {msg: "playlist cycled"}]]
+]
+
+---
+
+## Verb Surface
+
+[media
+    new-player
+    load-playlist      {player, tracks}
+    set-repeat         {player, mode}                  ;; "none" | "one" | "all"
+    set-shuffle        {player, on}
+    play               {player}                         ;; context-dependent
+    pause              {player}
+    stop               {player}
+    next               {player}
+    previous           {player}
+    tick               {player, delta-ms}               ;; -> [Event]
+    position-ms        {player}
+    current-track      {player}
+]
+
+---
+
+## Distinctive Innate idiom: transport verb's effect dispatched by `where` state
+
+[media[play {player: @p}]
+    IN ORDER TO
+        start playback from whatever "start" means in the current state
+        so callers never have to query state before calling play
+
+    @p:state
+        where Stopped -> load track 0, state := Playing,
+                         emit TrackStarted(0), StateChanged(Playing)
+        where Paused  -> resume at current position, state := Playing,
+                         emit StateChanged(Playing)
+        where Playing -> no-op
+]
+
+FSM with state-interpreted operations (works in every state, does the
+right thing) — contrast G062's state-gated (refuses if wrong state).
+
+## Distinctive Innate idiom: tick loop consumes delta `where` boundaries fire events
+
+[media[tick {player: @p, delta-ms: @dt}]
+    IN ORDER TO
+        advance position by @dt ms, crossing as many track boundaries
+        as the delta covers, emitting events at each boundary
+
+    @p where state is not Playing -> return [] (no-op)
+
+    loop while @dt > 0
+        @remaining-in-track <- track:duration-ms - @p:position-ms
+        where @dt at least @remaining-in-track
+            -> advance to track end (position := duration)
+            -> emit TrackEnded(current)
+            -> @next <- next-track-under (@p:repeat, @p:shuffle)
+               where @next exists -> emit TrackStarted(@next), position := 0
+               otherwise          -> emit PlaylistEnded, state := Stopped
+            -> @dt := @dt - @remaining-in-track
+        otherwise
+            -> @p:position-ms += @dt
+            -> @dt := 0
+]
+
+Events fire on boundaries, not every tick. UIs subscribe to events
+for "now playing"; UIs poll position-ms for the scrubber. Two
+different consumption patterns on the same engine output.
+
+---
+
+## Demo
+
+[demo
+    @p <- [media[new-player]]
+    [media[load-playlist
+            {player: @p,
+             tracks: [{id: 0, duration-ms: 1000}
+                      {id: 1, duration-ms: 1000}]}]]
+    [media[set-repeat  {player: @p, mode: "all"}]]
+    [media[play        {player: @p}]]
+
+    -> [media[tick {player: @p, delta-ms: 3000}]]
+    ;; -> [TrackEnded(0), TrackStarted(1),
+    ;;     TrackEnded(1), TrackStarted(0),
+    ;;     TrackEnded(0), TrackStarted(1)]
+    ;;    (delta crossed 3 track boundaries under repeat=all)
+
+    -> [media[position-ms {player: @p}]]     ;; -> 0
+    -> [media[current-track {player: @p}]]   ;; -> track 1
+]

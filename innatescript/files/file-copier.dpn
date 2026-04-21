@@ -1,0 +1,113 @@
+# G098 — File Copy Utility
+
+*v2. See `file-copier.md` for prose: three orthogonal concerns (traverse,
+filter, policy, progress), overwrite policy as data (Skip/Overwrite/
+RenameWithSuffix), filter as pure predicate, events as replay log,
+rename cascades for collision resolution.*
+
+---
+
+## Choreographic Case: Vault Export
+
+[vault-export @src-root @dest-root
+    IN ORDER TO
+        copy a subtree of the vault to an export directory
+        excluding tmp/cache, overwriting existing targets
+        and persisting an audit log of every operation
+
+    @fs     <- [fs[open {path: "~/Documents/Droplet-Org"}]]
+    @events <- [fc[copy-tree
+                     {fs: @fs,
+                      src-root: @src-root,
+                      dest-root: @dest-root,
+                      policy: "overwrite",
+                      filter: [fc[filter
+                                   {include: [],
+                                    exclude: [".tmp", ".cache"]}]]}]]
+        || -> #copy-failed @resistance:reason
+
+    @bytes <- [fc[total-size-copied {events: @events}]]
+    [ui[render-progress {bytes: @bytes, events: @events}]]
+
+    @log-lines <- @events mapped to [log[format-event {event: @e}]]
+    [vault[save
+            {path: ".vault/last-export.log",
+             content: @log-lines joined by newline}]]
+]
+
+---
+
+## Verb Surface
+
+[fc
+    new-fs
+    add-file           {fs, path, size}
+    add-dir            {fs, path}
+    filter             {include, exclude}
+    filter-allow-all
+    copy-tree          {fs, src-root, dest-root, policy, filter}
+                                                  ;; -> [CopyEvent] | error
+    total-size-copied  {events}
+]
+
+---
+
+## Distinctive Innate idiom: policy dispatched by `where` at the collision
+
+[fc[copy-tree {..., policy: @p, ...}]
+    IN ORDER TO
+        visit every item in @src-root that @filter accepts
+        and resolve each collision according to @p
+
+    for each source-path walked
+        where @filter does not accept -> skip silently (no event)
+        where destination does not exist
+            -> copy, emit #copied event
+        where destination exists and @p is SKIP
+            -> emit #skipped event, make no change
+        where destination exists and @p is OVERWRITE
+            -> replace, emit #copied event
+        where destination exists and @p is RENAME_WITH_SUFFIX
+            -> find first @dest-path + "." + n that does not exist
+               (cascade n = 1, 2, 3, … until a free slot)
+            -> copy there, emit #renamed event
+]
+
+Three orthogonal concerns (traversal, filter, policy) compose through
+the copy-tree verb. Each concern changes without touching the others.
+
+## Distinctive Innate idiom: events as data, not print or callback
+
+[fc[copy-tree]
+    IN ORDER TO
+        return the operation's side effects as a value
+        so the caller can sum bytes, audit, log, or replay freely
+
+    events are returned as a list, NOT printed to stdout
+    events are returned as a list, NOT delivered via callback
+]
+
+The caller chooses what to do with them: progress bar, audit trail,
+idempotent retry, or discard entirely. Same discipline as Git's
+reflog, Postgres WAL, Kafka — operation effects are first-class data.
+
+---
+
+## Demo
+
+[demo
+    @fs <- [fc[new-fs]]
+    [fc[add-dir  {fs: @fs, path: "src"}]]
+    [fc[add-file {fs: @fs, path: "src/a.txt",     size: 100}]]
+    [fc[add-file {fs: @fs, path: "src/b.txt",     size: 200}]]
+    [fc[add-dir  {fs: @fs, path: "src/sub"}]]
+    [fc[add-file {fs: @fs, path: "src/sub/c.txt", size: 50}]]
+
+    @events <- [fc[copy-tree
+                     {fs: @fs, src-root: "src", dest-root: "dest",
+                      policy: "overwrite",
+                      filter: [fc[filter-allow-all]]}]]
+
+    -> [fc[total-size-copied {events: @events}]]
+    ;; -> 350
+]

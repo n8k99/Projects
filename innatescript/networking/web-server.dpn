@@ -1,0 +1,116 @@
+# G046 — Small Web Server
+
+*v2. See `web-server.md` for prose: the other side of the bilateral
+protocol, routing as `match` applied to URLs, request-response as
+the universal protocol shape, static file serving as cached
+resolution, access log as the server observing itself.*
+
+---
+
+## Choreographic Case: dpn-api-client Pattern
+
+[api-server @port
+    IN ORDER TO
+        expose database read/write/refresh as HTTP routes
+        where each route is a capability endpoint the Ghost Registry mirrors
+        and every request is logged by the server observing itself
+
+    @server <- [web-server[new {name: "dpn-api", port: @port}]]
+
+    [web-server[route
+                 {server: @server,
+                  method: "GET",  path: "/health",
+                  handler: [health-check]}]]
+    [web-server[route
+                 {server: @server,
+                  method: "POST", path: "/read",
+                  handler: [db-read]}]]
+    [web-server[route
+                 {server: @server,
+                  method: "POST", path: "/write",
+                  handler: [db-write]}]]
+    [web-server[route
+                 {server: @server,
+                  method: "POST", path: "/refresh",
+                  handler: [refresh-handler]}]]
+
+    [web-server[start {server: @server}]]
+
+    every 1 minute
+        @log <- [web-server[access-log
+                              {server: @server,
+                               since: [clock[now]] - 60000}]]
+        @log
+            where 5xx count is greater than 0
+                -> [alert[dispatch
+                           {kind: "server-errors",
+                            count: @log:5xx-count}]]
+]
+
+---
+
+## Verb Surface
+
+[web-server
+    new                 {name, port}
+    route               {server, method, path, handler}
+    serve-static        {server, path, content, content-type}
+    start               {server}
+    stop                {server}
+    access-log          {server, since}
+]
+
+---
+
+## Distinctive Innate idiom: route table as `where` dispatch
+
+[web-server[dispatch {server: @s, request: @req}]
+    IN ORDER TO
+        match @req's method and path to a registered handler
+        or return 404 if none claims it
+
+    @s:routes
+        where route:method is @req:method
+        and   route:path   is @req:path
+            -> invoke route:handler with @req; return its Response
+        otherwise
+            -> return 404 Not Found
+            -> append #route-miss to access-log
+]
+
+Same shape InnateScript's resolver uses for `@reference` resolution:
+each entry maps an identifier (URL path / reference name) to a
+handler. URL routing and reference resolution are the same algorithm
+expressed in two syntaxes.
+
+## Distinctive Innate idiom: access log as observer within the server
+
+[web-server[handle {server: @s, request: @req}]
+    record @req:ts, method, path as open log entry
+    dispatch @req via routes
+    complete log entry with status, elapsed-ms
+    IN ORDER TO
+        make the server auditable by itself
+        so the access log IS a G040-style sniffer running inside the listener
+]
+
+---
+
+## Demo
+
+[demo
+    @srv <- [web-server[new {name: "demo", port: 8080}]]
+    [web-server[route
+                 {server: @srv, method: "GET", path: "/health",
+                  handler: [lambda [_] {status: 200, body: "ok"}]}]]
+
+    [web-server[serve-static
+                 {server: @srv, path: "/style.css",
+                  content: "body { background: #0A0A0F; }",
+                  content-type: "text/css"}]]
+
+    [web-server[start {server: @srv}]]
+    ;; GET /health → 200 ok
+    ;; GET /style.css → 200 body { background: #0A0A0F; }
+    ;; GET /missing → 404
+]

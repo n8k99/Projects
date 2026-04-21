@@ -1,0 +1,133 @@
+# G079 — Text Based Game (like Utopia)
+
+*v2. See `text-game.md` for prose: room graph as simulation world,
+every command is a turn (input-driven ticking), verb-noun parsing
+with aliases, items with kind-specific behaviour behind one `use`,
+win/lose as post-turn invariants, log as the narrative.*
+
+---
+
+## Choreographic Case: Interactive Agent Training Dungeon
+
+[agent-training-dungeon @policy
+    IN ORDER TO
+        drive a text-based world from an agent policy
+        where each observation feeds a decision and each decision
+        advances the world by one turn until a terminal state
+
+    @world <- [tg[new-demo-world]]
+    @agent <- [spawn
+                {policy: @policy,
+                 initial-state: [tg[player-state {world: @world}]]}]
+
+    loop
+        @observation <- [tg[describe {world: @world}]]
+        @command     <- [agent[decide
+                                 {agent: @agent,
+                                  observation: @observation}]]
+        @result      <- [tg[execute
+                             {world: @world, cmd: @command}]]
+
+        @score <- [reward
+                    {before: @agent:state,
+                     after:  [tg[player-state {world: @world}]]}]
+        @agent <- [learn {agent: @agent,
+                           reward: @score,
+                           observation: @observation}]
+
+        [tg[state {world: @world}]]
+            where is not "Playing" -> break
+]
+
+---
+
+## Verb Surface
+
+[tg
+    new-demo-world
+    describe            {world}                  ;; narrative snapshot
+    execute             {world, cmd}              ;; -> {kind, events}
+    player-state        {world}
+    state               {world}                   ;; "Playing" | "Dead" | "Won"
+    parse               {input}                   ;; verb-noun w/ aliases
+    log                 {world}
+]
+
+---
+
+## Distinctive Innate idiom: every command is a turn `where` provoking action
+
+[tg[execute {world: @w, cmd: @cmd}]
+    IN ORDER TO
+        resolve @cmd against the player's room and inventory
+        then let the world react (enemies in this room strike back)
+        then check win/lose invariants on the resulting state
+
+    phase 1: parse @cmd into verb + noun (with alias normalisation)
+    phase 2: dispatch verb on current room + player + inventory
+             where verb in ["go", "take", "use", "fight", "drop"]
+                 -> provokes (advances @w:turn by 1)
+             where verb in ["look", "inventory", "stats"]
+                 -> observation only (does not provoke)
+    phase 3: for each enemy in player's current room
+                 where verb provoked
+                 -> enemy strikes; append to @w:log
+    phase 4: check end-of-turn invariants
+                 where player:hp at most 0       -> state := "Dead"
+                 where player:gold at least @w:win-threshold
+                                                  -> state := "Won"
+    phase 5: commands on terminal state are rejected
+]
+
+Observation commands (`look`, `inventory`) don't advance the clock.
+Provoking commands do. Same primitive as G078's tick, but the clock
+source is user input, not wall-clock.
+
+## Distinctive Innate idiom: item effect dispatched by `where` kind
+
+[tg[use {world: @w, item-id: @id}]
+    @item <- @inventory at @id
+        where kind is Potion     -> heal @item:heal points
+        where kind is Treasure   -> add @item:worth-gold
+        where kind is Weapon     -> equip, update damage
+        where kind is Key        -> unlock adjacent locked room
+    append effect to @w:log
+]
+
+One user-facing verb, polymorphic effects by receiver kind. User
+doesn't have to know which code path runs; the dispatch is the item's
+own concern.
+
+## Distinctive Innate idiom: terminal states as post-turn `where` invariants
+
+After every turn the world checks:
+- hp ≤ 0 → Dead (regardless of what caused it)
+- gold ≥ win-threshold → Won (regardless of which action added gold)
+
+These are invariants on the state, not side effects of specific verbs.
+Combinations the programmer didn't explicitly code still trigger the
+correct terminal state — same robustness as SIGSEGV on invalid writes
+or FK-constraint rejection in databases.
+
+---
+
+## Demo
+
+[demo
+    @w <- [tg[new-demo-world]]
+
+    -> [tg[execute {world: @w, cmd: "go north"}]]
+    ;; player moves; turn := 1; room's goblin strikes player
+
+    -> [tg[execute {world: @w, cmd: "look"}]]
+    ;; observation, turn unchanged
+
+    -> [tg[execute {world: @w, cmd: "fight goblin"}]]
+    ;; combat, goblin possibly dies
+
+    -> [tg[execute {world: @w, cmd: "take gold"}]]
+    ;; pick up; win-threshold met → state := Won
+
+    -> [tg[state {world: @w}]]    ;; -> "Won"
+    -> [tg[log   {world: @w}]]    ;; -> the full turn-by-turn narrative
+]

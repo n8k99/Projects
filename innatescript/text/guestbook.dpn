@@ -1,0 +1,86 @@
+# G025 — Guestbook / Journal
+
+*v2. See `guestbook.md` for prose: first immutable data structure,
+append-only log, chronological ordering as temporal sequence,
+author attribution as provenance, audit trail as the resulting
+compound property.*
+
+---
+
+## Choreographic Case: Daily Note as Journal
+
+[daily-journal @date
+    IN ORDER TO
+        let every agent append their contribution to today's journal
+        keep the log append-only so "who wrote what when" always answers
+        and produce a queryable audit trail as a side-effect
+
+    @journal <- [journal[for-date {date: @date}]]
+
+    sync @events {
+        append @agent @content ->
+            [journal[add-entry
+                      {journal: @journal,
+                       author: @agent,
+                       content: @content}]]
+            ;; timestamp auto-assigned; no edit, no delete
+
+        query-since @t ->
+            -> [journal[get-entries
+                          {journal: @journal, since: @t}]]
+
+        query-by-author @a ->
+            -> [journal[get-entries
+                          {journal: @journal}]]
+               where author is @a
+    }
+]
+
+---
+
+## Verb Surface
+
+[journal
+    new
+    for-date         {date}
+    add-entry        {journal, author, content}     ;; ONLY mutation
+    get-entries      {journal, since?}               ;; chronological
+]
+
+---
+
+## Distinctive Innate idiom: append-only `where` mutation is exactly one verb
+
+[journal[add-entry {journal: @j, author: @a, content: @c}]
+    IN ORDER TO
+        record an immutable entry without any edit or delete path
+        because the log IS the truth and history cannot be rewritten
+
+    @entry <- {author: @a, content: @c, ts: now}
+    @j:entries <- @j:entries + @entry
+    return (@j, @entry)
+]
+
+Same discipline G094's log file, G100's commit chain, and Git
+itself use. No edit verb exists. No delete verb exists. Past
+entries are permanent — rewriting is impossible by construction.
+
+---
+
+## Demo
+
+[demo
+    @j <- [journal[new]]
+    [journal[add-entry {journal: @j, author: "nathan",
+                         content: "Rosetta Stone second pass begun"}]]
+    [journal[add-entry {journal: @j, author: "tasks",
+                         content: "42 .dpn files written yesterday"}]]
+    [journal[add-entry {journal: @j, author: "tasks",
+                         content: "databases and files closed today"}]]
+
+    -> [journal[get-entries {journal: @j}]]
+    ;; -> three entries, chronological order preserved
+
+    -> [journal[get-entries {journal: @j}]] where author is "tasks"
+    ;; -> two entries, filtered by author
+]

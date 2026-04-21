@@ -1,0 +1,97 @@
+# G069 — WYSIWYG Editor
+
+*v2. See `wysiwyg.md` for prose: the model IS the render (no source
+form), runs as right granularity, range operations reshape runs,
+attributes compose as sets, rendering is a trivial projection.*
+
+---
+
+## Choreographic Case: Vault Note Editor with Live Preview
+
+[vault-note-editor @note-path
+    IN ORDER TO
+        edit a note in runs-of-attributed-text form
+        where the model the user mutates is the model the renderer walks
+        so there is no source-to-preview round-trip to keep in sync
+
+    @doc <- [wysiwyg[new]]
+    [wysiwyg[insert
+              {doc: @doc, pos: 0,
+               text: [vault[read-runs {path: @note-path}]], attrs: []}]]
+
+    sync @user-events {
+        bold-selection @start @end ->
+            [wysiwyg[apply-style
+                      {doc: @doc, start: @start, end: @end,
+                       attr: "bold"}]]
+            [render[live-preview
+                     {html: [wysiwyg[to-html {doc: @doc}]]}]]
+            [vault[persist {path: @note-path, runs: @doc:runs}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[wysiwyg
+    new
+    insert           {doc, pos, text, attrs}
+    delete-range     {doc, start, end}
+    apply-style      {doc, start, end, attr}
+    remove-style     {doc, start, end, attr}
+    split-at         {doc, pos}
+    normalize        {doc}
+    to-html          {doc}
+    to-plain         {doc}
+]
+
+---
+
+## Distinctive Innate idiom: runs stay canonical `where` invariants hold
+
+[wysiwyg[normalize {doc: @doc}]
+    IN ORDER TO
+        restore the three run invariants after every mutation
+        so the storage never drifts into pathological states
+
+    @doc:runs
+        where run text is empty        -> drop
+        where two adjacent runs share attrs -> merge
+        where final concatenation     -> equal to @doc plain text
+]
+
+## Distinctive Innate idiom: style applies `where` range intersects run
+
+[wysiwyg[apply-style {doc: @doc, start: @s, end: @e, attr: @a}]
+    split runs at both @s and @e
+    then for each run entirely inside [@s, @e]
+        where @a is in run:attrs   -> leave alone
+        otherwise                   -> add @a to run:attrs (set union)
+    then normalize
+]
+
+Attributes compose as set union; bold applied to bold-italic keeps
+italic. Every projection (HTML, plain, markdown) is a 20-line walk
+because the model did the hard work.
+
+---
+
+## Demo
+
+[demo
+    @doc <- [wysiwyg[new]]
+    [wysiwyg[insert
+              {doc: @doc, pos: 0,
+               text: "Hello world", attrs: []}]]
+    [wysiwyg[apply-style
+              {doc: @doc, start: 0, end: 5, attr: "bold"}]]
+    [wysiwyg[apply-style
+              {doc: @doc, start: 6, end: 11, attr: "italic"}]]
+
+    -> [wysiwyg[to-html {doc: @doc}]]
+    ;; -> "<b>Hello</b> <i>world</i>"
+
+    -> [wysiwyg[to-plain {doc: @doc}]]
+    ;; -> "Hello world"
+]

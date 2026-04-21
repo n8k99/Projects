@@ -1,0 +1,104 @@
+# G059 — Patient-Doctor Scheduler
+
+*v2. See `patient-doctor-scheduler.md` for prose: three-way conflict check
+(doctor, room, patient), find-slot as cost-budgeted search, rescheduling
+as transactional update.*
+
+---
+
+## Choreographic Case: Urgent Slot Request
+
+[find-next-available @doctor-id @duration @within-start @within-end @patient-id
+    IN ORDER TO
+        find the soonest available slot for an urgent appointment
+        with both doctor and room resource conflict checks
+        and notify both patient and resource desk before committing
+
+    @slot <- [scheduler[find-slot {doctor-id: @doctor-id,
+                                     duration: @duration,
+                                     from: @within-start,
+                                     until: @within-end,
+                                     step: 15-min}]]
+             || -> #no-slot-in-window
+
+    concurrent [
+        <- @sarah{notify patient: @patient-id, slot: @slot}
+        <- @kathryn{confirm room and resources for: @slot}
+    ]
+    join
+
+    @appt <- [scheduler[schedule {patient: @patient-id,
+                                    doctor: @doctor-id,
+                                    room: @slot:room,
+                                    start: @slot:time,
+                                    end: @slot:time + @duration}]]
+             || -> #booking-lost-to-race @resistance:reason
+
+    -> @appt
+]
+
+---
+
+## Verb Surface
+
+[scheduler
+    new
+    add-doctor          {doctor}
+    add-room            {room}
+    schedule            {patient, doctor, room, start, end}    ;; || conflict
+    cancel              {id}
+    reschedule          {id, new-start, new-end, new-room?}    ;; || conflict
+    doctor-conflicts    {doctor-id, start, end, except?}
+    room-conflicts      {room-id, start, end, except?}
+    find-slot           {doctor-id, duration, from, until, step?}
+    doctor-schedule     {doctor-id}
+    room-schedule       {room-id}
+    patient-history     {patient-id}
+]
+
+---
+
+## Distinctive Innate idiom: conflict check as `<-` verification
+
+[scheduler[schedule {patient: @p, doctor: @d, room: @r, start: @s, end: @e}]
+    <- [scheduler[doctor-conflicts {doctor-id: @d, start: @s, end: @e}]]
+        where result is empty
+    <- [scheduler[room-conflicts {room-id: @r, start: @s, end: @e}]]
+        where result is empty
+    || -> #conflict-detected
+
+Multiple `<-` verification gates compose: each must pass before
+advance. A failure at either surfaces the exact conflict source.
+
+---
+
+## Demo
+
+[demo
+    @sch <- [scheduler[new]]
+    [scheduler[add-doctor {doctor: {id: "D-CHEN", name: "Dr Chen",
+                                      specialty: "cardiology"}}]]
+    [scheduler[add-room   {room: {id: "R-1", capacity: 1}}]]
+
+    @slot <- [scheduler[find-slot {doctor-id: "D-CHEN",
+                                    duration: 30-min,
+                                    from: @today-9am,
+                                    until: @today-5pm,
+                                    step: 15-min}]]
+    -> @slot                       ;; -> (9:00, "R-1")
+
+    @appt <- [scheduler[schedule {patient: "P-101",
+                                    doctor: "D-CHEN",
+                                    room: @slot:room,
+                                    start: @slot:time,
+                                    end: @slot:time + 30-min}]]
+    -> @appt:id                    ;; -> assigned id
+
+    ;; Try to double-book; resistance expected
+    [scheduler[schedule {patient: "P-102",
+                          doctor: "D-CHEN",
+                          room: "R-1",
+                          start: @appt:start,
+                          end: @appt:end}]]
+        || -> "doctor-conflict"
+]

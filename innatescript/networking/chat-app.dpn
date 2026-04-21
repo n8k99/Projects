@@ -1,0 +1,119 @@
+# G035 — Chat Application (Networking)
+
+*v2. See `chat-app.md` for prose: first multi-party choreography,
+pub-sub with dynamic membership, message routing as published to
+subscribed channel, history as scoped journal, join/leave as
+lifecycle primitives.*
+
+---
+
+## Choreographic Case: Executive Ghost Coordination
+
+[exec-coordination
+    IN ORDER TO
+        route project-scoped conversations through named rooms
+        letting agents join and leave mid-flight
+        with every message persisted as a journal entry per room
+
+    @srv <- [chat[new-server]]
+
+    [chat[create-room {server: @srv, name: "operations"}]]
+    [chat[create-room {server: @srv, name: "editorial"}]]
+
+    concurrent [
+        kathryn:
+            [chat[join {server: @srv, user: "kathryn",
+                         room: "operations"}]]
+            [chat[send {server: @srv, room: "operations",
+                         sender: "kathryn",
+                         text: "Q2 budget posted"}]]
+    |
+        eliana:
+            [chat[join {server: @srv, user: "eliana",
+                         room: "operations"}]]
+            @history <- [chat[get-messages
+                                {server: @srv,
+                                 room: "operations",
+                                 since: [clock[now]] - 3600000}]]
+    |
+        sylvia:
+            [chat[join {server: @srv, user: "sylvia",
+                         room: "editorial"}]]
+            [chat[send {server: @srv, room: "editorial",
+                         sender: "sylvia", text: "new issue drafted"}]]
+    ]
+    join
+]
+
+---
+
+## Verb Surface
+
+[chat
+    new-server
+    create-room          {server, name}
+    join                 {server, user, room}
+    leave                {server, user, room}
+    send                 {server, room, sender, text}
+    get-messages         {server, room, since}
+    members              {server, room}
+]
+
+---
+
+## Distinctive Innate idiom: room as pub-sub channel `where` members subscribe
+
+[chat[send {server: @s, room: @r, sender: @sender, text: @t}]
+    IN ORDER TO
+        fan out @t to every current member of @r
+        while appending to @r's scoped journal under a monotonic seq
+
+    @room <- @s:rooms at @r
+    acquire @room:lock
+        @seq <- ++@room:counter
+        @msg <- {seq, sender, text, ts: now}
+        append @msg to @room:messages                ;; journal
+        for @member in @room:members
+            append @msg to @member:inbox              ;; queue
+    release
+]
+
+Same discipline as G067's threading chat — many-to-many broadcast
+under a per-room lock. G035 is the networking framing; G067 is the
+concurrency framing. Both use the room-as-channel primitive.
+
+## Distinctive Innate idiom: history scoped to room `where` since bounds
+
+[chat[get-messages {server: @s, room: @r, since: @t}]
+    @room:messages
+        where ts is at least @t
+    IN ORDER TO
+        let a late-joining agent catch up without replaying
+        the entire history since the room was created
+]
+
+Join-time-forward is the default (members' inboxes don't backfill),
+but the journal is always queryable — one room's history is that
+room's journal, independent of membership at any given moment.
+
+---
+
+## Demo
+
+[demo
+    @s <- [chat[new-server]]
+    [chat[create-room {server: @s, name: "ops"}]]
+    [chat[join {server: @s, user: "alice", room: "ops"}]]
+    [chat[join {server: @s, user: "bob",   room: "ops"}]]
+
+    [chat[send {server: @s, room: "ops",
+                 sender: "alice", text: "hi"}]]
+    [chat[send {server: @s, room: "ops",
+                 sender: "bob",   text: "hi alice"}]]
+
+    -> [chat[get-messages {server: @s, room: "ops", since: 0}]]
+    ;; -> [(seq:0, alice, "hi"), (seq:1, bob, "hi alice")]
+
+    [chat[leave {server: @s, user: "bob", room: "ops"}]]
+    -> [chat[members {server: @s, room: "ops"}]]    ;; -> {alice}
+]

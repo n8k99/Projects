@@ -1,0 +1,97 @@
+# G041 — Country from IP Lookup
+
+*v2. See `ip-lookup.md` for prose: identity-to-context resolution,
+private addresses as unresolvable, binary search over sorted ranges
+as dispatch table, proximity routing connects geography to
+choreography.*
+
+---
+
+## Choreographic Case: Jurisdiction-Aware Operations
+
+[compliance-check @visitor-ip
+    IN ORDER TO
+        resolve the visitor's jurisdiction from their IP
+        route to the correct compliance regime per region
+        and pass only if the rule-engine approves the operation
+
+    @geo <- [geo[lookup {ip: @visitor-ip}]]
+
+    @geo:country-code
+        where is "EU" or "GB"  -> @rules <- [compliance[gdpr-check]]
+        where is "US"          -> @rules <- [compliance[ccpa-check]]
+        where is "private"      -> -> #internal-traffic (skip)
+        otherwise               -> @rules <- [compliance[default-check]]
+
+    @rules
+        where passes all gates    -> [process {visitor-ip: @visitor-ip}]
+        otherwise                  -> #compliance-failed
+]
+
+---
+
+## Verb Surface
+
+[geo
+    lookup              {ip}                    ;; -> Record | "private"
+    country-breakdown   {ips}                    ;; -> {country-code -> count}
+    nearest-server      {client-ip, server-ips}  ;; -> server-ip
+    great-circle-km     {lat1, lon1, lat2, lon2}
+]
+
+---
+
+## Distinctive Innate idiom: private ranges as unresolvable `where`
+
+[geo[lookup {ip: @ip}]
+    IN ORDER TO
+        recognise RFC 1918 / loopback / link-local as unresolvable
+        because private IPs exist only within their local network
+        and guessing a country for them is worse than saying "private"
+
+    @ip
+        where in 10.0.0.0/8
+           or in 172.16.0.0/12
+           or in 192.168.0.0/16
+           or in 127.0.0.0/8
+           or in 169.254.0.0/16
+            -> "private"
+        otherwise
+            -> binary-search @geo-ranges for range containing @ip
+               return record with country, city, lat, lon
+]
+
+Some `@references` are similarly unresolvable outside their scope —
+a local variable is valid but has no global meaning. The resolver's
+scope boundary is the same shape.
+
+## Distinctive Innate idiom: binary search `where` ranges are pre-sorted
+
+[geo[lookup]
+    @geo-ranges sorted by start-ip ascending
+    binary-search for range where start-ip at most @ip at most end-ip
+    O(log n) rather than O(n)
+]
+
+Same dispatch shape InnateScript's resolver uses for namespaced
+references: sorted ranges + binary search = fast lookup. G013's
+credit card prefix dispatch used linear scan; G041 commits to the
+logarithmic variant.
+
+---
+
+## Demo
+
+[demo
+    -> [geo[lookup {ip: "8.8.8.8"}]]
+    ;; -> {country: "United States", code: "US",
+    ;;     city: "Mountain View", lat: 37.4, lon: -122.1}
+
+    -> [geo[lookup {ip: "192.168.1.1"}]]
+    ;; -> "private"
+
+    -> [geo[nearest-server
+              {client-ip: "8.8.8.8",
+               server-ips: ["1.1.1.1", "9.9.9.9", "208.67.222.222"]}]]
+    ;; -> whichever is geographically closest
+]

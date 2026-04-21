@@ -1,0 +1,139 @@
+# G083 — Template Maker
+
+*v2. See `template-maker.md` for prose: the builder is itself an
+editable data model, cross-reference validation between declared
+slots and referenced placeholders, preview with sample data,
+kind-typed validation issues, `_`-prefix reserved placeholders.*
+
+---
+
+## Choreographic Case: Template Editor UI
+
+[template-editor
+    IN ORDER TO
+        drive an interactive UI over the TemplateBuilder data model
+        surfacing cross-reference issues after every edit
+        and blocking save until validation passes
+
+    @maker <- [tm[new-maker]]
+
+    sync @ui-events {
+        create @name @category ->
+            @bid <- [tm[new-template
+                         {maker: @maker,
+                          name: @name, category: @category}]]
+            [ui[navigate-to-editor {builder-id: @bid}]]
+
+        edit-slot @bid @slot ->
+            [tm[add-slot {maker: @maker, id: @bid, slot: @slot}]]
+            @issues  <- [tm[validate {maker: @maker, id: @bid}]]
+            @preview <- [tm[preview  {maker: @maker, id: @bid}]]
+            [ui[render-editor {issues: @issues, preview: @preview}]]
+
+        save @bid ->
+            @issues <- [tm[validate {maker: @maker, id: @bid}]]
+            @issues
+                where count is zero
+                    @template <- [tm[freeze {maker: @maker, id: @bid}]]
+                    [ecard[add-template
+                            {gallery: [ecard[load-gallery]],
+                             template: @template}]]
+                otherwise
+                    -> [ui[show-issues {issues: @issues}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[tm
+    new-maker
+    new-template         {maker, name, category}       ;; -> builder-id
+    add-slot             {maker, id, slot}
+    remove-slot          {maker, id, slot-name}
+    set-html             {maker, id, html}
+    set-sample           {maker, id, slot-name, value}
+    validate             {maker, id}                    ;; -> [Issue]
+    preview              {maker, id}                    ;; uses sample data
+    freeze               {maker, id}                    ;; -> immutable Template
+                                                        ;; || has-issues
+]
+
+---
+
+## Distinctive Innate idiom: cross-reference validation `where` declared ≠ referenced
+
+[tm[validate {maker: @m, id: @bid}]
+    IN ORDER TO
+        return a list of structured issues covering every drift between
+        the declared slot list and the placeholders referenced in HTML
+
+    @builder <- @m:builders at @bid
+    @declared    <- @builder:slots mapped to name
+    @referenced  <- placeholders found in @builder:html
+                     excluding those beginning with "_" (reserved)
+
+    issues <-
+        @declared where not in @referenced
+            -> emit #unused-slot {name: @slot-name}
+      + @referenced where not in @declared
+            -> emit #undeclared-placeholder {name: @placeholder}
+      + @builder:slots where name is empty or contains invalid chars
+            -> emit #invalid-slot-name {name}
+      + @builder:slots grouped by name where count > 1
+            -> emit #duplicate-slot-name {name}
+      + @builder:slots where required and no sample provided
+            -> emit #missing-sample {name}
+]
+
+Each issue kind is structurally distinct — the UI groups and
+highlights by kind, producing specific error messages rather than
+"validation failed: see logs."
+
+## Distinctive Innate idiom: reserved names skip validation `where` prefix is "_"
+
+[@placeholder where name begins with "_"
+    -> skipped by declare-then-reference check
+    -> populated at card-creation from fixed fields (_recipient, _sender)
+]
+
+Same shape as Python's `__dunder__`, Ruby's `@@class-var`, HTML's
+`data-*`. A naming convention reserves a namespace without requiring
+schema extensions.
+
+---
+
+## Demo
+
+[demo
+    @m   <- [tm[new-maker]]
+    @bid <- [tm[new-template
+                  {maker: @m,
+                   name: "welcome", category: "greeting"}]]
+
+    [tm[add-slot
+         {maker: @m, id: @bid,
+          slot: {name: "name", kind: "Text", required: true}}]]
+    [tm[set-html
+         {maker: @m, id: @bid,
+          html: "<p>Hi {{name}}, from {{_sender}}. — {{signature}}</p>"}]]
+
+    -> [tm[validate {maker: @m, id: @bid}]]
+    ;; -> [#undeclared-placeholder {name: "signature"},
+    ;;     #missing-sample {name: "name"}]
+
+    [tm[add-slot
+         {maker: @m, id: @bid,
+          slot: {name: "signature", kind: "Text", required: false,
+                  default: "--the Vault"}}]]
+    [tm[set-sample
+         {maker: @m, id: @bid, slot-name: "name",
+          value: "Friend"}]]
+
+    -> [tm[validate {maker: @m, id: @bid}]]
+    ;; -> []
+
+    -> [tm[preview  {maker: @m, id: @bid}]]
+    ;; -> "<p>Hi Friend, from [preview sender]. — --the Vault</p>"
+]

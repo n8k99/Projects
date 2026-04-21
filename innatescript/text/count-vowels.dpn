@@ -1,0 +1,96 @@
+# G018 — Count Vowels
+
+*v2. See `count-vowels.md` for prose: first measurement of content
+(content → value), frequency distribution as first statistical
+operation, include-y as context-dependent classification decided by
+agent role, vowel-ratio as derived metric (micro-`where`).*
+
+---
+
+## Choreographic Case: Content Quality Analysis
+
+[content-quality @text
+    IN ORDER TO
+        measure several properties of @text concurrently
+        combine them into a readability score
+        and pass only if the combined score clears a threshold
+
+    concurrent [
+        readability: @vowels <- [count-vowels
+                                   {text: @text, include-y: false}]
+    |
+        complexity:  @wl     <- [word-lengths {text: @text}]
+    |
+        density:     @sl     <- [sentence-lengths {text: @text}]
+    ]
+    join
+
+    @score <- [calc {expr: "(@vowels:ratio * 100) - " +
+                             "(@wl:mean * 5) - " +
+                             "(@sl:mean * 2)"}]
+
+    @score
+        where at least 50 -> #readable
+        otherwise          -> #too-dense
+]
+
+---
+
+## Verb Surface
+
+[count-vowels
+    {text, include-y}                         ;; -> Int
+]
+
+[vowel-breakdown
+    {text, include-y}                          ;; -> {vowel → count}
+]
+
+[vowel-ratio
+    {text, include-y}                          ;; -> Float 0..1
+]
+
+---
+
+## Distinctive Innate idiom: context-dependent classification `where` role decides
+
+[count-vowels {text: @t, include-y: @inc-y}]
+    IN ORDER TO
+        count y as a vowel only when the caller's frame demands it
+        because "my" and "yes" treat y differently and no universal
+        answer exists outside the caller's role
+
+    targets <- @inc-y ? [a, e, i, o, u, y] : [a, e, i, o, u]
+    count codepoints of @t that are in targets
+]
+
+A phonetician always includes y; a spellchecker never does. The
+`where` doesn't resolve the ambiguity; the agent's role does. The
+include-y flag is the resolver's way of surfacing that role choice.
+
+## Distinctive Innate idiom: breakdown as frequency distribution
+
+[vowel-breakdown {text: @t, include-y: @y}]
+    partition codepoints of @t by vowel-identity
+    count per partition
+    emit {vowel → count}
+    IN ORDER TO
+        generalise to every "measure distribution across elements"
+        pattern the noosphere needs (word freq, topic mix, tag
+        distribution) from the minimal vowel case
+]
+
+---
+
+## Demo
+
+[demo
+    -> [count-vowels {text: "Hello World", include-y: false}]
+    ;; -> 3
+
+    -> [vowel-breakdown {text: "Hello World", include-y: false}]
+    ;; -> {e: 1, o: 2}
+
+    -> [vowel-ratio {text: "Hello World", include-y: false}]
+    ;; -> 0.30  (3 vowels / 10 letters)
+]

@@ -1,0 +1,102 @@
+# G091 — PDF Generator
+
+*v2. See `pdf-generator.md` for prose: pagination as flow layout
+kernel, word-wrap as the paragraph's own layout, rendered document
+as renderer-independent IR, heading-orphan avoidance built in.*
+
+---
+
+## Choreographic Case: Vault Report
+
+[vault-report @preferred-format
+    IN ORDER TO
+        gather report-tagged sections from the vault graph
+        paginate them into a renderer-agnostic Page IR
+        and hand off to whichever emitter the vault has configured
+
+    @doc <- [pdf[new {width: 80, height: 66}]]
+    [pdf[heading   {doc: @doc, text: "Weekly Report", level: 1}]]
+    [pdf[paragraph {doc: @doc, text: @weekly-summary}]]
+
+    @sections <- [vault[find {tag: "report"}]]
+    for @section in @sections
+        [pdf[heading   {doc: @doc,
+                         text: @section:title, level: 2}]]
+        [pdf[paragraph {doc: @doc, text: @section:body}]]
+
+    @pages <- [pdf[render {doc: @doc}]]
+
+    [renderer[emit {format: @preferred-format, pages: @pages}]]
+]
+
+---
+
+## Verb Surface
+
+[pdf
+    new             {width, height}
+    heading         {doc, text, level}                  ;; fluent
+    paragraph       {doc, text}
+    spacer          {doc, height}
+    page-break      {doc}
+    render          {doc}                               ;; -> [Page]
+    page-count      {doc}
+    wrap-text       {text, width}                       ;; -> [String]
+]
+
+---
+
+## Distinctive Innate idiom: pagination as `where`-fits flow
+
+[pdf[render {doc: @doc}]
+    IN ORDER TO
+        place each block on the current page where it fits
+        or roll to a new page where it does not
+        honouring orphan-prevention for headings
+
+    blocks of @doc
+        placed at y on current page
+        where block-height fits in remaining height
+            -> place and advance y
+        where block is a heading and remaining height is less than
+             (heading lines + 1 trailing blank)
+            -> start new page, then place heading
+        otherwise
+            -> start new page, then place block
+]
+
+This is the kernel every real PDF library (iText, ReportLab, LaTeX)
+shares. G091 exposes only the kernel — fonts, glyphs, colour spaces,
+binary encoding all layer above.
+
+## Distinctive Innate idiom: wrap at word boundaries `where` possible
+
+[pdf[wrap-text {text: @t, width: @w}]
+    words of @t
+        appended to current line
+            where (current-line-length + 1 + word-length) ≤ @w
+        otherwise
+            -> emit current line, start new line with word
+        where word-length is greater than @w alone
+            -> emit word as its own (over-wide) line
+               (truncation silently loses information; overflow is visible)
+]
+
+---
+
+## Demo
+
+[demo
+    @doc <- [pdf[new {width: 40, height: 10}]]
+    [pdf[heading   {doc: @doc, text: "Rosetta Stone", level: 1}]]
+    [pdf[paragraph {doc: @doc,
+                     text: "The quick brown fox jumps over the lazy dog. " +
+                            "Pack my box with five dozen liquor jugs."}]]
+    [pdf[heading   {doc: @doc, text: "Section 1", level: 2}]]
+    [pdf[page-break {doc: @doc}]]
+    [pdf[paragraph {doc: @doc,
+                     text: "Content starts on a fresh page."}]]
+
+    -> [pdf[render {doc: @doc}]]
+    ;; -> two pages, layout deterministic across languages
+]

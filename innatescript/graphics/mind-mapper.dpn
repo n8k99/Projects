@@ -1,0 +1,82 @@
+# G115 — Mind Mapper
+
+*v2. See `mind-mapper.md` for prose: radial polar-to-cartesian layout,
+parent→children tree (not flat list), per-branch color inheritance.*
+
+---
+
+## Choreographic Case: Vault Idea Map
+
+[idea-map @root-tag @cx @cy
+    IN ORDER TO
+        render vault ideas tagged under @root-tag as a radial mind map
+        with branches inheriting the parent's color
+
+    @tree <- [vault[build-tag-tree {root-tag: @root-tag}]]
+    @nodes <- [mm[radial-layout {tree: @tree,
+                                  cx: @cx, cy: @cy,
+                                  radius-step: 150}]]
+
+    for @node in @nodes
+        [canvas[draw-node {node: @node}]]
+        for @child in @node:children
+            [canvas[draw-edge {from: @node, to: @child,
+                                color: @node:color}]]
+]
+
+---
+
+## Verb Surface
+
+[mm
+    node          {id, label}
+    with-child    {parent, child}            ;; parent gains child
+    with-color    {node, color}
+    radial-layout {tree, cx, cy, radius-step}
+    subtree-size  {node}                     ;; counts transitive descendants
+]
+
+[canvas
+    draw-node {node}
+    draw-edge {from, to, color}
+]
+
+---
+
+## Distinctive Innate idiom: polar-to-cartesian as resolver internal
+
+The v1 spec exposed `polar_to_cartesian(cx, cy, angle, radius)` as a
+public resolver native. In Innate this is internal math — the
+choreographer asks for `radial-layout`, the resolver handles the
+polar-to-cartesian conversion. The user sees geometry, not math.
+
+[mm[radial-layout {tree: @t, cx: 500, cy: 500, radius-step: 120}
+    where
+        level-0 sits at the center
+        level-1 distributes around the full circle
+        level-2 distributes within its parent's arc
+        each level sits at radius = depth × radius-step
+]
+
+The `where` clauses specify the *layout contract* — how angles and
+radii should be assigned — without prescribing the trigonometric
+implementation.
+
+---
+
+## Demo
+
+[demo
+    @root <- [mm[node {id: 0, label: "Rosetta Stone"}]]
+    @c1   <- [mm[node {id: 1, label: "Graphics"}]]
+    @c2   <- [mm[node {id: 2, label: "Text"}]]
+    @c3   <- [mm[node {id: 3, label: "Classes"}]]
+    @root <- [mm[with-child {parent: @root, child: @c1}]]
+    @root <- [mm[with-child {parent: @root, child: @c2}]]
+    @root <- [mm[with-child {parent: @root, child: @c3}]]
+
+    @nodes <- [mm[radial-layout {tree: @root,
+                                   cx: 500, cy: 500, radius-step: 100}]]
+    -> @nodes count        ;; -> 4
+    -> @root:subtree-size  ;; -> 3 (children, not self)
+]

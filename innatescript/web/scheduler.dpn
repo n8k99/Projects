@@ -1,0 +1,146 @@
+# G080 — Scheduled Auto Login and Action
+
+*v2. See `scheduler.md` for prose: tasks are data, catch-up policy is
+skip-missed (not backfill), Schedule as sum type (not cron string),
+disabled tasks are retained, per-task history is immutable, dispatch
+as the extension point.*
+
+---
+
+## Choreographic Case: Vault Automation
+
+[vault-automations @dispatcher
+    IN ORDER TO
+        register a handful of data-driven scheduled tasks
+        tick the scheduler on a fixed cadence and record every run
+        so the schedule survives restart and history is queryable
+
+    @sched <- [scheduler[new]]
+
+    [scheduler[add-task
+                {sched: @sched, name: "daily backup",
+                 schedule: {kind: "daily", hour: 3, minute: 0},
+                 action: "backup-vault",
+                 credential: "backup-host",
+                 first-fire-base-ms: [clock[now]]}]]
+
+    [scheduler[add-task
+                {sched: @sched, name: "agent heartbeat",
+                 schedule: {kind: "every_ms", interval-ms: 60000},
+                 action: "ping-agents", credential: none,
+                 first-fire-base-ms: [clock[now]]}]]
+
+    every 1 second
+        @runs <- [scheduler[tick
+                              {sched: @sched,
+                               now-ms: [clock[now]],
+                               dispatch: @dispatcher}]]
+        for @r in @runs
+            @r where status is "failed"
+                -> [alert[dispatch
+                           {task: @r:task-name,
+                            message: @r:message}]]
+]
+
+---
+
+## Verb Surface
+
+[scheduler
+    new
+    add-task             {sched, name, schedule, action,
+                          credential, first-fire-base-ms}
+    remove-task          {sched, id}
+    set-enabled          {sched, id, enabled}
+    tick                 {sched, now-ms, dispatch}        ;; -> [Run]
+    history-for          {sched, id}
+    all-history          {sched}
+]
+
+---
+
+## Distinctive Innate idiom: schedule as sum type, next-fire computed per variant
+
+[scheduler[next-fire {task: @t, now-ms: @now}]
+    @t:schedule
+        where kind is "every_ms"
+            -> @t:last-fire-ms + interval-ms
+               (or @t:first-fire-base-ms if never fired)
+        where kind is "at_ms"
+            -> @t:schedule:absolute-time
+        where kind is "daily"
+            -> next occurrence of (hour, minute) at or after @now
+]
+
+Enum variants beat cron strings: trivially typecheckable, no parser,
+explicit variant-per-pattern. Trades expressiveness for safety — add
+a new pattern is add a new variant.
+
+## Distinctive Innate idiom: skip-missed as policy `where` deadline passed
+
+[scheduler[tick {sched: @s, now-ms: @now, dispatch: @d}]
+    IN ORDER TO
+        fire each enabled task whose next-fire is at or before @now
+        once per tick, advancing its last-fire to the *current* boundary
+        so a 30-missed-fire backlog collapses to a single run
+
+    for @task in @s:tasks
+        where @task:enabled
+        and [scheduler[next-fire {task: @task, now-ms: @now}]] at most @now
+            -> @run <- [@d {task: @task, now-ms: @now}]
+            -> append @run to @s:history
+            -> @task:last-fire-ms := [scheduler[most-recent-boundary
+                                                  {task: @task,
+                                                   at-or-before: @now}]]
+               (NOT @now literally — aligns next fire to the schedule)
+]
+
+Thundering-herd-after-downtime is almost never what the caller wants.
+Cron picks skip-missed; systemd's Persistent=false matches. Backfill
+semantics require an explicit opt-in pattern on top.
+
+## Distinctive Innate idiom: dispatch as injected extension
+
+[scheduler[tick {..., dispatch: @d}]
+    @d is any value callable as (task, now-ms) returning a Run
+    IN ORDER TO
+        keep the scheduler ignorant of what tasks actually do
+        tests plug a deterministic fake @d
+        production plugs a real @d that looks up credentials
+                     and invokes the named action
+]
+
+Same abstract-transport pattern as G072 File Downloader. The
+scheduler is reusable across any task semantic; the dispatch is where
+the per-project work lives.
+
+---
+
+## Demo
+
+[demo
+    @s <- [scheduler[new]]
+    [scheduler[add-task
+                {sched: @s, name: "heartbeat",
+                 schedule: {kind: "every_ms", interval-ms: 1000},
+                 action: "ping", credential: none,
+                 first-fire-base-ms: 0}]]
+
+    -> [scheduler[tick
+                    {sched: @s, now-ms: 500,
+                     dispatch: @noop-dispatch}]]
+    ;; -> []  (not yet due)
+
+    -> [scheduler[tick
+                    {sched: @s, now-ms: 1500,
+                     dispatch: @noop-dispatch}]]
+    ;; -> [Run{task: "heartbeat", status: "ok"}]
+
+    -> [scheduler[tick
+                    {sched: @s, now-ms: 10000,
+                     dispatch: @noop-dispatch}]]
+    ;; -> [Run{...}]  (ONE run, not 8 backfilled — skip-missed)
+
+    -> [scheduler[history-for {sched: @s, id: 0}]]
+    ;; -> [two Runs, chronological]
+]

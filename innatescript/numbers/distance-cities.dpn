@@ -1,0 +1,92 @@
+# G012 — Distance Between Two Cities
+
+*v2. See `distance-cities.md` for prose: first encounter with world-
+state, fact lookup as a resolver primitive alongside computation,
+representation, and scheduling. Computed values vs looked-up values
+differ architecturally.*
+
+---
+
+## Choreographic Case: Warehouse Proximity Selection
+
+[warehouse-dispatch @customer-address
+    IN ORDER TO
+        resolve the customer destination and three candidate warehouses
+        compute great-circle distances concurrently
+        and dispatch to the nearest warehouse
+
+    @dest <- [city[lookup {address: @customer-address}]]
+
+    concurrent [
+        tokyo:  @w1 <- [warehouse[coords {name: "warehouse_tokyo"}]]
+    |
+        sydney: @w2 <- [warehouse[coords {name: "warehouse_sydney"}]]
+    |
+        cairo:  @w3 <- [warehouse[coords {name: "warehouse_cairo"}]]
+    ]
+    join
+
+    concurrent [
+        @d1 <- [haversine {lat1: @dest:lat, lon1: @dest:lon,
+                            lat2: @w1:lat,   lon2: @w1:lon}]
+    |
+        @d2 <- [haversine {lat1: @dest:lat, lon1: @dest:lon,
+                            lat2: @w2:lat,   lon2: @w2:lon}]
+    |
+        @d3 <- [haversine {lat1: @dest:lat, lon1: @dest:lon,
+                            lat2: @w3:lat,   lon2: @w3:lon}]
+    ]
+    join
+
+    @nearest <- select min over [(@w1, @d1), (@w2, @d2), (@w3, @d3)]
+    [dispatch {warehouse: @nearest, destination: @dest}]
+]
+
+---
+
+## Verb Surface
+
+[haversine
+    {lat1, lon1, lat2, lon2}                 ;; -> km
+]
+
+[city
+    lookup              {name}                ;; -> {lat, lon} | #unknown-city
+]
+
+[city-distance
+    {from, to}                                 ;; -> km (chains lookup + haversine)
+]
+
+---
+
+## Distinctive Innate idiom: fact lookup `where` world-state is external
+
+[city[lookup {name: @n}]
+    IN ORDER TO
+        return coordinates from a shared mutable fact store
+        not from first-principles computation
+        because city locations are contingent facts, not derivable theorems
+
+    @n in fact-store (database or hardcoded table)
+        where present     -> return {lat, lon}
+        where absent       -> #unknown-city
+]
+
+Computed values are deterministic and timeless; looked-up values are
+contingent and mutable. The resolver must treat them differently —
+caches differ, freshness semantics differ. G012 is the first
+encounter with world-state as a resolver primitive.
+
+---
+
+## Demo
+
+[demo
+    -> [haversine {lat1: 40.7128, lon1: -74.0060,
+                    lat2: 51.5074, lon2: -0.1278}]
+    ;; -> 5570.25 km (NYC to London)
+
+    -> [city-distance {from: "Tokyo", to: "Sydney"}]   ;; -> 7795.28
+    -> [city-distance {from: "Atlantis", to: "Rome"}]  ;; -> #unknown-city
+]

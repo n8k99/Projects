@@ -1,0 +1,110 @@
+# G056 — Image Gallery
+
+*v2. See `image-gallery.md` for prose: tag-set algebra (intersection, union,
+difference), content-hash dedup, albums as curated subsets.*
+
+---
+
+## Choreographic Case: Trip Report with Content Dedup
+
+[trip-report @week-tag @week-name @user
+    IN ORDER TO
+        build a travel album for the week
+        excluding private images
+        collapsing content duplicates so one photo appears once
+
+    @candidates <- [gallery[with-all-tags {tags: ["travel", @week-tag]}]]
+                   - [gallery[with-any-tag {tags: ["private"]}]]
+    @unique     <- [gallery[dedup-by-hash {images: @candidates}]]
+
+    @album <- [gallery[create-album
+                         {id: @week-tag,
+                          name: "Trip — " + @week-name,
+                          curator: @user,
+                          image-ids: @unique:ids}]]
+
+    concurrent [
+        <- @sarah{draft captions for: @unique}
+        <- @ellie{oversight review of: @album}
+    ]
+    join
+
+    @album
+        where
+            no image has the "private" tag
+            and unique image count equals distinct content-hash count
+            and curator equals @user
+        || -> #album-rejected @resistance:reason
+]
+
+---
+
+## Verb Surface
+
+[gallery
+    new
+    add-image          {image}
+    tag                {image-id, ...tags}
+    untag              {image-id, ...tags}
+    with-all-tags      {tags}                  ;; intersection
+    with-any-tag       {tags}                  ;; union
+    without-tags       {include, exclude}      ;; difference
+    duplicates                                  ;; hash -> [image-id]
+    find-by-hash       {content-hash}
+    dedup-by-hash      {images}
+    create-album       {album}
+    add-to-album       {album-id, image-id}
+    album-contents     {album-id}
+]
+
+---
+
+## Distinctive Innate idiom: tag set algebra as resolver-registered operators
+
+[@candidates <- @travel-tagged ∩ @week-tagged - @private-tagged
+    where
+        ∩ is set intersection over image ids
+        and - is set difference
+        and ∪ is set union (not used here but available)
+]
+
+Resolver registers set operators. Choreographies compose them
+naturally. The v1 insight "set algebra is the natural query language
+for tag overlaps" becomes literal syntax.
+
+---
+
+## Content-hash dedup as exact-equality invariant
+
+[gallery[dedup-by-hash {images: @list}
+    where
+        output keeps exactly one image per distinct content-hash
+        and ordering preserves first-seen precedence
+        so callers get deterministic dedup
+]
+
+---
+
+## Demo
+
+[demo
+    @g <- [gallery[new]]
+    [gallery[add-image {image: {id: 1, path: "/a.jpg",
+                                  hash: "abc", tags: ["travel", "week-1"]}}]]
+    [gallery[add-image {image: {id: 2, path: "/b.jpg",
+                                  hash: "abc", tags: ["travel", "week-1"]}}]]
+    [gallery[add-image {image: {id: 3, path: "/c.jpg",
+                                  hash: "def", tags: ["travel", "private"]}}]]
+
+    @travel <- [gallery[with-all-tags {tags: ["travel"]}]]
+    -> @travel:count                                   ;; -> 3
+
+    @public <- @travel - [gallery[with-any-tag {tags: ["private"]}]]
+    -> @public:count                                   ;; -> 2 (images 1 and 2)
+
+    @unique <- [gallery[dedup-by-hash {images: @public}]]
+    -> @unique:count                                   ;; -> 1 (same hash "abc")
+
+    @dupes <- [gallery[duplicates]]
+    -> @dupes["abc"]                                    ;; -> [1, 2]
+]

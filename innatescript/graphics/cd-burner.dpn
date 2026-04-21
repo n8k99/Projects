@@ -1,0 +1,114 @@
+# G120 — CD Burning App
+
+*v2. See `cd-burner.md` for prose: session-aware capacity, FFD bin-packing,
+ISO 9660 canonicalization with ~N collision suffix, absorbing-terminal FSM.*
+
+---
+
+## Choreographic Case: Vault Backup Burner
+
+[backup-burner @files @disc-capacity @num-discs
+    IN ORDER TO
+        pack vault exports onto as few CDs as possible
+        with ISO-compliant names and a finalized TOC
+
+    @plan <- [burn[pack-files-ffd {files: @files,
+                                     capacity: @disc-capacity,
+                                     discs: @num-discs}]]
+    #plan
+        discs: @plan:discs
+        overflow: @plan:overflow
+        total-size: sum over @files:size-bytes
+
+    @plan:overflow
+        where count > 0
+        IN ORDER TO tell the user a bigger cluster is needed
+        -> "would need " + (@num-discs + 1) + " discs or more"
+
+    for @disc-plan in @plan:discs
+        @disc <- [burn[new-disc {capacity-bytes: @disc-capacity}]]
+        [burn[open-session {disc: @disc}]]
+            || -> @resistance:reason
+
+        @iso-names <- {}
+        for @file in @disc-plan
+            @iso <- [burn[canonicalize-iso-name
+                            {name: @file:name, existing: @iso-names}]]
+            @iso-names <- @iso-names with @iso
+            [burn[add-file {disc: @disc,
+                             file: {name: @iso,
+                                    size-bytes: @file:size-bytes}}]]
+
+        [burn[finalize {disc: @disc}]]
+        #ready-to-burn @disc
+]
+
+---
+
+## Verb Surface
+
+[burn
+    new-disc               {capacity-bytes}
+    open-session           {disc}                  ;; || disc-finalized, session-already-open
+    add-file               {disc, file}            ;; || disc-finalized, no-open-session, not-enough-space
+    close-session          {disc}                  ;; || disc-finalized, no-open-session
+    finalize               {disc}                  ;; || disc-finalized
+    used-bytes             {disc}
+    remaining-bytes        {disc}
+    pack-files-ffd         {files, capacity, discs}
+    canonicalize-iso-name  {name, existing}
+]
+
+---
+
+## Distinctive Innate idiom: absorbing terminal state via persistent resistance
+
+The v1 modeled `Finalized` as a phase. In Innate it's not a state
+value at all — it's a resolver fact about the disc that causes
+every write verb to resist:
+
+[burn[add-file {disc: @finalized-disc, file: @any}]]
+    || -> @resistance:reason    ;; "disc-finalized"
+
+The fulfillment clause is the place to decide what "finalized" means
+at the choreographic level: surface as UI warning, route to a
+human for a new blank disc, or just halt.
+
+---
+
+## ISO name canonicalization as deterministic `where` constraint
+
+[burn[canonicalize-iso-name {name: "report.txt", existing: {"REPORT.TXT"}}]
+    where
+        the result is uppercase alphanumeric + underscore only
+        and the stem portion is no more than 8 characters
+        and the extension is no more than 3 characters
+        and if the canonical form collides with an existing name
+            the stem is truncated to make room for "~N" suffix
+            where N is the smallest positive integer producing no collision
+]
+-> "REPORT~1.TXT"
+
+---
+
+## Demo
+
+[demo
+    @disc <- [burn[new-disc {capacity-bytes: 700000000}]]
+    [burn[open-session {disc: @disc}]]
+    [burn[add-file {disc: @disc,
+                     file: {name: "album1.flac", size-bytes: 100000000}}]]
+    [burn[add-file {disc: @disc,
+                     file: {name: "album2.flac", size-bytes: 150000000}}]]
+    -> [burn[used-bytes {disc: @disc}]]         ;; -> 285000000  (250M + 35M overhead)
+
+    [burn[close-session {disc: @disc}]]
+    [burn[open-session  {disc: @disc}]]
+    [burn[add-file {disc: @disc,
+                     file: {name: "bonus.mp3", size-bytes: 50000000}}]]
+    -> [burn[used-bytes {disc: @disc}]]         ;; -> 370000000  (2 sessions × 35M)
+
+    [burn[finalize {disc: @disc}]]
+    [burn[add-file {disc: @disc, file: @anything}]]
+        || -> "disc-finalized"                    ;; -> "disc-finalized"
+]

@@ -1,0 +1,124 @@
+# G110 — Travel Planner System
+
+*v2. See `travel-planner.md` for prose: chain-of-edges validation,
+two independent invariants (location chain and time chain), tight-
+layover as warning, layovers derived from consecutive legs,
+span = transit + layover identity.*
+
+---
+
+## Choreographic Case: Vault Trip Planner
+
+[vault-trip-planner @trip-path
+    IN ORDER TO
+        load a trip, validate its chain invariants
+        derive layovers from consecutive legs
+        and render the trip with live issue feedback on every edit
+
+    @trip <- [trip[load {path: @trip-path}]]
+
+    @issues   <- [trip[validate {trip: @trip}]]
+    @layovers <- [trip[layovers {trip: @trip}]]
+
+    [ui[render-trip
+        {title: @trip:title,
+         legs: @trip:legs,
+         layovers: @layovers,
+         issues: @issues,
+         metrics: {
+            span:       [trip[total-span-ms     {trip: @trip}]],
+            in-transit: [trip[in-transit-ms     {trip: @trip}]],
+            layover:    [trip[total-layover-ms  {trip: @trip}]],
+            cost:       [trip[total-cost-cents  {trip: @trip}]]
+         }}]]
+
+    sync @user-events {
+        edit-leg @idx @new-leg ->
+            [trip[replace-leg {trip: @trip, idx: @idx, leg: @new-leg}]]
+            @issues <- [trip[validate {trip: @trip}]]
+            [ui[refresh-issues {issues: @issues}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[trip
+    new                    {id, title}
+    add-leg                {trip, leg}
+    replace-leg            {trip, idx, leg}
+    validate               {trip}                ;; -> [Issue]
+    layovers               {trip}                ;; -> [Layover]
+    total-span-ms          {trip}
+    in-transit-ms          {trip}
+    total-layover-ms       {trip}
+    total-cost-cents       {trip}
+]
+
+---
+
+## Distinctive Innate idiom: the chain as a `where` on consecutive pairs
+
+[trip[validate {trip: @trip}]
+    IN ORDER TO
+        produce one issue per broken invariant
+        across per-leg checks and per-pair chain checks
+        so the user can fix each issue independently
+
+    @per-leg <- @trip:legs
+        where arrive-ms is less than depart-ms
+            -> #negative-duration-leg (severity: Error, leg-idx)
+        or where arrive-ms is equal to depart-ms
+            -> #zero-duration-leg (severity: Warning, leg-idx)
+
+    @per-pair <- @trip:legs paired-with-next as (@a, @b)
+        where @a:destination is not @b:origin
+            -> #location-mismatch (severity: Error, leg-idx: @b:idx)
+        or where @b:depart-ms is less than @a:arrive-ms
+            -> #time-conflict (severity: Error, leg-idx: @b:idx)
+        or where (@b:depart-ms - @a:arrive-ms) / 60000
+              is between 1 and @trip:min-layover-minutes - 1
+            -> #tight-layover (severity: Warning, leg-idx: @b:idx)
+
+    @per-leg joined-with @per-pair
+]
+
+The two check layers compose but never entangle: a broken leg is
+reported even when the chain is also broken, so the user sees both
+failures at once rather than fixing them in sequence.
+
+## Distinctive Innate idiom: layovers derived, never stored
+
+[trip[layovers {trip: @trip}]
+    @trip:legs paired-with-next as (@a, @b)
+    IN ORDER TO
+        emit Layover records for every consecutive pair
+        where the traveller is waiting at @a:destination
+        for @b:depart-ms − @a:arrive-ms milliseconds
+]
+
+Editing a leg invalidates any cached layovers silently; rederiving is
+the only correct response. Same discipline as G095's lazy formulae
+and G109's progress roll-up — derived views over a canonical source.
+
+---
+
+## Demo
+
+[demo
+    @t <- [trip[new {id: 1, title: "JFK → SFO → LAX"}]]
+    [trip[add-leg {trip: @t,
+                    leg: {origin: "JFK", destination: "SFO",
+                           depart-ms: 100000000, arrive-ms: 120000000,
+                           cost-cents: 30000, mode: "FLIGHT"}}]]
+    [trip[add-leg {trip: @t,
+                    leg: {origin: "SFO", destination: "LAX",
+                           depart-ms: 130000000, arrive-ms: 135000000,
+                           cost-cents: 15000, mode: "FLIGHT"}}]]
+
+    -> [trip[validate  {trip: @t}]]   ;; -> []
+    -> [trip[layovers  {trip: @t}]]
+    ;; -> [{location: "SFO", duration-ms: 10000000}]
+    -> [trip[total-cost-cents {trip: @t}]]  ;; -> 45000
+]

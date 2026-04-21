@@ -1,0 +1,106 @@
+# G070 — Web Browser with Tabs
+
+*v2. See `browser.md` for prose: scope as the central design decision,
+per-tab history as independent timelines, navigate truncates forward
+(branching timeline), closed-tab recovery as orthogonal second undo
+stack, active tab as a pointer not a state.*
+
+---
+
+## Choreographic Case: Multi-Topic Research Session
+
+[research-session @topics
+    IN ORDER TO
+        open a tab per topic, walk top results within each tab
+        bookmark pages that pass a relevance filter
+        and synthesise a report from the browser-scoped bookmark list
+
+    @browser <- [web[new-browser]]
+
+    @tabs <- for @topic in @topics
+        [web[open-tab
+              {browser: @browser,
+               url: [search[url-for {topic: @topic}]]}]]
+
+    for @t in @tabs
+        [web[switch-to {browser: @browser, id: @t}]]
+        for @r in [search[top-results {n: 5}]]
+            [web[navigate {browser: @browser, url: @r:url}]]
+            @content <- [scrape {page: @r:url}]
+            @content where relevance is greater than 0.7
+                -> [web[add-bookmark {browser: @browser}]]
+
+    @bookmarks <- [web[bookmarks {browser: @browser}]]
+    @report    <- [synthesize {sources: @bookmarks}]
+]
+
+---
+
+## Verb Surface
+
+[web
+    new-browser
+    open-tab         {browser, url}
+    close-tab        {browser, id}
+    reopen-last-closed {browser}
+    switch-to        {browser, id}
+    navigate         {browser, url}           ;; truncates forward stack
+    back             {browser}                 ;; || at-oldest
+    forward          {browser}                 ;; || at-newest
+    add-bookmark     {browser}
+    bookmarks        {browser}
+]
+
+---
+
+## Distinctive Innate idiom: scope as `where` state lives
+
+[@browser
+    IN ORDER TO
+        keep every piece of state in exactly one scope
+        so closing a tab never loses browser-wide data
+        and the back stack of tab 1 is never altered by tab 2's navigation
+
+    per-tab:     url, back stack, forward stack, scroll-position
+    browser:     bookmarks, closed-tab stack, active-tab pointer
+]
+
+Getting the scope wrong is a design bug that manifests as user
+surprise. "Why did closing this tab lose my bookmark?" — scope error.
+"Why does Back go to a different tab?" — scope error.
+
+## Distinctive Innate idiom: navigate truncates forward `where` timeline branches
+
+[web[navigate {browser: @b, url: @u}]
+    @active-tab
+        where forward stack is non-empty
+            -> discard forward stack (user has branched onto a new path)
+    push current url onto back stack
+    set current url to @u
+]
+
+Same discipline every editor undo and every VCS has: redo is lost
+the moment you branch. The closed-tab stack is the workaround —
+different scope, different lifecycle.
+
+---
+
+## Demo
+
+[demo
+    @b  <- [web[new-browser]]
+    @t1 <- [web[open-tab {browser: @b, url: "https://a"}]]
+    [web[navigate {browser: @b, url: "https://b"}]]
+    [web[navigate {browser: @b, url: "https://c"}]]
+
+    [web[back {browser: @b}]]
+    -> @t1 current url                         ;; -> "https://b"
+
+    [web[navigate {browser: @b, url: "https://d"}]]
+    -> forward stack of @t1                     ;; -> [] (truncated)
+
+    @t2 <- [web[open-tab {browser: @b, url: "https://x"}]]
+    [web[close-tab {browser: @b, id: @t2}]]
+    [web[reopen-last-closed {browser: @b}]]
+    -> @t2 current url                          ;; -> "https://x" (recovered)
+]

@@ -1,0 +1,112 @@
+# G040 — Packet Sniffer
+
+*v2. See `packet-sniffer.md` for prose: passive observation as
+distinct mode from active probing, `@breakdown` generalised to
+network traffic, bidirectional connection keys, anomaly detection
+as statistical `where`.*
+
+---
+
+## Choreographic Case: Network Health Observer
+
+[network-observer @threshold-bytes-per-sec
+    IN ORDER TO
+        capture TCP traffic passively while the rest of the system runs
+        summarise every minute, and escalate only on statistical signatures
+        so the observer never participates, only measures
+
+    @capture <- [sniffer[start {filter: {protocol: "tcp"}}]]
+
+    every 60 seconds
+        @stats <- [sniffer[summary {capture: @capture}]]
+        @syn-suspects  <- [sniffer[detect-syn-flood
+                                     {capture: @capture, threshold: 100}]]
+        @scan-suspects <- [sniffer[detect-port-scan
+                                     {capture: @capture, threshold: 20}]]
+
+        @syn-suspects
+            where count is greater than zero
+                -> [alert[dispatch
+                           {kind: "syn-flood",
+                            sources: @syn-suspects}]]
+        @scan-suspects
+            where count is greater than zero
+                -> [alert[dispatch
+                           {kind: "port-scan",
+                            sources: @scan-suspects}]]
+        @stats
+            where bytes-per-second is greater than @threshold-bytes-per-sec
+                -> [alert[dispatch
+                           {kind: "bandwidth",
+                            rate: @stats:bytes-per-second}]]
+]
+
+---
+
+## Verb Surface
+
+[sniffer
+    start               {filter}
+    summary             {capture}
+    breakdown           {capture, by}            ;; "protocol"|"src-ip"|"connection"
+    detect-syn-flood    {capture, threshold}
+    detect-port-scan    {capture, threshold}
+    connections         {capture}
+]
+
+---
+
+## Distinctive Innate idiom: bidirectional identity `where` endpoints sort
+
+[sniffer[connection-key {src-ip: @a, src-port: @ap,
+                          dst-ip: @b, dst-port: @bp}]
+    IN ORDER TO
+        treat A→B and B→A as one conversation
+        so request and response coalesce under a single key
+
+    sort [(@a, @ap), (@b, @bp)] by (ip, port)
+    return the pair as a canonical ConnectionKey
+]
+
+Agents' request-response flows are inherently bidirectional; the
+connection tracker normalises direction before counting. Same
+discipline InnateScript's agent correspondence uses — a commission
+and its return converge on one handle.
+
+## Distinctive Innate idiom: anomaly as `where` over aggregate shape
+
+[sniffer[detect-syn-flood {capture: @c, threshold: @t}]
+    IN ORDER TO
+        signal hostile behaviour from statistics, not packet content
+        so cheap aggregate analysis gates expensive response logic
+
+    group @c:packets by src-ip
+        where syn-count is greater than @t
+        and matching ack-count much less than syn-count
+        -> append src-ip to suspects
+
+    return suspects
+]
+
+The `where` evaluates the *aggregate* shape, not individual packets.
+An agent that sends too many requests without processing responses
+is the noosphere equivalent of a SYN flood.
+
+---
+
+## Demo
+
+[demo
+    @cap <- [sniffer[start {filter: {protocol: "tcp"}}]]
+    ;; ... traffic flows ...
+
+    -> [sniffer[breakdown {capture: @cap, by: "protocol"}]]
+    ;; -> {TCP: 1523, UDP: 482, ICMP: 14}
+
+    -> [sniffer[breakdown {capture: @cap, by: "connection"}]]
+    ;; -> {((A:1234, B:80)): 47 packets, ...}
+
+    -> [sniffer[detect-port-scan
+                  {capture: @cap, threshold: 20}]]
+    ;; -> ["10.0.0.5"]  — one source probed > 20 distinct dst-ports
+]

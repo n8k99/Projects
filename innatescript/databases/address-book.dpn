@@ -1,0 +1,78 @@
+# G071 — Address Book
+
+*v2. See `address-book.md` for prose: canonical email/phone, duplicate detection
+via canonical-form equivalence classes, merge preserves union of fields.*
+
+---
+
+## Choreographic Case: Vault People Gallery
+
+[people-gallery @vcard-dir
+    IN ORDER TO
+        load vcards, surface duplicate groups for user review
+        merge confirmed duplicates, and support live search
+
+    @ab <- [contacts[load {path: @vcard-dir + "/*.vcard"}]]
+    @dupes <- [contacts[find-duplicates {book: @ab}]]
+
+    for @group in @dupes
+        @names <- @group mapped to ([contacts[get {book: @ab, id: @id}]]):name
+        [ui[suggest-merge {ids: @group, names: @names}]]
+
+    sync @user-events {
+        confirm-merge @ids ->
+            @merged <- [contacts[merge {book: @ab, ids: @ids}]]
+            [vault[save {path: "people/" + @merged + ".vcard"}]]
+            for @id in @ids [fs[delete {path: "people/" + @id + ".vcard"}]]
+
+        search @query ->
+            @by-name  <- [contacts[search-by-name  {book: @ab, needle: @query}]]
+            @by-email <- [contacts[search-by-email {book: @ab, email: @query}]]
+            [ui[render-results {ids: @by-name ∪ @by-email}]]
+    }
+]
+
+---
+
+## Verb Surface
+
+[contacts
+    canonical-email      {email}           ;; lowercase, +alias stripped
+    canonical-phone      {phone}            ;; digits only, country-code normalized
+    new
+    add                  {book, contact}
+    get                  {book, id}         ;; || not-found
+    find-duplicates      {book}              ;; -> [[id]] equivalence classes
+    merge                {book, ids}         ;; || merge-conflict
+    search-by-name       {book, needle}
+    search-by-email      {book, email}
+]
+
+---
+
+## Distinctive Innate idiom: canonical form as `where` invariant
+
+[contacts[find-duplicates {book: @b}
+    where
+        two contacts are duplicates iff they share a canonical email
+        or share a canonical phone
+        (canonical form is defined by canonical-email / canonical-phone)
+        and the result groups contacts into equivalence classes by this relation
+]
+
+---
+
+## Demo
+
+[demo
+    @ab <- [contacts[new]]
+    [contacts[add {book: @ab, contact: {name: "Alice Smith",
+                                         email: "Alice+newsletter@Example.COM"}}]]
+    [contacts[add {book: @ab, contact: {name: "Alice S.",
+                                         email: "alice@example.com"}}]]
+    [contacts[add {book: @ab, contact: {name: "Bob",
+                                         email: "bob@example.com"}}]]
+
+    -> [contacts[find-duplicates {book: @ab}]]
+    ;; -> [[1, 2]]  (same canonical email)
+]

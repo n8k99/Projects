@@ -1,0 +1,120 @@
+# G023 — Post it Notes Program
+
+*v2. See `post-it-notes.md` for prose: first data store with CRUD,
+identity makes content addressable, search as simplest query, the
+note board is the vault's document model stripped to its essentials,
+shared memory for agent teams.*
+
+---
+
+## Choreographic Case: Shared Knowledge Base
+
+[shared-knowledge-base
+    IN ORDER TO
+        let multiple agents create and search notes in a single board
+        with each agent's access pattern distinct but non-conflicting
+        so the board becomes the team's shared mutable memory
+
+    @board <- [notes[new]]
+
+    concurrent [
+        sarah:
+            for @task in [tasks[open-today]]
+                [notes[create
+                        {board: @board,
+                         title: @task:title,
+                         content: @task:description,
+                         tags: ["task", "today"]}]]
+    |
+        lena:
+            @relevant <- [notes[search
+                                  {board: @board, query: "daily-note"}]]
+            for @n in @relevant
+                [lena[summarise-into-briefing {note: @n}]]
+    |
+        eliana:
+            @stale <- [notes[search
+                               {board: @board,
+                                query: "",
+                                filter: {older-than-days: 30}}]]
+            for @n in @stale
+                [notes[archive {board: @board, id: @n:id}]]
+    ]
+    join
+]
+
+---
+
+## Verb Surface
+
+[notes
+    new                              ;; -> empty board
+    create   {board, title, content, tags}    ;; -> note-id
+    read     {board, id}                       ;; || not-found
+    update   {board, id, title, content, tags}
+    delete   {board, id}
+    archive  {board, id}
+    search   {board, query, filter?}            ;; -> [Note]
+]
+
+---
+
+## Distinctive Innate idiom: identity `where` same content is a different entity
+
+[notes[create {board: @b, title: @t, content: @c, tags: @tags}]
+    IN ORDER TO
+        assign a fresh id so content becomes addressable and mutable
+        because without identity you cannot say "update that note" —
+        only "update every note that looks like this"
+
+    @id <- next-available-id
+    store {id: @id, title: @t, content: @c, tags: @tags, created-ms: now}
+    return @id
+]
+
+Two notes with identical content are still different notes (different
+ids). Identity is the difference between a value and an entity. G023
+introduces the distinction that the entire CRUD-and-query category
+then builds on.
+
+## Distinctive Innate idiom: search as `where` predicate over the collection
+
+[notes[search {board: @b, query: @q, filter: @f}]
+    @b:notes
+        where title contains @q
+           or content contains @q
+           or any tag matches @q
+        filtered by @f (optional age / author / tag constraints)
+        ordered by created-ms descending
+    IN ORDER TO
+        let every caller bring their own `where` to the collection
+        because "find" is the universal read-path every consumer needs
+]
+
+---
+
+## Demo
+
+[demo
+    @b <- [notes[new]]
+    @id1 <- [notes[create
+                     {board: @b,
+                      title: "Rosetta Stone",
+                      content: "second pass at 117/130",
+                      tags: ["project", "active"]}]]
+    @id2 <- [notes[create
+                     {board: @b,
+                      title: "Kathryn monthly",
+                      content: "cover obligations",
+                      tags: ["finance", "recurring"]}]]
+
+    -> [notes[search {board: @b, query: "Rosetta"}]]
+    ;; -> [note @id1]
+
+    [notes[update {board: @b, id: @id1,
+                    title: "Rosetta Stone",
+                    content: "second pass closing",
+                    tags: ["project", "active", "closing"]}]]
+    -> [notes[read {board: @b, id: @id1}]]:content
+    ;; -> "second pass closing"
+]

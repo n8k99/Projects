@@ -1,0 +1,75 @@
+# G050 — Shapes
+
+*v2. See `shapes.md` for prose: polymorphic dispatch on Shape values, first
+Rosetta project with method-per-variant dispatch (area, perimeter, name).*
+
+---
+
+## Choreographic Case: Asset Library with Mixed Shape Metadata
+
+[gallery-metadata @canvas-size
+    IN ORDER TO
+        summarize bounding-region coverage across a mixed-shape asset library
+        where each asset's bounding-region may be a circle or a rectangle
+
+    @assets <- [gallery[images]]
+    @bounding-shapes <- @assets mapped to :bounding-region
+
+    @total-coverage <- [shape[total-area {shapes: @bounding-shapes}]]
+    @densest        <- [shape[largest-by-area {shapes: @bounding-shapes}]]
+
+    where
+        every shape is valid
+        and total coverage is positive and below @canvas-size
+        || -> #metadata-anomaly @resistance:reason
+]
+
+---
+
+## Verb Surface
+
+[shape
+    area                 {shape}           ;; polymorphic: circle or rectangle
+    perimeter            {shape}
+    name                 {shape}
+    total-area           {shapes}
+    largest-by-area      {shapes}
+    sort-by-perimeter    {shapes}
+    valid                {shape}
+]
+
+---
+
+## Distinctive Innate idiom: polymorphic dispatch via kind-tag on shape value
+
+A shape is a bare record with a `:kind` discriminator:
+
+{kind: "circle", radius: 10}
+{kind: "rectangle", width: 20, height: 30}
+
+[shape[area {shape: @s}]
+    where
+        when @s:kind is "circle"    the result is π × radius²
+        and when @s:kind is "rectangle" the result is width × height
+        and when @s:kind is unknown resists with "shape-kind-unknown"
+]
+
+The resolver dispatches on `:kind`. Adding a triangle is a resolver
+extension — add the case to the `where` and the dispatch in the resolver.
+
+---
+
+## Demo
+
+[demo
+    @c <- {kind: "circle", radius: 5}
+    @r <- {kind: "rectangle", width: 4, height: 6}
+
+    -> [shape[area       {shape: @c}]]  ;; -> 78.53... (π × 25)
+    -> [shape[perimeter  {shape: @c}]]  ;; -> 31.41... (2π × 5)
+    -> [shape[area       {shape: @r}]]  ;; -> 24
+    -> [shape[perimeter  {shape: @r}]]  ;; -> 20
+
+    -> [shape[total-area {shapes: [@c, @r]}]]         ;; -> 102.53...
+    -> [shape[largest-by-area {shapes: [@c, @r]}]]    ;; -> @c (circle is larger)
+]

@@ -1,0 +1,125 @@
+# G047 — Web Bot
+
+*v2. See `web-bot.md` for prose: autonomous actor that navigates,
+crawling as BFS over link graph, scripted automation as
+choreography, same-domain filter as scope restriction, link graph
+as the noosphere's explicit structure.*
+
+---
+
+## Choreographic Case: Automated Content Verification
+
+[verify-publications
+    IN ORDER TO
+        script a bot to navigate the live sites
+        assert response codes, titles, and content markers
+        and score the verification only if every assertion passed
+
+    @bot <- [web-bot[new]]
+    @script <- [bot-script[new {name: "verify-em-site"}]]
+                 + [navigate {url: "https://eckenrodemuziekopname.com"}]
+                 + [assert   {check: "status:200"}]
+                 + [assert   {check: "contains:Eckenrode Muziekopname"}]
+                 + [extract  {pattern: "<title>(.*?)</title>",
+                               var: "title"}]
+                 + [navigate {url: "https://wiki.eckenrodemuziekopname.com"}]
+                 + [assert   {check: "status:200"}]
+
+    @results <- [web-bot[execute {bot: @bot, script: @script}]]
+
+    @results
+        where every step:success is true
+        and @results:variables:title is "Eckenrode Muziekopname"
+            -> [report[pass {verification: @results}]]
+        otherwise
+            -> #verification-failed
+                {failed-steps: @results where success is false}
+]
+
+---
+
+## Verb Surface
+
+[web-bot
+    new
+    execute            {bot, script}              ;; -> Results
+    crawl              {bot, start-url, policy}    ;; BFS over links
+]
+
+[bot-script
+    new                {name}
+    + navigate         {url}
+    + assert           {check}                      ;; status:N, contains:S, regex:R
+    + extract          {pattern, var}
+    + fill             {selector, value}
+    + click            {selector}
+]
+
+---
+
+## Distinctive Innate idiom: script as stepwise choreography `where` each gates the next
+
+[web-bot[execute {bot: @b, script: @script}]
+    IN ORDER TO
+        run each step in order, halting on the first failure
+        because assertions are the `<-` gates of this choreography
+
+    state <- {page: none, variables: {}}
+    for @step in @script:steps
+        @step:kind
+            where "navigate"
+                -> load @step:url; update state:page
+            where "assert"
+                -> evaluate @step:check against state:page
+                   where true  -> continue
+                   otherwise    -> return #failed-at-step @step
+            where "extract"
+                -> run regex; store group 1 at @step:var in state:variables
+            where "fill" / "click"
+                -> mutate page form state
+]
+
+Bot scripts ARE choreographies expressed in an imperative subset.
+Each step has a precondition (previous step succeeded); failure
+halts the dance — the same protocol every `<-` gate uses.
+
+## Distinctive Innate idiom: crawl as BFS `where` domain bound is the scope fence
+
+[web-bot[crawl {bot: @b, start-url: @u, policy: @p}]
+    queue <- [@u]
+    seen  <- {}
+    while queue non-empty
+        @current <- dequeue
+        @current
+            where @p:same-domain-only and host not equal to @u host -> skip
+            where @current in seen                                   -> skip
+            otherwise
+                -> fetch, extract links, add new to queue
+                -> record @current → @links in link-graph
+]
+
+The link graph IS the noosphere's structure made explicit. Vault
+wiki-links are the same graph with different edge syntax. The
+domain filter is the agent's scope fence; InnateScript resolvers
+have the same boundary.
+
+---
+
+## Demo
+
+[demo
+    @bot    <- [web-bot[new]]
+    @script <- [bot-script[new {name: "self-test"}]]
+                 + [navigate {url: "http://localhost:8080/health"}]
+                 + [assert   {check: "status:200"}]
+                 + [assert   {check: "contains:ok"}]
+
+    -> [web-bot[execute {bot: @bot, script: @script}]]
+    ;; -> {steps: [...], all-passed: true}
+
+    -> [web-bot[crawl
+                  {bot: @bot,
+                   start-url: "http://localhost:8080/",
+                   policy: {same-domain-only: true, max-pages: 50}}]]
+    ;; -> {pages-visited, link-graph: {url -> [outlinks]}}
+]

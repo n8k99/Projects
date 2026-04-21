@@ -1,0 +1,107 @@
+# G071 — Page Scraper
+
+*v2. See `page-scraper.md` for prose: parse as inverse of render but
+partial not total, forgiving parser following Postel, CSS selectors
+as DSL, descendant combinator as path-based pattern matching,
+termination/memory-bound/no-crash as safety properties.*
+
+---
+
+## Choreographic Case: Summarise an Article
+
+[summarise-article @url
+    IN ORDER TO
+        fetch a URL, forgivingly parse its HTML
+        extract the h1 title and the article paragraphs
+        and summarise the body only if it is substantial
+
+    @html <- [http[get {url: @url}]]
+    @tree <- [scraper[parse {html: @html}]]
+
+    @title <- [scraper[text-of
+                         {node: [scraper[select
+                                           {tree: @tree,
+                                            selector: "h1"}]] first}]]
+    @body  <- [scraper[select
+                         {tree: @tree, selector: "article p"}]]
+              mapped to [scraper[text-of {node: @p}]]
+              joined by "\n\n"
+    @links <- [scraper[select
+                         {tree: @tree, selector: "article a"}]]
+              mapped to @a:attrs:href
+
+    @body
+        where length is greater than 200
+            @summary <- [llm[summarise {text: @body}]]
+            -> {title: @title, summary: @summary, citations: @links}
+        otherwise
+            -> #content-thin {title: @title}
+]
+
+---
+
+## Verb Surface
+
+[scraper
+    parse             {html}                   ;; forgiving, never resists
+    select            {tree, selector}
+    select-recursive  {tree, chain}
+    text-of           {node}
+    attrs-of          {node}
+]
+
+---
+
+## Distinctive Innate idiom: forgiving parser `where` malformed becomes best-effort
+
+[scraper[parse {html: @input}]
+    IN ORDER TO
+        produce a structurally-valid tree from any input
+        where the parser never resists
+        because real web pages are messy and the alternative is a blank screen
+
+    tokens of @input
+        where unknown construct  -> emit as text
+        where stray close tag    -> drop
+        where unclosed tag at EOF -> close implicitly
+        where invalid entity     -> pass through verbatim
+    bounded by input length (termination)
+    bounded by input size (memory linear in input)
+]
+
+Postel's principle as a resolver contract: be strict in what you
+send, liberal in what you accept. G069's render is total; G071's
+parse is partial, and recovery IS the spec.
+
+## Distinctive Innate idiom: descendant combinator as recursive `where` match
+
+[scraper[select {tree: @t, selector: "article p"}]
+    walk @t depth-first
+        where node matches "article" (first chain element)
+            -> recurse into its descendants looking for "p"
+        always also
+            -> continue searching @t for more "article" matches
+                (nested articles still produce their own p matches)
+]
+
+Both rules apply simultaneously. Same algorithm XPath, JSONPath,
+filesystem globs, and git ref-matching all use.
+
+---
+
+## Demo
+
+[demo
+    @html <- "<article><h1>Hi</h1><p>one</p><p>two</p></article>"
+    @tree <- [scraper[parse {html: @html}]]
+
+    -> [scraper[text-of
+                  {node: [scraper[select
+                                    {tree: @tree,
+                                     selector: "h1"}]] first}]]
+    ;; -> "Hi"
+
+    -> [scraper[select {tree: @tree, selector: "article p"}]]
+       mapped to [scraper[text-of {node: @p}]]
+    ;; -> ["one", "two"]
+]

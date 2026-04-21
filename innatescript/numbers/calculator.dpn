@@ -1,0 +1,77 @@
+# G002 — Calculator
+
+*v2. See `calculator.md` for prose: the resolver IS the parser,
+`@calc` names a capability already latent in the resolver,
+expressions with agent-resolved terms are inherently concurrent.*
+
+---
+
+## Choreographic Case: Budget Reconciliation Across Departments
+
+[budget-reconciliation
+    IN ORDER TO
+        gather one term per department concurrently
+        let the calculator walk the expression tree, resolving @references
+        and deliver margin as the last reduction step
+
+    concurrent [
+        @kathryn{report: "Q4 revenue"}        -> @revenue
+    |
+        @eliana{report: "infrastructure cost"} -> @infra-cost
+    |
+        @marcus{report: "staffing cost"}       -> @staff-cost
+    ]
+    join
+
+    @net        <- [calc {expr: "@revenue - @infra-cost - @staff-cost"}]
+    @margin-pct <- [calc {expr: "@net / @revenue * 100"}]
+
+    (@kathryn){present: "Margin is " + @margin-pct + "%"}
+]
+
+---
+
+## Verb Surface
+
+[calc
+    expr            {expr}                    ;; string -> value
+    eval            {ast}                      ;; AST -> value
+]
+
+---
+
+## Distinctive Innate idiom: references resolved at descent `where` parser = resolver
+
+[calc {expr: @e}]
+    IN ORDER TO
+        walk @e as an AST, resolving any @reference before applying operators
+        because the resolver IS a recursive descent evaluator —
+        it already does this for every `@reference{with: @nested}`
+
+    for each subexpression in @e
+        where node is an @reference
+            -> resolve it first (may invoke another agent)
+        where node is a literal
+            -> return the literal
+        where node is an operator
+            -> evaluate operands (in parallel where independent)
+               then apply operator
+]
+
+The terms can be computed in parallel; the expression evaluation is
+the synchronisation point where results combine. G002 is the
+identity project — InnateScript recognising itself.
+
+---
+
+## Demo
+
+[demo
+    -> [calc {expr: "2 + 3 * 4"}]        ;; -> 14 (precedence respected)
+    -> [calc {expr: "(2 + 3) * 4"}]      ;; -> 20
+    -> [calc {expr: "10 / 3"}]           ;; -> 3.333...
+
+    @revenue <- 50000
+    @costs   <- 12000
+    -> [calc {expr: "-(@revenue - @costs)"}]     ;; -> -38000
+]

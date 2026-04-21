@@ -1,0 +1,100 @@
+# G061 — Flower Shop
+
+*v2. See `flower-shop.md` for prose: cart as staging area, atomic checkout,
+loyalty discount rule, inventory ledger consistency.*
+
+---
+
+## Choreographic Case: Weekly Flower Subscription
+
+[weekly-subscription @today
+    IN ORDER TO
+        run every active subscription's weekly order
+        as an atomic per-customer cart+checkout+email
+        without a single failure affecting the others
+
+    @subscriptions <- [db[active-subscriptions {day: @today}]]
+
+    concurrent [
+        for @sub in @subscriptions
+            @cart <- [shop[new-cart {owner: @sub:customer-id,
+                                        shipping: @sub:address:ship-cost}]]
+            for @item in @sub:items
+                [shop[add-to-cart {cart-id: @cart:id,
+                                     sku: @item:sku, qty: @item:qty}]]
+            [shop[apply-discount {cart-id: @cart:id,
+                                    rule: [loyalty[discount
+                                                    {customer: @sub:customer-id}]]}]]
+            @order <- [shop[checkout {cart-id: @cart:id}]]
+                      || -> #order-failed @sub:customer-id @resistance:reason
+            [notifications[email {to: @sub:customer,
+                                    receipt: [shop[receipt {order: @order}]]}]]
+    ]
+    join
+
+    where
+        every order status is "placed"
+        and [shop[ledger-consistent]] is true
+        and every email status is "sent"
+        || -> #week-failed @resistance:reason
+]
+
+---
+
+## Verb Surface
+
+[shop
+    new-cart          {owner, shipping?, tax-rate-bps?}
+    add-to-cart       {cart-id, sku, qty}               ;; || out-of-stock
+    update-quantity   {cart-id, sku, new-qty}
+    apply-discount    {cart-id, rule}
+    subtotal          {cart-or-order}
+    total-discount    {cart-or-order}
+    tax               {cart-or-order}
+    total             {cart-or-order}
+    checkout          {cart-id}                          ;; || inventory-conflict
+    cancel-order      {order-id}                         ;; reversal
+    fulfill-order     {order-id}
+    receipt           {order}
+    ledger-consistent
+]
+
+[loyalty
+    discount          {customer}                         ;; looks up customer tier
+]
+
+---
+
+## Distinctive Innate idiom: checkout as atomic commission
+
+[shop[checkout {cart-id: @cart}
+    where
+        all cart items are in stock at checkout time
+        and the inventory ledger remains consistent after commit
+        and either every operation commits or none does
+        || emit resistance with specific reason (out-of-stock, inventory-drift, etc.)
+]
+
+Atomicity is a resolver obligation documented in the `where`. A
+failed checkout leaves the cart untouched.
+
+---
+
+## Demo
+
+[demo
+    @shop <- [shop[new]]
+    [shop[stock {sku: "rose-red", qty: 100, price-cents: 300}]]
+    [shop[stock {sku: "rose-white", qty: 50, price-cents: 300}]]
+
+    @cart <- [shop[new-cart {owner: "alice", shipping: 500}]]
+    [shop[add-to-cart {cart-id: @cart:id, sku: "rose-red", qty: 12}]]
+    [shop[add-to-cart {cart-id: @cart:id, sku: "rose-white", qty: 6}]]
+
+    -> [shop[subtotal {cart-or-order: @cart}]]    ;; -> 5400 (18 × 300)
+    -> [shop[total {cart-or-order: @cart}]]        ;; -> 5900 (+ 500 shipping)
+
+    @order <- [shop[checkout {cart-id: @cart:id}]]
+    -> @order:status                                 ;; -> "placed"
+    -> [shop[ledger-consistent]]                     ;; -> true
+]
