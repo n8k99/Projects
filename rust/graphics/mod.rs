@@ -8,3 +8,4 @@ pub mod mp3_player;
 pub mod bulk_picture;
 pub mod cd_burner;
 pub mod youtube_downloader;
+pub mod wallpaper_manager;

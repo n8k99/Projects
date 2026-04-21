@@ -138,7 +138,7 @@
 - [x] 119. Bulk Picture Manipulator
 - [x] 120. CD Burning App
 - [x] 121. YouTube Downloader
-- [ ] 122. Wallpaper Manager
+- [x] 122. Wallpaper Manager
 - [ ] 123. Screen Capture Program
 - [ ] 124. Image Browser
 - [ ] 125. Traffic Light Application

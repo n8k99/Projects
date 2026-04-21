@@ -4445,3 +4445,45 @@ First Rosetta Stone project where **user intent is captured as a policy value**,
 First Rosetta Stone project with **a self-looping FSM bounded by an attempt counter**. G107 had bounded overruns; G121 has bounded retry cycles.
 
 G120 (cd-burner) → G121 *tick-driven slot concurrency + bandwidth fair-share + resumable-across-failure bytes + pure-function exponential backoff + policy-based format selection + attempt-bounded self-looping FSM*. Graphics 8/17. 121/130 complete.
+
+---
+
+## G122 — Wallpaper Manager (Multi-Monitor + Resolution Fit + Recency)
+
+**Multi-slot assignment instead of a single cursor.**
+
+G118's player had one `queue_position`. G122 has N monitor slots: `monitor_id → {current_wallpaper_id, last_rotation_ms, history}`. Rotation on monitor 1 doesn't affect monitor 2. General pattern whenever "the selected item" is ambient, not modal.
+
+First Rosetta Stone project where **selection is a map from context to item**, not a single global pointer.
+
+**Resolution best-fit score with directional asymmetry.**
+
+Score: exact match = 1000; aspect-ratio match up to 500; pixel-proximity up to 300 with **upscaling penalized more than downscaling** (1080p monitor with 720p vs 4K options prefers 4K — slight downscale beats visible upscale artifacts).
+
+First Rosetta Stone project where **a matching score has directional asymmetry**. G086's frecency was symmetric in its factors; G122 penalizes "below" more than "above".
+
+**Recency-weighted pick with graceful fallback.**
+
+`recency_window: int` — last N excluded. When filter would exclude everything (e.g., N > eligible pool after tag filtering), fall back to the unfiltered pool. Without fallback, the system deadlocks.
+
+First Rosetta Stone project where **a recency filter has an explicit fallback** when the filter would exclude everything.
+
+**Schedule is a policy value, not a timer.**
+
+`Schedule::{Interval(ms), FixedList(times_ms), TagWindow(tag, start_ms, end_ms, inner_ms)}`. `should_rotate(monitor)` is a pure function over schedule + state + elapsed. No timers, no sleeps. Three distinct policy shapes unified by a single check.
+
+First Rosetta Stone project where **scheduling has multiple policy shapes** (frequency / timestamp / window+tag) under one interface. G121 had one retry policy; G122 has three schedule shapes with distinct internal state.
+
+**Time-of-day via modulo on monotonic clock.**
+
+`elapsed_ms % (24 * 3600_000)` maps the manager's monotonic clock to a circular time-of-day slot. Days pass without a calendar — just elapsed advancing.
+
+First Rosetta Stone project to **map a monotonic clock to a circular-time-of-day slot via modulo**. G111 had DAG-order time; G122 has both monotonic and cyclic readings of the same clock.
+
+**At-most-once rotation per tick per monitor.**
+
+If `FixedList` has three times crossed in one tick, rotate **once**, not three times. Missed scheduled events collapse to a single end-state rotation. Flashing through catch-up would be worse UX.
+
+First Rosetta Stone project where **multiple missed scheduled events collapse to a single action per tick**.
+
+G121 (youtube-downloader) → G122 *multi-slot monitor→wallpaper mapping + asymmetric resolution fit score + recency filter with fallback + three-shape schedule policy ADT + monotonic-to-circular time mapping + collapsed missed-event semantics*. Graphics 9/17. 122/130 complete.
