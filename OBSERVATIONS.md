@@ -4734,3 +4734,51 @@ Similarity on raw coordinates is dominated by size difference. Same-shape-differ
 First Rosetta Stone project where **two operations compose to produce a meaningful composite**, and the composition is essential for the result (normalize + compare).
 
 G126 (mp3-wav) → G127 *per-point pressure + timestamp + integer-scaled Catmull-Rom splines + endpoint-preserving smoothing + disk-stamped variable-width raster + bounding-box affine normalization + point-set similarity metric requiring normalization to be meaningful*. Graphics 14/17. 127/130 complete.
+
+---
+
+## G128 — Screen Saver (Idle FSM + 2D Physics + Dim Ramp + Activity Reset)
+
+**Six-state idle FSM with mixed triggers.**
+
+`Active → Dimming → Saver → Locked → Waking → Active`. Most transitions are time-triggered; `Waking` is input-triggered (activity or explicit unlock). `Locked` is a security boundary — only `unlock()` escapes it, not mere activity.
+
+First Rosetta Stone project where **state transitions are mostly time-triggered with one explicit user-triggered transition**. G121 had retry reports; G128 mixes time + input triggers across multiple events.
+
+**Integer-scaled 2D physics for byte-identity.**
+
+Positions stored as sub-pixel × 100; velocities as sub-pixel/ms × 100. `x += vx * ms / 100`. Reflection: `x = 2*bound - x; vx = -vx`. Byte-identical across languages.
+
+First Rosetta Stone project with **2D physics simulation** — time-integrated particles with elastic edge collisions. G115's radial layout was static positioning; G128 has moving particles with velocity integration.
+
+**Reflection preserves energy.**
+
+`new_pos = 2 * bound - old_pos; new_vel = -old_vel`. Speed preserved; direction flips. Animation stays visually continuous — lines don't lose energy or stick at walls.
+
+First Rosetta Stone project where **an invariant (energy conservation) is preserved across a simulated event**.
+
+**Dim opacity is a pure function of state time.**
+
+`opacity = min(since, dim_ms) * 255 / dim_ms` where `since = elapsed - state_entered`. Computed on demand, not stored. Same inputs, same output. No drift.
+
+First Rosetta Stone project where **a visual-only scalar is computed on demand**, not stored as state. G125's cycle_side was stored; G128's dim opacity is derived.
+
+**Activity resets but doesn't unlock.**
+
+`record_activity()` in Active → idle reset; in Dimming/Saver → wake; in Locked → noop. Same event, three contextual effects. The "no effect when locked" is intentional design — security boundary vs timeout boundary.
+
+First Rosetta Stone project with **a state where the same event has different effects depending on context**, with "no effect in context X" being an intentional feature, not an omission.
+
+**Physics only runs during Saver.**
+
+`tick()` dispatches on state; physics integration only happens in `Saver`. Active/Dimming/Locked/Waking freeze the simulation. Saves CPU; keeps animation deterministic across pause/resume.
+
+First Rosetta Stone project where **a subsystem only runs during specific FSM states** — gated activation, not just gated output.
+
+**One bookkeeping scalar, three phase checks.**
+
+`state_entered_ms` is updated on every transition. `since_state = elapsed - state_entered` drives Dimming duration, Saver auto-lock, and Waking duration. One scalar, three uses.
+
+First Rosetta Stone project where **a single bookkeeping scalar is reused across multiple phase checks**.
+
+G127 (signature-maker) → G128 *six-state idle FSM with mixed time+input triggers + 2D integer-scaled physics with elastic reflection + dim opacity as derived scalar + activity resets that don't unlock Locked + physics gated to Saver state + single state_entered_ms scalar reused across three phase duration checks*. Graphics 15/17. 128/130 complete.
