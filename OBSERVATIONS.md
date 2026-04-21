@@ -4487,3 +4487,53 @@ If `FixedList` has three times crossed in one tick, rotate **once**, not three t
 First Rosetta Stone project where **multiple missed scheduled events collapse to a single action per tick**.
 
 G121 (youtube-downloader) → G122 *multi-slot monitor→wallpaper mapping + asymmetric resolution fit score + recency filter with fallback + three-shape schedule policy ADT + monotonic-to-circular time mapping + collapsed missed-event semantics*. Graphics 9/17. 122/130 complete.
+
+---
+
+## G123 — Screen Capture Program (Region ADT + Delay FSM + Overlays + Ring)
+
+**Capture region is a closed ADT.**
+
+`CaptureRegion::{FullScreen, Rect(x,y,w,h), Window(id)}`. Three shapes cover every screenshot tool's feature set. Capture is a pure function `(screen, region, window_lookup) → Image` — clones / crops / dispatches through lookup.
+
+First Rosetta Stone project where **a target selection is an ADT with per-variant payload**. G120's disc state variants were uniform; G123's region variants carry shape-specific geometry.
+
+**Delayed-capture is a five-state FSM.**
+
+`Idle → Armed → Counting → Capturing → Captured`. `delay_ms > 0` enters Counting; 0 goes straight to Capturing. `tick(ms)` drains the countdown; at 0 → Capturing. `capture` executes only in Capturing.
+
+Separating countdown-scalar from state-FSM matters: "armed, countdown not started" vs "not armed at all" are distinct UX states. Explicit transitions prevent ambiguity.
+
+First Rosetta Stone project with **a five-state FSM driven by a single countdown scalar**.
+
+**Annotations are an overlay pipeline, not a transform.**
+
+G119's pipeline: `Image → Op → Image` (resize/rotate can change dims). G123's overlays: `Image × Annotation → Image` preserve dimensions, target specific pixels, compose by paint-order (later draws over earlier).
+
+First Rosetta Stone project where **"transform" vs "overlay" is made explicit as different data/operation shapes**. Both are ordered lists but not interchangeable.
+
+**Highlights alpha-blend; others are opaque.**
+
+`Highlight { color, opacity }` blends channel-wise: `out = (base*(255-α) + color*α) / 255`. Rectangle / Arrow / Text replace pixels opaquely. The distinction is modeled as different annotation variants, not one variant with `opacity: 255`.
+
+First Rosetta Stone project where **some overlays are transparent by design and others aren't**, with structural type distinction.
+
+**Ring-buffer history evicts oldest.**
+
+`history: Vec<Capture>`, `history_max: usize`. After each capture, if `len > max`, pop oldest + emit `Evicted` event. Fixed-size; bounded memory; eviction observable.
+
+First Rosetta Stone project with **fixed-size oldest-evict semantics as first-class state** (not just a cap).
+
+**Bresenham's line for arrows.**
+
+Integer-only, no float rounding, deterministic across languages. Pixel results byte-identical across all six implementations.
+
+First Rosetta Stone project to use **Bresenham's line algorithm**. G115 used floats for radial layout; G123 picks integer math for cross-language determinism.
+
+**Window lookup is dependency-injected.**
+
+`capture(screen, window_lookup: Fn(id) → Option<Image>)`. Window pixels aren't stored in the recorder; fetched at capture time. Fresh pixel data per capture; tests inject mocks.
+
+First Rosetta Stone project where **a capture-time resolver is injected as a function parameter**.
+
+G122 (wallpaper-manager) → G123 *region ADT with per-variant geometry + five-state countdown FSM + overlay pipeline distinct from transform pipeline + alpha-blended-vs-opaque annotation variants + ring-buffer with eviction events + Bresenham line algo + DI window lookup*. Graphics 10/17. 123/130 complete.
