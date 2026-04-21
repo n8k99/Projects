@@ -143,7 +143,7 @@
 - [x] 124. Image Browser
 - [x] 125. Traffic Light Application
 - [x] 126. MP3 to Wav Converter
-- [ ] 127. Signature Maker
+- [x] 127. Signature Maker
 - [ ] 128. Screen Saver
 - [ ] 129. Watermarking Application
 - [ ] 130. Turtle Graphics

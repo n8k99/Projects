@@ -4682,3 +4682,55 @@ First Rosetta Stone project where **a specific numeric type (i16) is the sole in
 First Rosetta Stone project where **frame iteration is the decoding primitive** with per-frame format validation.
 
 G125 (traffic-light) → G126 *time-axis typed buffer mirroring spatial pixel buffer + integer-scaled linear resample + two-pass normalize-to-peak + RIFF chunk byte serialization with LE integers + i16 as sole pipeline intermediate + frame-by-frame decode with format validation*. Graphics 13/17. 126/130 complete.
+
+---
+
+## G127 — Signature Maker (Stroke Model + Catmull-Rom + Variable-Width)
+
+**Pressure + timestamp per point.**
+
+`Point { x, y, pressure: u16 (0..=1024), t_ms: u64 }`. Pressure drives ink thickness; timestamp captures stroke dynamics (fast vs slow signatures differ). Both persist through smoothing (linear-interpolated) and normalization (unchanged).
+
+First Rosetta Stone project where **points carry non-spatial metadata per sample**. G117 had per-bitrate segment sizes; G127 has per-point pressure + time.
+
+**Catmull-Rom spline smoothing, integer-scaled.**
+
+4-point local interpolant: given `p0, p1, p2, p3`, curve passes through `p1` and `p2`. Formula is a cubic in `t`. Integer-scaled (t ∈ 0..=1000, all multiplications tracked, final divide by 2_000_000) for byte-identical output across languages.
+
+First Rosetta Stone project to use **Catmull-Rom splines** as the smoothing primitive. Higher-order curve fitting on points, not pixels.
+
+**Smoothing preserves endpoints.**
+
+Raw stroke: N points. Smoothed: `1 + (N-3) * steps + 1` points. First and last input points are preserved exactly — pen-up/down positions are signal, not noise.
+
+First Rosetta Stone project where **endpoint fidelity is an explicit property of the smoothing algorithm**, asserted by tests.
+
+**Variable-width rendering via disk stamps.**
+
+Bresenham gives the trajectory. At each point, stamp a **filled disk** of radius `width / 2` (from average segment pressure). Disks overlap → continuous variable-width ink.
+
+G123's Bresenham was single-pixel arrow. G127's is disk-stamped variable-width. Same trajectory algorithm, different per-pixel operation.
+
+First Rosetta Stone project with **disk-stamped line rendering** — radial ink on a linear trajectory.
+
+**Bounding-box normalization enables comparison.**
+
+`normalize(sig, target_w, target_h)`: translate (min_x, min_y) → origin, scale to (target_w, target_h). Integer-scaled. Two signatures of any original size land in the same coordinate frame.
+
+Integer-math quirk: `(max - min) * scale / 1000` can round to `target - 1` instead of `target`. Preserved across all six languages (999 not 1000 in the demo).
+
+First Rosetta Stone project where **affine normalization (translate + scale) is the preprocessing for comparison**.
+
+**Similarity as sum of nearest-point distances.**
+
+For each point in A, find nearest in B; sum squared distances. Zero = identical; low = similar. Much simpler than DTW; captures the core intuition.
+
+First Rosetta Stone project with **a similarity metric over point sets** (not vectors of scalars as in G086).
+
+**Same shape ≠ same size without normalization.**
+
+Similarity on raw coordinates is dominated by size difference. Same-shape-different-size → similarity 0 only after normalization to shared target. The composition is essential for meaningful comparison.
+
+First Rosetta Stone project where **two operations compose to produce a meaningful composite**, and the composition is essential for the result (normalize + compare).
+
+G126 (mp3-wav) → G127 *per-point pressure + timestamp + integer-scaled Catmull-Rom splines + endpoint-preserving smoothing + disk-stamped variable-width raster + bounding-box affine normalization + point-set similarity metric requiring normalization to be meaningful*. Graphics 14/17. 127/130 complete.
