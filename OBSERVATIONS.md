@@ -4634,3 +4634,51 @@ When pedestrian walk activates during tick processing (via phase transition), th
 First Rosetta Stone project with **tick-bookkeeping that attributes time to a sub-FSM only from its activation moment**.
 
 G124 (image-browser) → G125 *coordinated-super-state projection-based lights + preemption with saved tuple + queue-driven adaptive extension capped at max + pedestrian sub-FSM gated to AllRed + single config struct with 8 timings + overflow-carry across multiple transitions + mid-tick sub-FSM activation bookkeeping*. Graphics 12/17. 125/130 complete.
+
+---
+
+## G126 — MP3 to Wav Converter (Audio Buffer + Resample + Normalize + RIFF)
+
+**Audio buffer mirrors pixel buffer — on the time axis.**
+
+`AudioBuffer { sample_rate, channels, samples: Vec<i16> }`. Interleaved (L,R,L,R,...) parallels row-major pixel layout. `sample_rate` plays the role `width`/`height` played — dimension-per-unit-of-that-axis. Same compositional pattern, new axis.
+
+First Rosetta Stone project where **the time axis gets the same typed-buffer treatment as the spatial axis**. Data shape (Vec of samples) matches G116; semantics (duration derived from sample count ÷ rate) is new.
+
+**Integer-scaled linear interpolation for resample.**
+
+`src_pos = i * src_rate * 1000 / dst_rate` → `src_frame = src_pos / 1000`, `frac = src_pos % 1000`. Output = `a + (b-a) * frac / 1000`. Byte-identical across languages. Higher-order (sinc, polyphase) requires floats — rejected for cross-language determinism.
+
+First Rosetta Stone project where **integer-scaled linear interpolation** is chosen over float math specifically for byte-identity.
+
+**Two-pass normalize (scan max, then scale).**
+
+Pass 1: find `max_abs` across all samples. Pass 2: `out[i] = in[i] * target / max_abs`. Linear and memoryless — pure function. A one-pass compressor (threshold/ratio/attack/release) is a dynamic-range processor, not a normalizer — intentionally out of scope.
+
+First Rosetta Stone project with **a two-pass algorithm where pass 1 computes a scalar parameterizing pass 2**. G120's FFD pre-sorted; G126 pre-scans for a scaling denominator.
+
+**Channel mix is explicitly trivial.**
+
+Stereo → mono: `(L + R) / 2`. Mono → stereo: duplicate. Two-line ops. Surround downmix (5.1 → stereo with coefficient matrix) intentionally out of scope.
+
+First Rosetta Stone project where **channel remix is a micro-operation by design**.
+
+**RIFF is chunk-structured byte layout with little-endian integers.**
+
+44-byte canonical header: "RIFF" + size + "WAVE" + "fmt " + 16 + format + channels + sample_rate + byte_rate + block_align + bits + "data" + size. All integers LE. Chunk sizes exclude the 8-byte chunk header (classic off-by-8 source).
+
+First Rosetta Stone project to serialize a **structured binary format with chunk-length prefixes and magic markers**. G112 produced text DDL; G126 produces LE-encoded binary bytes.
+
+**Int-16 PCM is the convergence point.**
+
+MP3 output and WAV 16-bit PCM both int16. Every pipeline op keeps samples int16. No float intermediary — same reason as resample: cross-language byte-identity. Clamping to `[-32768, 32767]` at every arithmetic boundary.
+
+First Rosetta Stone project where **a specific numeric type (i16) is the sole intermediate format** across a whole pipeline. Floats are forbidden, not optional.
+
+**Frame-by-frame decoding pattern.**
+
+`decode_mp3_to_buffer(frames)` iterates and concatenates PCM, validating per-frame metadata first. Mixed-format streams error rather than silently mis-decode. Same pattern as G117's segment loading — but G117 accumulates bytes (variable rate), G126 accumulates samples (fixed rate per frame).
+
+First Rosetta Stone project where **frame iteration is the decoding primitive** with per-frame format validation.
+
+G125 (traffic-light) → G126 *time-axis typed buffer mirroring spatial pixel buffer + integer-scaled linear resample + two-pass normalize-to-peak + RIFF chunk byte serialization with LE integers + i16 as sole pipeline intermediate + frame-by-frame decode with format validation*. Graphics 13/17. 126/130 complete.

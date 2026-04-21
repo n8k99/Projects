@@ -12,3 +12,4 @@ pub mod wallpaper_manager;
 pub mod screen_capture;
 pub mod image_browser;
 pub mod traffic_light;
+pub mod mp3_wav_converter;

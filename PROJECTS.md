@@ -142,7 +142,7 @@
 - [x] 123. Screen Capture Program
 - [x] 124. Image Browser
 - [x] 125. Traffic Light Application
-- [ ] 126. MP3 to Wav Converter
+- [x] 126. MP3 to Wav Converter
 - [ ] 127. Signature Maker
 - [ ] 128. Screen Saver
 - [ ] 129. Watermarking Application
