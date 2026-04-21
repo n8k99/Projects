@@ -4586,3 +4586,51 @@ O(N + k log k) vs O(N log N). At N=10_000 the difference matters. Implementation
 First Rosetta Stone project where **operation order within a query matters for performance** in a way worth preserving.
 
 G123 (screen-capture) → G124 *2D grid cursor derived from 1D index + LRU (not FIFO) eviction + AND-composable filter predicates + breadcrumb stack with derived path + memoized lazy thumbnail loader with miss tagging + filter-then-sort order discipline*. Graphics 11/17. 124/130 complete.
+
+---
+
+## G125 — Traffic Light Application (Coordinated Super-State + Preemption)
+
+**Coordinated super-state makes invalid combinations unrepresentable.**
+
+One `Phase` ADT (six variants incl. `EmergencyAllRed`) drives both directions. `ns_light(phase)` and `ew_light(phase)` are pure projections. Independent per-direction colors would let both be Green (a crash); the super-state forbids that.
+
+First Rosetta Stone project where **a multi-axis state is one coordinated super-state with per-axis projections**. G117's player FSM was single-axis; G125 has NS and EW sub-axes that must never contradict.
+
+**Emergency preemption with state preservation.**
+
+`begin_emergency()` saves `(phase, phase_elapsed_ms, cycle_side)`. `EmergencyAllRed` is a distinct ADT variant — `tick()` returns early on it; lights are both red by projection. `end_emergency()` restores the tuple, resuming where left off.
+
+First Rosetta Stone project where **preemption preserves resumable state across an override**. G121's retry stored bytes_done; G125 stores phase + elapsed + cycle_side.
+
+**Adaptive green extension with queue-driven cap.**
+
+At end-of-nominal-green, check the queue for that direction. `grant = min(queue * 2000ms, max_green_extension_ms - already_extended)`. Happens **once per phase**, not per tick — deterministic, no oscillation.
+
+First Rosetta Stone project where **a phase duration is recomputed once at end-of-nominal**, not continuously.
+
+**Pedestrian walk gated to AllRed.**
+
+Request queues `ped_requested: bool`. Walk activates only when the super-state transitions to AllRed (safe: no cars moving). Walk runs its own sub-FSM Inactive → Walk → Flashing → Inactive.
+
+First Rosetta Stone project with **a secondary FSM gated by a specific primary super-state**. G117/G118 had single FSMs; G125 has a ped-FSM coupled to the super-FSM only at one transition.
+
+**Phase config in a single struct.**
+
+Eight timings: `{ns_green_ms, ns_yellow_ms, ew_green_ms, ew_yellow_ms, all_red_ms, max_green_extension_ms, ped_walk_ms, ped_flashing_ms}`. Per-intersection tuning is config change, not code change.
+
+First Rosetta Stone project where **every timing constant is surfaced in a single config struct**.
+
+**Overflow carry across multiple phase transitions.**
+
+A `tick(ms)` may exceed the remaining phase duration. After transitioning, the overflow carries into the new phase; loop until consumed. Coarse ticks may traverse several phases in one call.
+
+First Rosetta Stone project where **a single tick can traverse multiple FSM transitions**.
+
+**Mid-tick sub-FSM activation gets remaining-ms only.**
+
+When pedestrian walk activates during tick processing (via phase transition), the ped clock must advance only by `overflow_after_transition`, not the full `ms` of the tick. Otherwise double-counting consumes walk time that hadn't started.
+
+First Rosetta Stone project with **tick-bookkeeping that attributes time to a sub-FSM only from its activation moment**.
+
+G124 (image-browser) → G125 *coordinated-super-state projection-based lights + preemption with saved tuple + queue-driven adaptive extension capped at max + pedestrian sub-FSM gated to AllRed + single config struct with 8 timings + overflow-carry across multiple transitions + mid-tick sub-FSM activation bookkeeping*. Graphics 12/17. 125/130 complete.

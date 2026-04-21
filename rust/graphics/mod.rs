@@ -11,3 +11,4 @@ pub mod youtube_downloader;
 pub mod wallpaper_manager;
 pub mod screen_capture;
 pub mod image_browser;
+pub mod traffic_light;

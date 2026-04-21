@@ -141,7 +141,7 @@
 - [x] 122. Wallpaper Manager
 - [x] 123. Screen Capture Program
 - [x] 124. Image Browser
-- [ ] 125. Traffic Light Application
+- [x] 125. Traffic Light Application
 - [ ] 126. MP3 to Wav Converter
 - [ ] 127. Signature Maker
 - [ ] 128. Screen Saver
