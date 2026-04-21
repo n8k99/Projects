@@ -4830,3 +4830,69 @@ A corrupted length header might decode to a huge value. Extractor checks `bits.l
 First Rosetta Stone project where **the extractor has explicit safety checks against a corrupted header** — treating extraction as potentially-adversarial decode.
 
 G128 (screen-saver) → G129 *LSB steganographic payload storage in pixel low-bits + pure-function capacity calculation + 32-bit big-endian length prefix header in bit stream + explicit high-bit-preservation invariant + position ADT with Tiled as mode-variant + deliberate reuse of G123's alpha-blend formula + graceful failure on tampered headers*. Graphics 16/17. 129/130 complete.
+
+---
+
+## G130 — Turtle Graphics (MILESTONE FINALE: Integer Trig + Program ADT + State Stack + Vector Canvas)
+
+**Integer-degree heading with modulo wrap.**
+
+Heading is `u16 ∈ 0..=359`. Turn: `heading = ((heading + d) % 360 + 360) % 360`. Double-modulo handles negative turns. 360 exact values — no radians, no floats.
+
+First Rosetta Stone project where **a cyclic coordinate (heading) uses exact integer degrees** with proper negative-aware modulo wrap.
+
+**Integer-scaled sin/cos lookup table.**
+
+91-entry table of `sin(0..=90) × 10000`, sign-flipped for other quadrants: `91..=180 → table[180-a]`, `181..=270 → -table[a-180]`, `271..=359 → -table[360-a]`. `cos(a) = sin((a+90) mod 360)` — one table, both functions.
+
+Values exact across all six languages: `sin(45) = 7071`, `sin(90) = 10000`, `sin(270) = -10000`.
+
+First Rosetta Stone project where **trig is precomputed as an integer-scaled table** for cross-language determinism. G115 used floats and accepted rounding; G130 refuses.
+
+**Program-as-data with stateful interpreter.**
+
+`Command` ADT with 11 variants. A program is `Vec<Command>`. `canvas.execute(program)` is a fold: commands in, turtle + lines accumulated. Programs are serializable, composable, concatenable, replayable.
+
+Same pattern as G119's transform pipeline but **stateful** (canvas + turtle mutate across commands). G119 was stateless (each op took buffer → buffer); G130 has persistent turtle state.
+
+First Rosetta Stone project where **a program-as-data interpreter drives stateful computation**.
+
+**State stack for nested procedures.**
+
+`PushState` snapshots the turtle (pos, heading, pen state). `PopState` restores. Proper LIFO: Push-inside-Push gives two saved states, popped last-in-first-out. Lines emitted during the "branch" are preserved; only turtle identity restores.
+
+First Rosetta Stone project where **a state stack enables return-to-origin control flow** in a stateful interpreter. G124's breadcrumbs were a stack over passive navigation; G130's stack saves active computation state.
+
+**Vector-line canvas, not pixel buffer.**
+
+Lines as `Line { x1, y1, x2, y2, color, width }` records, accumulated in a `Vec`. Rasterization happens only at `render()`, never during execution. Geometry stays abstract: zoom is free, SVG export is trivial, line count is a natural metric.
+
+First Rosetta Stone project with **a vector graphics canvas**. Every prior graphics project (G116 pixel buffer, G119 transforms, G123 annotations, G129 LSB-embedded pixels) lived in raster space; G130 lives in vector space.
+
+**Pen state snapshotted per-line at emission time.**
+
+`pen_color` / `pen_width` captured onto the `Line` at the moment it's emitted. Changing pen state after doesn't retroactively recolor past lines. Immediate binding, not deferred — the classic Logo semantic.
+
+First Rosetta Stone project where **per-emission snapshotting of configuration state** is the intentional semantic.
+
+**Square closure as a determinism test.**
+
+`(Forward(100), Turn(90)) × 4` → back to origin, heading 0 (exact). At 0°/90°/180°/270°, cos/sin are ±10000 or 0 — integer-scaled math has zero rounding at axis angles.
+
+At 45°, `cos(45) = sin(45) = 7071`; `100 × 7071 / 10000 = 70` (integer division). Rotated-45° square closes to within ±2 pixels of origin — bounded drift from 0.01-lost-per-step rounding. Tests assert `|x| ≤ 2, |y| ≤ 2`.
+
+First Rosetta Stone project where **cumulative rounding drift is bounded and asserted**. G119 had `Rotate90^4 = id` (exact); G130 has "closed polygon at axis-aligned angles; bounded drift otherwise".
+
+---
+
+G129 (watermarking) → G130 *integer-degree heading + integer-scaled sin/cos table + program-as-data with stateful interpreter + state stack for nested procedures + vector-line canvas + per-emission snapshot of pen state + bounded-rounding-drift determinism test*. Graphics 17/17. **130/130 complete.**
+
+---
+
+## MILESTONE CLOSED: Rosetta Stone
+
+130 programming projects implemented across six languages (Common Lisp, Python, Rust, Go, Lean, InnateScript), each capturing a distinctive pattern that doesn't repeat prior work. Every project produces byte-identical output across all six languages wherever numerics are involved — integer arithmetic throughout, lookup tables replacing float trig, explicit scaling factors replacing float math.
+
+The 17 Graphics projects alone introduced: pixel buffers (G116), layout algorithms (G115 radial), transform pipelines (G119), overlay pipelines (G123), capacity accounting (G120), FFD bin-packing (G120), ISO 9660 name canonicalization (G120), concurrency-limited queues (G121), resumable state (G121), policy-based format selection (G121), multi-slot assignment (G122), resolution fit scoring (G122), recency filters (G122), region ADTs (G123), FIFO ring buffers (G123), Bresenham lines (G123), disk-stamp variable-width strokes (G127), LRU caches (G124), 2D grid cursors (G124), compositional queries (G124), breadcrumb stacks (G124), coordinated super-state FSMs (G125), emergency preemption (G125), adaptive timing (G125), audio buffers (G126), linear-interpolation resample (G126), two-pass normalization (G126), RIFF byte serialization (G126), Catmull-Rom splines (G127), affine normalization (G127), point-set similarity (G127), idle FSMs (G128), 2D physics with elastic reflection (G128), dim opacity ramp (G128), LSB steganography (G129), visible watermarks (G129), integer sin/cos lookup (G130), program-as-data interpreter (G130), state stack for recursion (G130), vector-line canvas (G130).
+
+The discipline that made this tractable: **no floats across the language boundary**. Integer arithmetic, scaled constants, lookup tables, modulo wrap — every numeric operation produces identical bytes. That's the whole point of a Rosetta Stone.
