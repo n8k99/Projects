@@ -4537,3 +4537,52 @@ First Rosetta Stone project to use **Bresenham's line algorithm**. G115 used flo
 First Rosetta Stone project where **a capture-time resolver is injected as a function parameter**.
 
 G122 (wallpaper-manager) → G123 *region ADT with per-variant geometry + five-state countdown FSM + overlay pipeline distinct from transform pipeline + alpha-blended-vs-opaque annotation variants + ring-buffer with eviction events + Bresenham line algo + DI window lookup*. Graphics 10/17. 123/130 complete.
+
+---
+
+## G124 — Image Browser (2D Grid Cursor + LRU Cache + Query)
+
+**2D grid cursor over a 1D index.**
+
+Cursor is `selected: u32` into a flat list. Grid semantics derived: `row = selected / cols`, `col = selected % cols`. Moves translate to arithmetic. Down on partial last row clamps to `total - 1` so the cursor lands somewhere.
+
+First Rosetta Stone project with **2D grid navigation derived from a 1D index**. G113 had parent/child tree nav; G124 has row/col grid nav — both from flat storage.
+
+**LRU cache replaces FIFO ring.**
+
+G123's history: FIFO — evict by insertion order. G124's thumbnail cache: LRU — evict by access order. `get(k)` refreshes to MRU; `put(k,v)` on full cache evicts LRU and returns the evicted key.
+
+```
+FIFO: insert A B C D → keep {B C D}.
+LRU:  insert A B C. get A. insert D → keep {A C D}.
+```
+
+First Rosetta Stone project with **recency-based (not insertion-based) eviction**. G123 established the eviction concept; G124 shows access-pattern matters to the choice.
+
+**Query is a data value, not a method chain.**
+
+`Query { filters: [NameContains("jpg"), TagHas("nature")], sort_by: Size, order: Desc }`. Filters AND-ed (commutative, unordered). One sort, one order. Immutable; applying produces filtered+sorted result.
+
+Contrast with G119 transform pipeline (ordered list of ops). Filter composition is an *unordered set of predicates*; transform composition is an *ordered list of ops*.
+
+First Rosetta Stone project where **filter composition is AND-ed predicates, not a fluent builder**.
+
+**Breadcrumb is a stack; path is a fold.**
+
+`navigate_into` pushes; `navigate_up` pops; `current_path()` is `"/" + stack.join("/")`. The path is derived, not stored. Undo is pop; truncate-to-ancestor is `truncate(n)`; root is `is_empty()`.
+
+First Rosetta Stone project where **hierarchical navigation is a stack with derived paths**. G113 had tree structure; G124 has the *path taken* as a stack.
+
+**Thumbnail load is lazy with hit/miss tagging.**
+
+`get_or_load_thumbnail(id, producer)` returns `(value, miss: bool)`. Cached → return hit. Else call producer, cache, return miss. Miss flag lets tests verify producer called exactly once per genuine miss; UI can animate loading; telemetry can track hit rate.
+
+First Rosetta Stone project with **lazy memoization tagged with hit/miss for observability**.
+
+**Filter-then-sort, not sort-then-filter.**
+
+O(N + k log k) vs O(N log N). At N=10_000 the difference matters. Implementation order is preserved and tested.
+
+First Rosetta Stone project where **operation order within a query matters for performance** in a way worth preserving.
+
+G123 (screen-capture) → G124 *2D grid cursor derived from 1D index + LRU (not FIFO) eviction + AND-composable filter predicates + breadcrumb stack with derived path + memoized lazy thumbnail loader with miss tagging + filter-then-sort order discipline*. Graphics 11/17. 124/130 complete.
