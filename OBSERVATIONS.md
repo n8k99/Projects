@@ -4782,3 +4782,51 @@ First Rosetta Stone project where **a subsystem only runs during specific FSM st
 First Rosetta Stone project where **a single bookkeeping scalar is reused across multiple phase checks**.
 
 G127 (signature-maker) → G128 *six-state idle FSM with mixed time+input triggers + 2D integer-scaled physics with elastic reflection + dim opacity as derived scalar + activity resets that don't unlock Locked + physics gated to Saver state + single state_entered_ms scalar reused across three phase duration checks*. Graphics 15/17. 128/130 complete.
+
+---
+
+## G129 — Watermarking Application (LSB Steganography + Visible Overlay)
+
+**LSB steganography hides bytes in pixels.**
+
+Low `bits_per_channel ∈ 1..=4` of each RGB channel carry payload bits. Flipping these causes ±1 to ±15 pixel deltas — invisible at 1 bit, subtle speckle at 4 bits. Embed: serialize (length + payload) as bit stream, replace low bits with chunks. Extract: read low bits, reassemble, decode length header, slice payload.
+
+First Rosetta Stone project where **data is stored *in* pixels rather than *on* pixels**. G123 drew annotations over pixels; G129 hides data inside them.
+
+**Capacity is a pure function.**
+
+`capacity = pixel_count * 3 * bits_per_channel / 8 - 4` (minus length header). Callers can check before embedding. 32×32 image: 380 bytes at 1 bit/chan, 764 at 2 bits, 1532 at 4 bits.
+
+First Rosetta Stone project with **a capacity function that bounds a primary operation** via bit-level arithmetic. G120 had bin-packing capacity; G129 has steganographic capacity.
+
+**32-bit length-prefix header in bit stream.**
+
+Raw LSB extraction yields a bit stream of length `pixels * 3 * bits_per_channel`. Without a header the decoder can't find payload end. First 32 bits = payload byte count as big-endian u32. Extractor decodes length first, then slices.
+
+First Rosetta Stone project with **a length-prefix header in a binary-packed format** that crosses pixel boundaries. G126's RIFF headers were byte-aligned; G129's is bit-packed within the pixel stream.
+
+**High bits preserved explicitly.**
+
+`masked = channel & ~((1 << bits_per_channel) - 1); embedded = masked | chunk`. Top `8 - bits_per_channel` bits untouched. Tests assert `pixel.r & 0xFE == 0xF0` after embedding — the invariant is part of the contract.
+
+First Rosetta Stone project where **a transformation preserves an explicit bit-range invariant** asserted by tests.
+
+**Position is ADT; Tiled is a mode.**
+
+`Position::{TopLeft, TopRight, BottomLeft, BottomRight, Center, Tiled}`. Five single-placement positions + one mode variant that triggers iteration. The compositor dispatches: single placement for five, raster-loop for Tiled.
+
+First Rosetta Stone project where **a position enum has a "mode" variant that changes the operation shape** (single blend vs tiled loop).
+
+**Alpha blend shared with G123.**
+
+`out = (base * (255 - α) + wm * α) / 255` — identical formula to G123's highlight annotation. Different caller (whole-image overlay vs rectangle), same math. Deliberate reuse.
+
+First Rosetta Stone project to **reuse a numeric formula from a prior project unchanged**. Two blend formulas in one codebase would be a maintenance trap.
+
+**Tampered header fails gracefully.**
+
+A corrupted length header might decode to a huge value. Extractor checks `bits.len() >= 32 + payload_len * 8` before slicing, errors with `TruncatedData` if short. Never reads beyond the image's bit capacity.
+
+First Rosetta Stone project where **the extractor has explicit safety checks against a corrupted header** — treating extraction as potentially-adversarial decode.
+
+G128 (screen-saver) → G129 *LSB steganographic payload storage in pixel low-bits + pure-function capacity calculation + 32-bit big-endian length prefix header in bit stream + explicit high-bit-preservation invariant + position ADT with Tiled as mode-variant + deliberate reuse of G123's alpha-blend formula + graceful failure on tampered headers*. Graphics 16/17. 129/130 complete.

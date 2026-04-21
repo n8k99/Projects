@@ -15,3 +15,4 @@ pub mod traffic_light;
 pub mod mp3_wav_converter;
 pub mod signature_maker;
 pub mod screen_saver;
+pub mod watermark;

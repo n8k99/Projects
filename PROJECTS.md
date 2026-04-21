@@ -145,5 +145,5 @@
 - [x] 126. MP3 to Wav Converter
 - [x] 127. Signature Maker
 - [x] 128. Screen Saver
-- [ ] 129. Watermarking Application
+- [x] 129. Watermarking Application
 - [ ] 130. Turtle Graphics
